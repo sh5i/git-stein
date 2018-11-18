@@ -251,8 +251,17 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected void updateRefs() {
         final List<Ref> refs = Try.io(() -> repo.getRefDatabase().getRefs());
         for (final Ref ref : refs) {
-            updateRef(ref);
+            if (confirmUpdateRef(ref)) {
+                updateRef(ref);
+            }
         }
+    }
+
+    /**
+     * Confirms whether the given ref is to be updated.
+     */
+    protected boolean confirmUpdateRef(final Ref ref) {
+        return confirmStartRef(ref);
     }
 
     /**
