@@ -13,8 +13,8 @@ import org.eclipse.jgit.lib.ObjectId;
 public interface Entry {
     void registerTo(List<SingleEntry> out);
 
-    public static SingleEntry of(final FileMode mode, final String name, final ObjectId id) {
-        return new SingleEntry(mode, name, id);
+    public static SingleEntry of(final FileMode mode, final String name, final ObjectId id, final String pathContext) {
+        return new SingleEntry(mode, name, id, pathContext);
     }
 
     public static EntrySet newSet() {
@@ -36,15 +36,22 @@ public interface Entry {
 
         public final ObjectId id;
 
-        private SingleEntry(final FileMode mode, final String name, final ObjectId id) {
+        public final String pathContext;
+
+        private SingleEntry(final FileMode mode, final String name, final ObjectId id, final String path) {
             this.mode = mode;
             this.name = name;
             this.id = id;
+            this.pathContext = path;
         }
 
         @Override
         public String toString() {
-            return String.format("%s %s %s", mode, name, id);
+            if (pathContext != null) {
+                return String.format("%s %s %s", mode, name, id);
+            } else {
+                return String.format("%s %s/%s %s", mode, pathContext, name, id);
+            }
         }
 
         public boolean isTree() {
@@ -63,6 +70,7 @@ public interface Entry {
             result = prime * result + (id == null ? 0 : id.hashCode());
             result = prime * result + (mode == null ? 0 : mode.hashCode());
             result = prime * result + (name == null ? 0 : name.hashCode());
+            result = prime * result + (pathContext == null ? 0 : pathContext.hashCode());
             return result;
         }
 
@@ -97,6 +105,13 @@ public interface Entry {
                     return false;
                 }
             } else if (!name.equals(other.name)) {
+                return false;
+            }
+            if (pathContext == null) {
+                if (other.pathContext != null) {
+                    return false;
+                }
+            } else if (!pathContext.equals(other.pathContext)) {
                 return false;
             }
             return true;

@@ -38,9 +38,18 @@ public class RepositoryRewriter extends RepositoryAccess {
 
     protected ObjectInserter inserter = null;
 
+    protected boolean pathSensitive = false;
+
     public void rewrite() {
         rewriteCommits();
         updateRefs();
+    }
+
+    /**
+     * Sets whether entries are path-sensitive.
+     */
+    protected void setPathSensitive(final boolean value) {
+        this.pathSensitive = value;
     }
 
     /**
@@ -152,7 +161,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId) {
         // A root tree is represented as a special entry whose name is "/"
-        final SingleEntry root = Entry.of(FileMode.TREE, "/", treeId);
+        final SingleEntry root = Entry.of(FileMode.TREE, "/", treeId, pathSensitive ? "" : null);
         final Entry newRoot = getEntry(root);
         final ObjectId newId = newRoot == Entry.EMPTY ? writeTree(Entry.EMPTY_ENTRIES) : ((SingleEntry) newRoot).id;
 
@@ -181,7 +190,7 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected Entry rewriteEntry(final SingleEntry entry) {
         final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, entry) : rewriteBlob(entry.id, entry);
         final String newName = rewriteName(entry.name, entry);
-        return newId == ZERO ? Entry.EMPTY : Entry.of(entry.mode, newName, newId);
+        return newId == ZERO ? Entry.EMPTY : Entry.of(entry.mode, newName, newId, entry.pathContext);
     }
 
     /**
@@ -189,7 +198,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      */
     protected ObjectId rewriteTree(final ObjectId treeId, final SingleEntry entry) {
         final List<SingleEntry> entries = new ArrayList<>();
-        for (final SingleEntry e : readTree(treeId)) {
+        for (final SingleEntry e : readTree(treeId, pathSensitive ? entry.pathContext + "/" + entry.name : null)) {
             final Entry rewritten = getEntry(e);
             rewritten.registerTo(entries);
         }

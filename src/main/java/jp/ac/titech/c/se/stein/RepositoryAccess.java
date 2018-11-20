@@ -37,14 +37,14 @@ public class RepositoryAccess {
     /**
      * Reads a tree object.
      */
-    protected List<SingleEntry> readTree(final ObjectId treeId) {
+    protected List<SingleEntry> readTree(final ObjectId treeId, final String path) {
         final List<SingleEntry> result = new ArrayList<>();
         Try.io(() -> {
             try (final TreeWalk walk = new TreeWalk(repo)) {
                 walk.addTree(treeId);
                 walk.setRecursive(false);
                 while (walk.next()) {
-                    result.add(Entry.of(walk.getFileMode(), walk.getNameString(), walk.getObjectId(0)));
+                    result.add(Entry.of(walk.getFileMode(), walk.getNameString(), walk.getObjectId(0), path));
                 }
             }
         });
