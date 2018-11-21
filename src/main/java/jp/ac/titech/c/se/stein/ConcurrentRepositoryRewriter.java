@@ -1,8 +1,10 @@
 package jp.ac.titech.c.se.stein;
 
 import java.util.HashMap;
-import java.util.Map;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -19,7 +21,7 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter {
 
     protected boolean concurrent = false;
 
-    protected Map<Thread, ObjectInserter> inserters = null;
+    protected ConcurrentMap<Thread, ObjectInserter> inserters = null;
 
     public void setConcurrent(final boolean concurrent) {
         log.debug("Set concurrent: {}", concurrent);
@@ -45,7 +47,9 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter {
         inserters = new ConcurrentHashMap<>();
 
         try (final RevWalk walk = prepareRevisionWalk()) {
-            final Stream<RevCommit> stream = StreamSupport.stream(walk.spliterator(), true).parallel();
+            final int characteristics = Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL;
+            final Spliterator<RevCommit> split = Spliterators.spliteratorUnknownSize(walk.iterator(), characteristics);
+            final Stream<RevCommit> stream = StreamSupport.stream(split, true);
             stream.forEach(c -> rewriteRootTree(c.getTree().getId()));
         }
 
