@@ -50,8 +50,8 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter {
         }
 
         Try.io(() -> {
-            for (final ObjectInserter inserter : inserters.values()) {
-                inserter.flush();
+            for (final ObjectInserter ins : inserters.values()) {
+                ins.close();
             }
         });
         inserters = null;
@@ -61,7 +61,7 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter {
     protected <R> R tryInsert(final ThrowableFunction<ObjectInserter, R> f) {
         if (inserters != null) {
             final Thread thread = Thread.currentThread();
-            final ObjectInserter ins = inserters.computeIfAbsent(thread, (t) -> repo.newObjectInserter());
+            final ObjectInserter ins = inserters.computeIfAbsent(thread, (t) -> writeRepo.newObjectInserter());
             return Try.io(f).apply(ins);
         } else {
             return super.tryInsert(f);

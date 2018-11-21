@@ -19,11 +19,19 @@ public class RepositoryAccess {
 
     protected Repository repo;
 
+    protected Repository writeRepo;
+
     public RepositoryAccess() {
     }
 
     public void initialize(final Repository repo) {
         this.repo = repo;
+        this.writeRepo = repo;
+    }
+
+    public void initialize(final Repository readRepo, final Repository writeRepo) {
+        this.repo = readRepo;
+        this.writeRepo = writeRepo;
     }
 
     /**
@@ -80,7 +88,7 @@ public class RepositoryAccess {
      * Prepares an object inserter.
      */
     protected <R> R tryInsert(final ThrowableFunction<ObjectInserter, R> f) {
-        try (final ObjectInserter inserter = repo.newObjectInserter()) {
+        try (final ObjectInserter inserter = writeRepo.newObjectInserter()) {
             return Try.io(f).apply(inserter);
         }
     }

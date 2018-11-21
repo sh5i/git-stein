@@ -56,7 +56,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites all commits.
      */
     protected void rewriteCommits() {
-        try (final ObjectInserter ins = repo.newObjectInserter()) {
+        try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
             this.inserter = ins;
             try (final RevWalk walk = prepareRevisionWalk()) {
                 for (final RevCommit c : walk) {
