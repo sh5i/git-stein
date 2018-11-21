@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
 import jp.ac.titech.c.se.stein.ConcurrentRepositoryRewriter;
-import jp.ac.titech.c.se.stein.Entry.SingleEntry;
+import jp.ac.titech.c.se.stein.EntrySet.Entry;
 
 public class LineTokenizer extends ConcurrentRepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(LineTokenizer.class);
@@ -49,7 +49,7 @@ public class LineTokenizer extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    protected ObjectId rewriteBlob(final ObjectId blobId, final SingleEntry entry) {
+    protected ObjectId rewriteBlob(final ObjectId blobId, final Entry entry) {
         if (entry.name.toLowerCase().endsWith(".java")) {
             log.debug("Process: {} ({})", entry.name, blobId);
             final String source = load(blobId);

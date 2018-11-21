@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
 import jp.ac.titech.c.se.stein.ConcurrentRepositoryRewriter;
-import jp.ac.titech.c.se.stein.Entry.SingleEntry;
+import jp.ac.titech.c.se.stein.EntrySet.Entry;
 
 public class Anonymizer extends ConcurrentRepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Anonymizer.class);
@@ -70,12 +70,12 @@ public class Anonymizer extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    public ObjectId rewriteBlob(final ObjectId blobId, final SingleEntry entry) {
+    public ObjectId rewriteBlob(final ObjectId blobId, final Entry entry) {
         return writeBlob(blobId.name().getBytes());
     }
 
     @Override
-    public String rewriteName(final String name, final SingleEntry entry) {
+    public String rewriteName(final String name, final Entry entry) {
         if (entry.isTree()) {
             return treeNameMap.convert(name);
         } else {

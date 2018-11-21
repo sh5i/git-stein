@@ -12,7 +12,7 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.TreeFormatter;
 import org.eclipse.jgit.treewalk.TreeWalk;
 
-import jp.ac.titech.c.se.stein.Entry.SingleEntry;
+import jp.ac.titech.c.se.stein.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.Try.ThrowableFunction;
 
 public class RepositoryAccess {
@@ -45,14 +45,14 @@ public class RepositoryAccess {
     /**
      * Reads a tree object.
      */
-    protected List<SingleEntry> readTree(final ObjectId treeId, final String path) {
-        final List<SingleEntry> result = new ArrayList<>();
+    protected List<Entry> readTree(final ObjectId treeId, final String path) {
+        final List<Entry> result = new ArrayList<>();
         Try.io(() -> {
             try (final TreeWalk walk = new TreeWalk(repo)) {
                 walk.addTree(treeId);
                 walk.setRecursive(false);
                 while (walk.next()) {
-                    result.add(Entry.of(walk.getFileMode(), walk.getNameString(), walk.getObjectId(0), path));
+                    result.add(new Entry(walk.getFileMode(), walk.getNameString(), walk.getObjectId(0), path));
                 }
             }
         });
@@ -62,9 +62,9 @@ public class RepositoryAccess {
     /**
      * Write tree entries to a tree object.
      */
-    protected ObjectId writeTree(final Collection<SingleEntry> entries) {
+    protected ObjectId writeTree(final Collection<Entry> entries) {
         final TreeFormatter f = new TreeFormatter();
-        for (final SingleEntry e : entries) {
+        for (final Entry e : entries) {
             f.append(e.name, e.mode, e.id);
         }
         return tryInsert((ins) -> ins.insert(f));

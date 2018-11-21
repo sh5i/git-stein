@@ -24,7 +24,7 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jp.ac.titech.c.se.stein.Entry.SingleEntry;
+import jp.ac.titech.c.se.stein.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.Try.ThrowableFunction;
 
 public class RepositoryRewriter extends RepositoryAccess {
@@ -34,7 +34,7 @@ public class RepositoryRewriter extends RepositoryAccess {
 
     protected final Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
 
-    protected Map<SingleEntry, Entry> entryMapping = new HashMap<>();
+    protected Map<Entry, EntrySet> entryMapping = new HashMap<>();
 
     protected ObjectInserter inserter = null;
 
@@ -161,9 +161,9 @@ public class RepositoryRewriter extends RepositoryAccess {
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId) {
         // A root tree is represented as a special entry whose name is "/"
-        final SingleEntry root = Entry.of(FileMode.TREE, "/", treeId, pathSensitive ? "" : null);
-        final Entry newRoot = getEntry(root);
-        final ObjectId newId = newRoot == Entry.EMPTY ? writeTree(Entry.EMPTY_ENTRIES) : ((SingleEntry) newRoot).id;
+        final Entry root = new Entry(FileMode.TREE, "/", treeId, pathSensitive ? "" : null);
+        final EntrySet newRoot = getEntry(root);
+        final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(EntrySet.EMPTY_ENTRIES) : ((Entry) newRoot).id;
 
         log.debug("Rewrite tree: {} -> {}", treeId.name(), newId.name());
         return newId;
@@ -172,13 +172,13 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Obtains tree entries from a tree entry.
      */
-    protected Entry getEntry(final SingleEntry entry) {
+    protected EntrySet getEntry(final Entry entry) {
         // computeIfAbsent is unsuitable because this may be invoked recursively
-        final Entry cache = entryMapping.get(entry);
+        final EntrySet cache = entryMapping.get(entry);
         if (cache != null) {
             return cache;
         } else {
-            final Entry result = rewriteEntry(entry);
+            final EntrySet result = rewriteEntry(entry);
             entryMapping.put(entry, result);
             return result;
         }
@@ -187,19 +187,19 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites a tree entry.
      */
-    protected Entry rewriteEntry(final SingleEntry entry) {
+    protected EntrySet rewriteEntry(final Entry entry) {
         final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, entry) : rewriteBlob(entry.id, entry);
         final String newName = rewriteName(entry.name, entry);
-        return newId == ZERO ? Entry.EMPTY : Entry.of(entry.mode, newName, newId, entry.pathContext);
+        return newId == ZERO ? EntrySet.EMPTY : new Entry(entry.mode, newName, newId, entry.pathContext);
     }
 
     /**
      * Rewrites a tree object.
      */
-    protected ObjectId rewriteTree(final ObjectId treeId, final SingleEntry entry) {
-        final List<SingleEntry> entries = new ArrayList<>();
-        for (final SingleEntry e : readTree(treeId, pathSensitive ? entry.pathContext + "/" + entry.name : null)) {
-            final Entry rewritten = getEntry(e);
+    protected ObjectId rewriteTree(final ObjectId treeId, final Entry entry) {
+        final List<Entry> entries = new ArrayList<>();
+        for (final Entry e : readTree(treeId, pathSensitive ? entry.pathContext + "/" + entry.name : null)) {
+            final EntrySet rewritten = getEntry(e);
             rewritten.registerTo(entries);
         }
         return entries.isEmpty() ? ZERO : writeTree(entries);
@@ -208,14 +208,14 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites a blob object.
      */
-    protected ObjectId rewriteBlob(final ObjectId blobId, final SingleEntry entry) {
+    protected ObjectId rewriteBlob(final ObjectId blobId, final Entry entry) {
         return blobId;
     }
 
     /**
      * Rewrites the name of a tree entry.
      */
-    protected String rewriteName(final String name, final SingleEntry entry) {
+    protected String rewriteName(final String name, final Entry entry) {
         return name;
     }
 

@@ -10,26 +10,18 @@ import org.eclipse.jgit.lib.ObjectId;
 /**
  * Abstract tree entry.
  */
-public interface Entry {
-    void registerTo(List<SingleEntry> out);
-
-    public static SingleEntry of(final FileMode mode, final String name, final ObjectId id, final String pathContext) {
-        return new SingleEntry(mode, name, id, pathContext);
-    }
-
-    public static EntrySet newSet() {
-        return new EntrySet();
-    }
+public interface EntrySet {
+    void registerTo(List<Entry> out);
 
     @SuppressWarnings("unchecked")
-    public static final List<SingleEntry> EMPTY_ENTRIES = Collections.EMPTY_LIST;
+    public static final List<Entry> EMPTY_ENTRIES = Collections.EMPTY_LIST;
 
-    public static final EmptyEntry EMPTY = new EmptyEntry();
+    public static final EmptySet EMPTY = new EmptySet();
 
     /**
      * A normal tree entry.
      */
-    public static class SingleEntry implements Entry {
+    public static class Entry implements EntrySet {
         public final FileMode mode;
 
         public final String name;
@@ -38,7 +30,7 @@ public interface Entry {
 
         public final String pathContext;
 
-        private SingleEntry(final FileMode mode, final String name, final ObjectId id, final String path) {
+        public Entry(final FileMode mode, final String name, final ObjectId id, final String path) {
             this.mode = mode;
             this.name = name;
             this.id = id;
@@ -59,7 +51,7 @@ public interface Entry {
         }
 
         @Override
-        public void registerTo(final List<SingleEntry> out) {
+        public void registerTo(final List<Entry> out) {
             out.add(this);
         }
 
@@ -85,7 +77,7 @@ public interface Entry {
             if (getClass() != obj.getClass()) {
                 return false;
             }
-            final SingleEntry other = (SingleEntry) obj;
+            final Entry other = (Entry) obj;
             if (id == null) {
                 if (other.id != null) {
                     return false;
@@ -121,18 +113,18 @@ public interface Entry {
     /**
      * A set of multiple tree entries.
      */
-    public static class EntrySet implements Entry {
+    public static class EntryList implements EntrySet {
 
-        private final List<SingleEntry> entries = new ArrayList<>();
+        private final List<Entry> entries = new ArrayList<>();
 
-        private EntrySet() {
+        public EntryList() {
         }
 
-        public List<SingleEntry> entries() {
+        public List<Entry> entries() {
             return entries;
         }
 
-        public void add(final SingleEntry entry) {
+        public void add(final Entry entry) {
             entries.add(entry);
         }
 
@@ -142,7 +134,7 @@ public interface Entry {
         }
 
         @Override
-        public void registerTo(final List<SingleEntry> out) {
+        public void registerTo(final List<Entry> out) {
             out.addAll(entries);
         }
 
@@ -162,7 +154,7 @@ public interface Entry {
             if (getClass() != obj.getClass()) {
                 return false;
             }
-            final EntrySet other = (EntrySet) obj;
+            final EntryList other = (EntryList) obj;
             if (entries == null) {
                 if (other.entries != null) {
                     return false;
@@ -177,12 +169,12 @@ public interface Entry {
     /**
      * An empty set of tree entries.
      */
-    public static class EmptyEntry implements Entry {
-        private EmptyEntry() {
+    public static class EmptySet implements EntrySet {
+        private EmptySet() {
         }
 
         @Override
-        public void registerTo(final List<SingleEntry> out) {
+        public void registerTo(final List<Entry> out) {
         }
     }
 }
