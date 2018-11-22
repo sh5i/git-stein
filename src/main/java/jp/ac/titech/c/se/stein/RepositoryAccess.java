@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
@@ -12,6 +13,8 @@ import org.eclipse.jgit.lib.RefRename;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.TreeFormatter;
+import org.eclipse.jgit.revwalk.RevTag;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.TreeWalk;
 
 import jp.ac.titech.c.se.stein.EntrySet.Entry;
@@ -23,17 +26,19 @@ public class RepositoryAccess {
 
     protected Repository writeRepo;
 
+    protected boolean overwrite = true;
+
     public RepositoryAccess() {
     }
 
     public void initialize(final Repository repo) {
-        this.repo = repo;
-        this.writeRepo = repo;
+        initialize(repo, repo);
     }
 
     public void initialize(final Repository readRepo, final Repository writeRepo) {
         this.repo = readRepo;
         this.writeRepo = writeRepo;
+        this.overwrite = repo == writeRepo;
     }
 
     /**
@@ -89,33 +94,51 @@ public class RepositoryAccess {
     /**
      * Applies ref update.
      */
-    protected void applyRefUpdate(final String name, final ObjectId id) {
+    protected void applyRefUpdate(final RefEntry entry) {
         Try.io(() -> {
-            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(name, false);
+            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(entry.name, false);
             cmd.setForceUpdate(true);
-            cmd.setNewObjectId(id);
-            cmd.update();
+            if (entry.isSymbolic()) {
+                cmd.link(entry.target);
+            } else {
+                cmd.setNewObjectId(entry.id);
+                cmd.update();
+            }
         });
     }
 
     /**
-     * Applies symbolic ref update.
+     * Tests whether the given ref indicates a tag.
      */
-    protected void applySymbolicRefUpdate(final String name, final String target, final ObjectId id) {
-        Try.io(() -> {
-            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(name, false);
-            cmd.setForceUpdate(true);
-            cmd.setNewObjectId(id);
-            cmd.link(target);
-        });
+    protected boolean isTag(final Ref ref) {
+        final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
+        return peeled.getPeeledObjectId() != null;
+    }
+
+    /**
+     * Extracts tag object.
+     */
+    protected AnyObjectId parseAny(final ObjectId id) {
+        try (final RevWalk walk = new RevWalk(repo)) {
+            return Try.io(() -> walk.parseAny(id));
+        }
+    }
+
+    /**
+     * Extracts tag object.
+     */
+    protected RevTag parseTag(final ObjectId id) {
+        try (final RevWalk walk = new RevWalk(repo)) {
+            return Try.io(() -> walk.parseTag(id));
+        }
     }
 
     /**
      * Applies ref delete.
      */
-    protected void applyRefDelete(final String name) {
+    protected void applyRefDelete(final RefEntry entry) {
         Try.io(() -> {
-            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(name, false);
+            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(entry.name, false);
             cmd.setForceUpdate(true);
             cmd.delete();
         });

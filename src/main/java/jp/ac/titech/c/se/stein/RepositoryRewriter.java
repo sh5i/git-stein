@@ -14,7 +14,6 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.SymbolicRef;
 import org.eclipse.jgit.lib.TagBuilder;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevSort;
@@ -34,6 +33,8 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected final Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
 
     protected Map<Entry, EntrySet> entryMapping = new HashMap<>();
+
+    protected Map<RefEntry, RefEntry> refEntryMapping = new HashMap<>();
 
     protected ObjectInserter inserter = null;
 
@@ -275,62 +276,61 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Updates a ref object.
      */
-    protected void updateRef(final Ref ref) {
-        if (ref.isSymbolic()) {
-            updateSymbolicRef((SymbolicRef) ref);
-            updateRefName(ref);
+    protected RefEntry getRefEntry(final RefEntry entry, final Ref ref) {
+        final RefEntry cache = refEntryMapping.get(entry);
+        if (cache != null) {
+            return cache;
         } else {
-            final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
-            final ObjectId newId;
-            if (peeled.getPeeledObjectId() != null) {
-                // tag
-                final RevTag tag;
-                try (final RevWalk walk = new RevWalk(repo)) {
-                    tag = Try.io(() -> walk.parseTag(ref.getObjectId()));
-                }
-                newId = rewriteTagObject(ref.getObjectId(), tag, ref);
-            } else {
-                newId = rewriteRefTarget(ref.getObjectId(), ref);
-            }
-            writeRefTarget(ref, newId);
-            if (newId != ZERO) {
-                updateRefName(ref);
-            }
+            final RefEntry result = rewriteRefEntry(entry, ref);
+            refEntryMapping.put(entry, result);
+            return result;
         }
     }
 
     /**
-     * Updates symbolic ref object.
+     * Updates a ref object.
      */
-    protected void updateSymbolicRef(final SymbolicRef ref) {
-        final Ref target = ref.getTarget();
-        final String name = target.getName();
-        final String newName = rewriteRefName(name, target.getTarget());
-        if (!name.equals(newName)) {
-            // update symbolic ref target
-            log.debug("Update ref target ({}): {} -> {}", ref.getName(), name, newName);
-            applySymbolicRefUpdate(ref.getName(), newName, rewriteRefTarget(ref.getObjectId(), ref));
+    protected void updateRef(final Ref ref) {
+        final RefEntry oldEntry = new RefEntry(ref);
+        final RefEntry newEntry = getRefEntry(oldEntry, ref);
+        if (overwrite && !oldEntry.equals(newEntry)) {
+            applyRefDelete(oldEntry);
+        }
+        if (newEntry != RefEntry.EMPTY) {
+            applyRefUpdate(newEntry);
         }
     }
 
     /**
-     * Overwrites ref target.
+     * Rewrites a ref entry.
      */
-    protected void writeRefTarget(final Ref ref, final ObjectId newId) {
-        final ObjectId oldId = ref.getObjectId();
-        if (newId == ZERO) {
-            log.debug("Delete ref ({}): {} -> {}", ref.getName(), oldId.name(), newId.name());
-            applyRefDelete(ref.getName());
-        } else if (!newId.equals(oldId)) {
-            log.debug("Update ref target ({}): {} -> {}", ref.getName(), oldId.name(), newId.name());
-            applyRefUpdate(ref.getName(), newId);
+    protected RefEntry rewriteRefEntry(final RefEntry entry, final Ref ref) {
+        if (entry.isSymbolic()) {
+            final String newName = rewriteRefName(entry.name, ref);
+            final String newTarget = getRefEntry(new RefEntry(ref.getTarget()), ref.getTarget()).name;
+            return new RefEntry(newName, newTarget);
+        } else {
+            final String newName = rewriteRefName(entry.name, ref);
+            final ObjectId newObjectId = rewriteRefObject(entry.id, ref);
+            return newObjectId == ZERO ? RefEntry.EMPTY : new RefEntry(newName, newObjectId);
         }
     }
 
     /**
-     * Updates the target object of a ref.
+     * Rewrites the referred object by a ref.
      */
-    protected ObjectId rewriteRefTarget(final ObjectId id, final Ref ref) {
+    protected ObjectId rewriteRefObject(final ObjectId id, final Ref ref) {
+        if (isTag(ref)) {
+            return rewriteTag(id, parseTag(id), ref);
+        } else {
+            return rewriteReferredCommit(id, ref);
+        }
+    }
+
+    /**
+     * Rewrites the referred commit object by a ref.
+     */
+    protected ObjectId rewriteReferredCommit(final ObjectId id, final Ref ref) {
         final ObjectId result = commitMapping.get(id);
         return result != null ? result : id;
     }
@@ -338,8 +338,8 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites a tag object.
      */
-    protected ObjectId rewriteTagObject(final ObjectId tagId, final RevTag tag, final Ref ref) {
-        final ObjectId newObjectId = rewriteRefTarget(tag.getObject(), ref);
+    protected ObjectId rewriteTag(final ObjectId tagId, final RevTag tag, final Ref ref) {
+        final ObjectId newObjectId = rewriteReferredCommit(tag.getObject(), ref);
         if (newObjectId == ZERO) {
             return ZERO;
         }
@@ -348,8 +348,8 @@ public class RepositoryRewriter extends RepositoryAccess {
         final TagBuilder builder = new TagBuilder();
         builder.setObjectId(newObjectId, Constants.OBJ_COMMIT);
         builder.setTag(rewriteTagName(tag.getTagName(), ref));
-        builder.setTagger(rewriteTagger(tag.getTaggerIdent(), tag));
-        builder.setMessage(rewriteTagMessage(tag.getFullMessage(), tag));
+        builder.setTagger(rewriteTagger(tag.getTaggerIdent(), tag, ref));
+        builder.setMessage(rewriteTagMessage(tag.getFullMessage(), tag, ref));
 
         final ObjectId newId = tryInsert((i) -> i.insert(builder));
         log.debug("Rewrite tag: {} -> {}", tagId.name(), newId.name());
@@ -359,27 +359,15 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites the tagger identity of a tag.
      */
-    protected PersonIdent rewriteTagger(final PersonIdent tagger, final RevTag tag) {
+    protected PersonIdent rewriteTagger(final PersonIdent tagger, final RevTag tag, final Ref ref) {
         return rewritePerson(tagger);
     }
 
     /**
      * Rewrites the message of a tag.
      */
-    protected String rewriteTagMessage(final String message, final RevTag tag) {
+    protected String rewriteTagMessage(final String message, final RevTag tag, final Ref ref) {
         return rewriteMessage(message, tag.getId());
-    }
-
-    /**
-     * Updates a ref name.
-     */
-    protected void updateRefName(final Ref ref) {
-        final String oldName = ref.getName();
-        final String newName = rewriteRefName(oldName, ref);
-        if (!newName.equals(oldName)) {
-            log.debug("Rename ref: {} -> {}", oldName, newName);
-            applyRefRename(ref.getName(), newName);
-        }
     }
 
     /**

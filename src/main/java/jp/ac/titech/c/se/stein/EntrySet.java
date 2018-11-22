@@ -30,11 +30,11 @@ public interface EntrySet {
 
         public final String pathContext;
 
-        public Entry(final FileMode mode, final String name, final ObjectId id, final String path) {
+        public Entry(final FileMode mode, final String name, final ObjectId id, final String pathContext) {
             this.mode = mode;
             this.name = name;
             this.id = id;
-            this.pathContext = path;
+            this.pathContext = pathContext;
         }
 
         @Override
