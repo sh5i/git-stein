@@ -14,7 +14,6 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.SymbolicRef;
 import org.eclipse.jgit.lib.TagBuilder;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -310,13 +309,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         if (!name.equals(newName)) {
             // update symbolic ref target
             log.debug("Update ref target ({}): {} -> {}", ref.getName(), name, newName);
-            Try.io(() -> {
-                final RefUpdate update = repo.getRefDatabase().newUpdate(ref.getName(), false);
-                update.setForceUpdate(true);
-                update.link(newName);
-                update.setNewObjectId(rewriteRefTarget(ref.getObjectId(), ref));
-                update.forceUpdate();
-            });
+            applySymbolicRefUpdate(ref.getName(), newName, rewriteRefTarget(ref.getObjectId(), ref));
         }
     }
 
@@ -327,19 +320,10 @@ public class RepositoryRewriter extends RepositoryAccess {
         final ObjectId oldId = ref.getObjectId();
         if (newId == ZERO) {
             log.debug("Delete ref ({}): {} -> {}", ref.getName(), oldId.name(), newId.name());
-            Try.io(() -> {
-                final RefUpdate update = repo.getRefDatabase().newUpdate(ref.getName(), true);
-                update.setForceUpdate(true);
-                update.delete();
-            });
+            applyRefDelete(ref.getName());
         } else if (!newId.equals(oldId)) {
             log.debug("Update ref target ({}): {} -> {}", ref.getName(), oldId.name(), newId.name());
-            Try.io(() -> {
-                final RefUpdate update = repo.getRefDatabase().newUpdate(ref.getName(), true);
-                update.setForceUpdate(true);
-                update.setNewObjectId(newId);
-                update.forceUpdate();
-            });
+            applyRefUpdate(ref.getName(), newId);
         }
     }
 
@@ -394,7 +378,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         final String newName = rewriteRefName(oldName, ref);
         if (!newName.equals(oldName)) {
             log.debug("Rename ref: {} -> {}", oldName, newName);
-            Try.io(() -> repo.getRefDatabase().newRename(ref.getName(), newName).rename());
+            applyRefRename(ref.getName(), newName);
         }
     }
 

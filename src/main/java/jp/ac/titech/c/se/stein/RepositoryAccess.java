@@ -8,6 +8,8 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.RefRename;
+import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.TreeFormatter;
 import org.eclipse.jgit.treewalk.TreeWalk;
@@ -82,6 +84,51 @@ public class RepositoryAccess {
      */
     public ObjectId writeBlob(final byte[] data) {
         return tryInsert((ins) -> ins.insert(Constants.OBJ_BLOB, data));
+    }
+
+    /**
+     * Applies ref update.
+     */
+    protected void applyRefUpdate(final String name, final ObjectId id) {
+        Try.io(() -> {
+            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(name, false);
+            cmd.setForceUpdate(true);
+            cmd.setNewObjectId(id);
+            cmd.update();
+        });
+    }
+
+    /**
+     * Applies symbolic ref update.
+     */
+    protected void applySymbolicRefUpdate(final String name, final String target, final ObjectId id) {
+        Try.io(() -> {
+            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(name, false);
+            cmd.setForceUpdate(true);
+            cmd.setNewObjectId(id);
+            cmd.link(target);
+        });
+    }
+
+    /**
+     * Applies ref delete.
+     */
+    protected void applyRefDelete(final String name) {
+        Try.io(() -> {
+            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(name, false);
+            cmd.setForceUpdate(true);
+            cmd.delete();
+        });
+    }
+
+    /**
+     * Applies ref rename.
+     */
+    protected void applyRefRename(final String name, final String newName) {
+        Try.io(() -> {
+            final RefRename cmd = writeRepo.getRefDatabase().newRename(name, newName);
+            cmd.rename();
+        });
     }
 
     /**
