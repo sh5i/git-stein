@@ -3,6 +3,8 @@ package jp.ac.titech.c.se.stein;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
@@ -16,11 +18,14 @@ import org.eclipse.jgit.lib.TreeFormatter;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.TreeWalk;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.Try.ThrowableFunction;
 
 public class RepositoryAccess {
+    private static final Logger log = LoggerFactory.getLogger(RepositoryAccess.class);
 
     protected Repository repo;
 
@@ -67,14 +72,29 @@ public class RepositoryAccess {
     }
 
     /**
-     * Write tree entries to a tree object.
+     * Writes tree entries to a tree object.
      */
     protected ObjectId writeTree(final Collection<Entry> entries) {
         final TreeFormatter f = new TreeFormatter();
-        for (final Entry e : entries) {
+        for (final Entry e : sortEntries(entries)) {
             f.append(e.name, e.mode, e.id);
         }
         return tryInsert((ins) -> ins.insert(f));
+    }
+
+    /**
+     * Sorts tree entries.
+     */
+    protected Collection<Entry> sortEntries(final Collection<Entry> entries) {
+        final SortedMap<String, Entry> map = new TreeMap<>();
+        for (final Entry e : entries) {
+            final String key = e.name + (e.isTree() ? "/" : "");
+            if (map.containsKey(key)) {
+                log.warn("Entry occurred twice: {} - {}", map.get(key), e);
+            }
+            map.put(key, e);
+        }
+        return map.values();
     }
 
     /**
