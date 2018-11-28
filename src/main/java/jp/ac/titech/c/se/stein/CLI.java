@@ -32,14 +32,15 @@ public class CLI {
     public static void setLoggerLevel(final Level level) {
         final ch.qos.logback.classic.Logger rootLog = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         rootLog.setLevel(level);
+        log.debug("Set log level to {}", level);
     }
 
     public static CommandLine parseOptions(final String[] args) {
         final Options opts = new Options();
-        opts.addOption(null, "c", false, "Concurrency");
-        opts.addOption(null, "v", false, "verbose mode (info)");
-        opts.addOption(null, "vv", false, "super verbose mode (debug)");
-        opts.addOption(null, "vvv", false, "hyper verbose mode (trace)");
+        opts.addOption("c", "concurrent", false, "Rewrite trees concurrently");
+        opts.addOption(null, "level", true, "set log level (default: INFO)");
+        opts.addOption("v", "verbose", false, "verbose mode (same as --log=trace)");
+        opts.addOption("q", "quiet", false, "quiet mode (same as --log=error)");
         opts.addOption(null, "help", false, "print this help");
 
         CommandLine cmd = null;
@@ -59,15 +60,7 @@ public class CLI {
 
     public void run(final String[] args) {
         final CommandLine cmd = parseOptions(args);
-        if (cmd.hasOption("vvv")) {
-            setLoggerLevel(Level.TRACE);
-        } else if (cmd.hasOption("vv")) {
-            setLoggerLevel(Level.DEBUG);
-        } else if (cmd.hasOption("v")) {
-            setLoggerLevel(Level.INFO);
-        } else {
-            setLoggerLevel(Level.WARN);
-        }
+        setLoggerLevel(cmd);
 
         log.debug("Rewriter: {}", rewriterClass.getName());
         final RepositoryRewriter rewriter = newInstance(rewriterClass);
@@ -76,12 +69,24 @@ public class CLI {
         try (final Repository repo = new FileRepository(path)) {
             log.debug("Repository: {}", repo.getDirectory());
             rewriter.initialize(repo);
-            if (cmd.hasOption("c") && rewriter instanceof ConcurrentRepositoryRewriter) {
+            if (cmd.hasOption("concurrent") && rewriter instanceof ConcurrentRepositoryRewriter) {
                 ((ConcurrentRepositoryRewriter) rewriter).setConcurrent(true);
             }
             rewriter.rewrite();
         } catch (final IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    protected void setLoggerLevel(final CommandLine cmd) {
+        if (cmd.hasOption("level")) {
+            setLoggerLevel(Level.valueOf(cmd.getOptionValue("level")));
+        } else if (cmd.hasOption("verbose")) {
+            setLoggerLevel(Level.TRACE);
+        } else if (cmd.hasOption("quiet")) {
+            setLoggerLevel(Level.ERROR);
+        } else {
+            setLoggerLevel(Level.INFO);
         }
     }
 
