@@ -40,8 +40,9 @@ public class CLI {
     public static CommandLine parseOptions(final String[] args) {
         final Options opts = new Options();
         opts.addOption("c", "concurrent", false, "rewrite trees concurrently");
-        opts.addOption("o", "output", false, "specify output repository path (non-overwrite mode)");
+        opts.addOption("o", "output", true, "specify output repository path (non-overwrite mode)");
         opts.addOption("b", "bare", false, "treat the repository as a bare repository");
+        opts.addOption("n", "dry-run", false, "don't actually write anything");
         opts.addOption(null, "level", true, "set log level (default: INFO)");
         opts.addOption("v", "verbose", false, "verbose mode (same as --log=trace)");
         opts.addOption("q", "quiet", false, "quiet mode (same as --log=error)");
@@ -95,6 +96,10 @@ public class CLI {
                 } else {
                     log.debug("Output repository: {}", writeRepo.getDirectory());
                     rewriter.initialize(readRepo, writeRepo);
+                }
+
+                if (cmd.hasOption("dry-run")) {
+                    rewriter.setDryRunning(true);
                 }
 
                 if (cmd.hasOption("concurrent") && rewriter instanceof ConcurrentRepositoryRewriter) {

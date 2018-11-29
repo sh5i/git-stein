@@ -7,14 +7,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.TagBuilder;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTag;
@@ -130,13 +128,12 @@ public class RepositoryRewriter extends RepositoryAccess {
      * @return the object ID of the rewritten commit
      */
     protected ObjectId rewriteCommit(final RevCommit commit) {
-        final CommitBuilder builder = new CommitBuilder();
-        builder.setParentIds(rewriteParents(commit.getParents()));
-        builder.setTreeId(rewriteRootTree(commit.getTree().getId()));
-        builder.setAuthor(rewriteAuthor(commit.getAuthorIdent(), commit));
-        builder.setCommitter(rewriteCommitter(commit.getCommitterIdent(), commit));
-        builder.setMessage(rewriteCommitMessage(commit.getFullMessage(), commit));
-        final ObjectId newId = tryInsert((i) -> i.insert(builder));
+        final ObjectId[] parentIds = rewriteParents(commit.getParents());
+        final ObjectId treeId = rewriteRootTree(commit.getTree().getId());
+        final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), commit);
+        final PersonIdent committer = rewriteCommitter(commit.getCommitterIdent(), commit);
+        final String message = rewriteCommitMessage(commit.getFullMessage(), commit);
+        final ObjectId newId = writeCommit(parentIds, treeId, author, committer, message);
 
         final ObjectId oldId = commit.getId();
         commitMapping.put(oldId, newId);
@@ -345,13 +342,10 @@ public class RepositoryRewriter extends RepositoryAccess {
         }
         log.debug("Rewrite tag target: {} -> {}", tag.getObject().name(), newObjectId.name());
 
-        final TagBuilder builder = new TagBuilder();
-        builder.setObjectId(newObjectId, Constants.OBJ_COMMIT);
-        builder.setTag(rewriteTagName(tag.getTagName(), ref));
-        builder.setTagger(rewriteTagger(tag.getTaggerIdent(), tag, ref));
-        builder.setMessage(rewriteTagMessage(tag.getFullMessage(), tag, ref));
-
-        final ObjectId newId = tryInsert((i) -> i.insert(builder));
+        final String tagName = tag.getTagName();
+        final PersonIdent tagger = rewriteTagger(tag.getTaggerIdent(), tag, ref);
+        final String message = rewriteTagMessage(tag.getFullMessage(), tag, ref);
+        final ObjectId newId = writeTag(newObjectId, tagName, tagger, message);
         log.debug("Rewrite tag: {} -> {}", tagId.name(), newId.name());
         return newId;
     }
