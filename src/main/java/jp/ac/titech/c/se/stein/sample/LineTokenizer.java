@@ -80,6 +80,6 @@ public class LineTokenizer extends ConcurrentRepositoryRewriter {
     }
 
     public static void main(final String[] args) {
-        new CLI(LineTokenizer.class).run(args);
+        new CLI(LineTokenizer.class, args).run();
     }
 }

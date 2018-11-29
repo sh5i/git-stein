@@ -21,14 +21,14 @@ public class CLI {
 
     private final Class<? extends RepositoryRewriter> rewriterClass;
 
-    public CLI(final Class<? extends RepositoryRewriter> rewriterClass) {
-        this.rewriterClass = rewriterClass;
-    }
+    private final CommandLine cmd;
 
-    public CLI(final String className) {
-        rewriterClass = loadClass(className);
+    public static void main(final String[] args) {
+        final String className = args[0];
+        final String[] realArgs = Arrays.copyOfRange(args, 1, args.length);
+        new CLI(className, realArgs).run();
     }
-
+    
     public static void setLoggerLevel(final Level level) {
         final ch.qos.logback.classic.Logger rootLog = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         rootLog.setLevel(level);
@@ -58,27 +58,48 @@ public class CLI {
         return cmd;
     }
 
-    public void run(final String[] args) {
-        final CommandLine cmd = parseOptions(args);
-        setLoggerLevel(cmd);
+    public static Class<? extends RepositoryRewriter> loadClass(final String className) {
+        try {
+            @SuppressWarnings("unchecked")
+            final Class<? extends RepositoryRewriter> result = (Class<? extends RepositoryRewriter>) Class.forName(className);
+            return result;
+        } catch (final ClassNotFoundException e) {
+            log.error("Failed to load: {}", className);
+            throw new RuntimeException(e);
+        }
+    }
+
+    public CLI(final Class<? extends RepositoryRewriter> rewriterClass, final String[] args) {
+        this.rewriterClass = rewriterClass;
+        this.cmd = parseOptions(args);
+    }
+
+    public CLI(final String className, final String[] args) {
+        this(loadClass(className), args);
+    }
+
+    public void run() {
+        setLoggerLevel();
 
         log.debug("Rewriter: {}", rewriterClass.getName());
         final RepositoryRewriter rewriter = newInstance(rewriterClass);
 
         final String path = cmd.getArgs()[0];
-        try (final Repository repo = new FileRepository(path)) {
-            log.debug("Repository: {}", repo.getDirectory());
-            rewriter.initialize(repo);
-            if (cmd.hasOption("concurrent") && rewriter instanceof ConcurrentRepositoryRewriter) {
-                ((ConcurrentRepositoryRewriter) rewriter).setConcurrent(true);
+        try {
+            try (final Repository repo = new FileRepository(path)) {
+                log.debug("Repository: {}", repo.getDirectory());
+                rewriter.initialize(repo);
+                if (cmd.hasOption("concurrent") && rewriter instanceof ConcurrentRepositoryRewriter) {
+                    ((ConcurrentRepositoryRewriter) rewriter).setConcurrent(true);
+                }
+                rewriter.rewrite();
             }
-            rewriter.rewrite();
         } catch (final IOException e) {
             e.printStackTrace();
         }
     }
 
-    protected void setLoggerLevel(final CommandLine cmd) {
+    protected void setLoggerLevel() {
         if (cmd.hasOption("level")) {
             setLoggerLevel(Level.valueOf(cmd.getOptionValue("level")));
         } else if (cmd.hasOption("verbose")) {
@@ -97,26 +118,5 @@ public class CLI {
             log.error("Failed to load: {}", klass);
             throw new RuntimeException(e);
         }
-    }
-
-    protected RepositoryRewriter newInstance(final String className) {
-        return newInstance(loadClass(className));
-    }
-
-    protected Class<? extends RepositoryRewriter> loadClass(final String className) {
-        try {
-            @SuppressWarnings("unchecked")
-            final Class<? extends RepositoryRewriter> result = (Class<? extends RepositoryRewriter>) Class.forName(className);
-            return result;
-        } catch (final ClassNotFoundException e) {
-            log.error("Failed to load: {}", className);
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static void main(final String[] args) {
-        final String className = args[0];
-        final String[] realArgs = Arrays.copyOfRange(args, 1, args.length);
-        new CLI(className).run(realArgs);
     }
 }

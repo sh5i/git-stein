@@ -108,6 +108,6 @@ public class Anonymizer extends ConcurrentRepositoryRewriter {
     }
 
     public static void main(final String[] args) {
-        new CLI(Anonymizer.class).run(args);
+        new CLI(Anonymizer.class, args).run();
     }
 }
