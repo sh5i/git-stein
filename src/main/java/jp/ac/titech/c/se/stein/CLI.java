@@ -23,6 +23,8 @@ public class CLI {
 
     private final Class<? extends RepositoryRewriter> rewriterClass;
 
+    private final RepositoryRewriter rewriter;
+
     private final CommandLine cmd;
 
     public static void main(final String[] args) {
@@ -37,16 +39,17 @@ public class CLI {
         log.debug("Set log level to {}", level);
     }
 
-    public static CommandLine parseOptions(final String[] args) {
+    public static CommandLine parseOptions(final String[] args, final RepositoryRewriter rewriter) {
         final Options opts = new Options();
-        opts.addOption("c", "concurrent", false, "rewrite trees concurrently");
-        opts.addOption("o", "output", true, "specify output repository path (non-overwrite mode)");
+        opts.addOption("o", "output", true, "specify output path (non-overwrite mode)");
         opts.addOption("b", "bare", false, "treat the repository as a bare repository");
-        opts.addOption("n", "dry-run", false, "don't actually write anything");
         opts.addOption(null, "level", true, "set log level (default: INFO)");
         opts.addOption("v", "verbose", false, "verbose mode (same as --log=trace)");
         opts.addOption("q", "quiet", false, "quiet mode (same as --log=error)");
         opts.addOption(null, "help", false, "print this help");
+        if (rewriter instanceof Configurable) {
+            ((Configurable) rewriter).addOptions(opts);
+        }
 
         try {
             final CommandLineParser parser = new DefaultParser();
@@ -72,9 +75,19 @@ public class CLI {
         }
     }
 
+    public static RepositoryRewriter newInstance(final Class<? extends RepositoryRewriter> klass) {
+        try {
+            return klass.newInstance();
+        } catch (final InstantiationException | IllegalAccessException e) {
+            log.error("Failed to load: {}", klass);
+            throw new RuntimeException(e);
+        }
+    }
+
     public CLI(final Class<? extends RepositoryRewriter> rewriterClass, final String[] args) {
         this.rewriterClass = rewriterClass;
-        this.cmd = parseOptions(args);
+        this.rewriter = newInstance(rewriterClass);
+        this.cmd = parseOptions(args, this.rewriter);
     }
 
     public CLI(final String className, final String[] args) {
@@ -83,13 +96,14 @@ public class CLI {
 
     public void run() {
         setLoggerLevel();
-
         log.debug("Rewriter: {}", rewriterClass.getName());
-        final RepositoryRewriter rewriter = newInstance(rewriterClass);
+
+        if (rewriter instanceof Configurable) {
+            ((Configurable) rewriter).configure(cmd);
+        }
 
         try (final Repository readRepo = getInputRepository()) {
             log.debug("Repository: {}", readRepo.getDirectory());
-
             try (final Repository writeRepo = getOutputRepository()) {
                 if (writeRepo == null) {
                     rewriter.initialize(readRepo);
@@ -97,15 +111,6 @@ public class CLI {
                     log.debug("Output repository: {}", writeRepo.getDirectory());
                     rewriter.initialize(readRepo, writeRepo);
                 }
-
-                if (cmd.hasOption("dry-run")) {
-                    rewriter.setDryRunning(true);
-                }
-
-                if (cmd.hasOption("concurrent") && rewriter instanceof ConcurrentRepositoryRewriter) {
-                    ((ConcurrentRepositoryRewriter) rewriter).setConcurrent(true);
-                }
-
                 rewriter.rewrite();
             }
         } catch (final IOException e) {
@@ -122,15 +127,6 @@ public class CLI {
             setLoggerLevel(Level.ERROR);
         } else {
             setLoggerLevel(Level.INFO);
-        }
-    }
-
-    protected RepositoryRewriter newInstance(final Class<? extends RepositoryRewriter> klass) {
-        try {
-            return klass.newInstance();
-        } catch (final InstantiationException | IllegalAccessException e) {
-            log.error("Failed to load: {}", klass);
-            throw new RuntimeException(e);
         }
     }
 

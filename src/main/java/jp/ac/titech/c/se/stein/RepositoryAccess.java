@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.Options;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
@@ -27,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import jp.ac.titech.c.se.stein.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.Try.ThrowableFunction;
 
-public class RepositoryAccess {
+public class RepositoryAccess implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(RepositoryAccess.class);
 
     protected Repository repo;
@@ -41,6 +43,23 @@ public class RepositoryAccess {
     public RepositoryAccess() {
     }
 
+    public void setDryRunning(final boolean dryRunning) {
+        this.dryRunning = dryRunning;
+        log.debug("Dry running mode: {}", dryRunning);
+    }
+
+    @Override
+    public void addOptions(final Options opts) {
+        opts.addOption("n", "dry-run", false, "don't actually write anything");
+    }
+
+    @Override
+    public void configure(final CommandLine cmd) {
+        if (cmd.hasOption("dry-run")) {
+            setDryRunning(true);
+        }
+    }
+
     public void initialize(final Repository repo) {
         initialize(repo, repo);
     }
@@ -49,10 +68,6 @@ public class RepositoryAccess {
         this.repo = readRepo;
         this.writeRepo = writeRepo;
         this.overwrite = repo == writeRepo;
-    }
-
-    public void setDryRunning(final boolean dryRunning) {
-        this.dryRunning = dryRunning;
     }
 
     /**

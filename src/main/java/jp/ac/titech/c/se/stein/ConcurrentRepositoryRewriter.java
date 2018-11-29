@@ -8,6 +8,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.Options;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -16,7 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Try.ThrowableFunction;
 
-public class ConcurrentRepositoryRewriter extends RepositoryRewriter {
+public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(ConcurrentRepositoryRewriter.class);
 
     protected boolean concurrent = false;
@@ -27,6 +29,21 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter {
         log.debug("Set concurrent: {}", concurrent);
         this.concurrent = concurrent;
         this.entryMapping = concurrent ? new ConcurrentHashMap<>() : new HashMap<>();
+        log.debug("Concurrent mode: {}", concurrent);
+    }
+
+    @Override
+    public void addOptions(final Options opts) {
+        super.addOptions(opts);
+        opts.addOption("c", "concurrent", false, "rewrite trees concurrently");
+    }
+
+    @Override
+    public void configure(final CommandLine cmd) {
+        super.configure(cmd);
+        if (cmd.hasOption("concurrent")) {
+            setConcurrent(true);
+        }
     }
 
     /**
