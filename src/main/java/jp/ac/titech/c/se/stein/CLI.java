@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -9,8 +10,9 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-import org.eclipse.jgit.internal.storage.file.FileRepository;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +30,7 @@ public class CLI {
         final String[] realArgs = Arrays.copyOfRange(args, 1, args.length);
         new CLI(className, realArgs).run();
     }
-    
+
     public static void setLoggerLevel(final Level level) {
         final ch.qos.logback.classic.Logger rootLog = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         rootLog.setLevel(level);
@@ -37,25 +39,25 @@ public class CLI {
 
     public static CommandLine parseOptions(final String[] args) {
         final Options opts = new Options();
-        opts.addOption("c", "concurrent", false, "Rewrite trees concurrently");
+        opts.addOption("c", "concurrent", false, "rewrite trees concurrently");
+        opts.addOption("o", "output", false, "specify output repository path (non-overwrite mode)");
+        opts.addOption("b", "bare", false, "treat the repository as a bare repository");
         opts.addOption(null, "level", true, "set log level (default: INFO)");
         opts.addOption("v", "verbose", false, "verbose mode (same as --log=trace)");
         opts.addOption("q", "quiet", false, "quiet mode (same as --log=error)");
         opts.addOption(null, "help", false, "print this help");
 
-        CommandLine cmd = null;
         try {
             final CommandLineParser parser = new DefaultParser();
-            cmd = parser.parse(opts, args);
-            if (cmd.hasOption("help") || args.length == 0) {
-                new HelpFormatter().printHelp("[options] files", opts);
-                System.exit(0);
+            final CommandLine result = parser.parse(opts, args);
+            if (result.hasOption("help") || args.length == 0) {
+                new HelpFormatter().printHelp("[options] path/to/repo", opts);
+                System.exit(result.hasOption("help") ? 0 : 1);
             }
+            return result;
         } catch (final ParseException e) {
-            e.printStackTrace();
-            System.exit(1);
+            throw new RuntimeException(e);
         }
-        return cmd;
     }
 
     public static Class<? extends RepositoryRewriter> loadClass(final String className) {
@@ -84,14 +86,21 @@ public class CLI {
         log.debug("Rewriter: {}", rewriterClass.getName());
         final RepositoryRewriter rewriter = newInstance(rewriterClass);
 
-        final String path = cmd.getArgs()[0];
-        try {
-            try (final Repository repo = new FileRepository(path)) {
-                log.debug("Repository: {}", repo.getDirectory());
-                rewriter.initialize(repo);
+        try (final Repository readRepo = getInputRepository()) {
+            log.debug("Repository: {}", readRepo.getDirectory());
+
+            try (final Repository writeRepo = getOutputRepository()) {
+                if (writeRepo == null) {
+                    rewriter.initialize(readRepo);
+                } else {
+                    log.debug("Output repository: {}", writeRepo.getDirectory());
+                    rewriter.initialize(readRepo, writeRepo);
+                }
+
                 if (cmd.hasOption("concurrent") && rewriter instanceof ConcurrentRepositoryRewriter) {
                     ((ConcurrentRepositoryRewriter) rewriter).setConcurrent(true);
                 }
+
                 rewriter.rewrite();
             }
         } catch (final IOException e) {
@@ -118,5 +127,37 @@ public class CLI {
             log.error("Failed to load: {}", klass);
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Returns the input repository object.
+     */
+    protected Repository getInputRepository() throws IOException {
+        final File path = new File(cmd.getArgs()[0]);
+        final FileRepositoryBuilder builder = new FileRepositoryBuilder();
+        if (cmd.hasOption("bare")) {
+            builder.setGitDir(path).readEnvironment();
+        } else {
+            builder.findGitDir(path);
+        }
+        return builder.build();
+    }
+
+    /**
+     * Returns the output repository object. Returns null in overwrite mode.
+     */
+    protected Repository getOutputRepository() throws IOException {
+        if (!cmd.hasOption("output")) {
+            return null;
+        }
+        final File path = new File(cmd.getOptionValue("output"));
+        final FileRepositoryBuilder builder = new FileRepositoryBuilder();
+        if (cmd.hasOption("bare")) {
+            builder.setGitDir(path);
+        } else {
+            final File gitdb = new File(path, Constants.DOT_GIT);
+            builder.setGitDir(gitdb);
+        }
+        return builder.build();
     }
 }
