@@ -2,6 +2,8 @@ package jp.ac.titech.c.se.stein.sample;
 
 import java.io.UnsupportedEncodingException;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.Options;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.ToolFactory;
 import org.eclipse.jdt.core.compiler.IScanner;
@@ -18,6 +20,27 @@ import jp.ac.titech.c.se.stein.EntrySet.Entry;
 
 public class LineTokenizer extends ConcurrentRepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(LineTokenizer.class);
+
+    protected boolean decode = false;
+
+    public void setDecode(final boolean decode) {
+        this.decode = decode;
+        log.debug("Set decode mode: {}", decode);
+    }
+
+    @Override
+    public void addOptions(final Options opts) {
+        super.addOptions(opts);
+        opts.addOption("d", "decode", true, "decode tokenlines");
+    }
+
+    @Override
+    public void configure(final CommandLine cmd) {
+        super.configure(cmd);
+        if (cmd.hasOption("decode")) {
+            setDecode(true);
+        }
+    }
 
     /**
      * Encodes the given source.
@@ -53,7 +76,7 @@ public class LineTokenizer extends ConcurrentRepositoryRewriter {
         if (entry.name.toLowerCase().endsWith(".java")) {
             log.debug("Process: {} ({})", entry.name, blobId);
             final String source = load(blobId);
-            final String converted = encode(source);
+            final String converted = decode ? decode(source) : encode(source);
             return writeBlob(converted.getBytes());
         } else {
             return blobId;
