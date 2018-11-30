@@ -14,12 +14,16 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
 import jp.ac.titech.c.se.stein.ConcurrentRepositoryRewriter;
 import jp.ac.titech.c.se.stein.Try;
 
 public class SvnMetadataAnnotator extends ConcurrentRepositoryRewriter {
+    private static final Logger log = LoggerFactory.getLogger(SvnMetadataAnnotator.class);
+
     private Map<ObjectId, Integer> mapping;
 
     @Override
@@ -41,6 +45,7 @@ public class SvnMetadataAnnotator extends ConcurrentRepositoryRewriter {
     protected String rewriteCommitMessage(final String message, final RevCommit commit) {
         final Integer svnId = mapping.get(commit.getId());
         if (svnId != null) {
+            log.debug("Mapping: {} -> r{}", commit.getId().name(), svnId);
             return "svn:r" + svnId + " " + message;
         } else {
             return message;
@@ -50,10 +55,11 @@ public class SvnMetadataAnnotator extends ConcurrentRepositoryRewriter {
     protected Map<ObjectId, Integer> collectCommitMapping(final Path svnMappingFile, final Path objectMappingFile) throws IOException {
         final Map<String, String> svnMapping = collectSvnMapping(svnMappingFile);
         final Map<String, String> objectMapping = collectObjectMapping(objectMappingFile);
+
         final Map<ObjectId, Integer> result = new HashMap<>();
         for (final Map.Entry<String, String> e : svnMapping.entrySet()) {
             final ObjectId gitId = ObjectId.fromString(objectMapping.get(e.getValue()));
-            final Integer svnId = Integer.valueOf(objectMapping.get(e.getValue()));
+            final Integer svnId = Integer.valueOf(e.getKey());
             result.put(gitId, svnId);
         }
         return result;
