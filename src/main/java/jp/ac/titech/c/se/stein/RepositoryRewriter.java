@@ -206,7 +206,11 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a blob object.
      */
     protected ObjectId rewriteBlob(final ObjectId blobId, final Entry entry) {
-        return blobId;
+        if (overwrite) {
+            return blobId;
+        } else {
+            return writeBlob(readBlob(blobId));
+        }
     }
 
     /**
