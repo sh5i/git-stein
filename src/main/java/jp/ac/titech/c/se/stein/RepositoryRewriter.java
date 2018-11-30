@@ -290,10 +290,29 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected void updateRef(final Ref ref) {
         final RefEntry oldEntry = new RefEntry(ref);
         final RefEntry newEntry = getRefEntry(oldEntry, ref);
-        if (overwrite && !oldEntry.equals(newEntry)) {
-            applyRefDelete(oldEntry);
+        if (newEntry == RefEntry.EMPTY) {
+            // delete
+            if (overwrite) {
+                log.debug("Delete ref: {}", oldEntry);
+                applyRefDelete(oldEntry);
+            }
+            return;
         }
-        if (newEntry != RefEntry.EMPTY) {
+
+        if (!oldEntry.name.equals(newEntry.name)) {
+            // rename
+            if (overwrite) {
+                log.debug("Rename ref: {} -> {}", oldEntry.name, newEntry.name);
+                applyRefRename(oldEntry.name, newEntry.name);
+            }
+        }
+
+        final boolean linkEquals = oldEntry.target == null ? newEntry.target == null : oldEntry.target.equals(newEntry.target);
+        final boolean idEquals = oldEntry.id == null ? newEntry.id == null : oldEntry.id.name().equals(newEntry.id.name());
+
+        if (!overwrite || !linkEquals || !idEquals) {
+            // update
+            log.debug("Update ref: [{}] -> [{}]", oldEntry, newEntry);
             applyRefUpdate(newEntry);
         }
     }
