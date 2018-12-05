@@ -2,6 +2,12 @@ package jp.ac.titech.c.se.stein;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 
 import org.apache.commons.cli.CommandLine;
@@ -41,7 +47,8 @@ public class CLI {
 
     public static CommandLine parseOptions(final String[] args, final RepositoryRewriter rewriter) {
         final Options opts = new Options();
-        opts.addOption("o", "output", true, "specify output path (non-overwrite mode)");
+        opts.addOption("o", "output", true, "specify output path (non-overwrite)");
+        opts.addOption("d", "output-dup", true, "specify output path (duplicate-and-overwrite)");
         opts.addOption("b", "bare", false, "treat the repository as a bare repository");
         opts.addOption(null, "level", true, "set log level (default: INFO)");
         opts.addOption("v", "verbose", false, "verbose mode (same as --log=trace)");
@@ -103,7 +110,7 @@ public class CLI {
         }
 
         try (final Repository readRepo = getInputRepository()) {
-            log.debug("Repository: {}", readRepo.getDirectory());
+            log.debug("Input repository: {}", readRepo.getDirectory());
             try (final Repository writeRepo = getOutputRepository()) {
                 if (writeRepo == null) {
                     rewriter.initialize(readRepo);
@@ -134,7 +141,16 @@ public class CLI {
      * Returns the input repository object.
      */
     protected Repository getInputRepository() throws IOException {
-        final File path = new File(cmd.getArgs()[0]);
+        final File path;
+        if (cmd.hasOption("output-dup")) {
+            // duplicate mode
+            final String target = cmd.getOptionValue("output-dup");
+            copyDirectory(Paths.get(cmd.getArgs()[0]), Paths.get(target));
+            path = new File(target);
+        } else {
+            path = new File(cmd.getArgs()[0]);
+        }
+
         final FileRepositoryBuilder builder = new FileRepositoryBuilder();
         if (cmd.hasOption("bare")) {
             builder.setGitDir(path).readEnvironment();
@@ -148,17 +164,41 @@ public class CLI {
      * Returns the output repository object. Returns null in overwrite mode.
      */
     protected Repository getOutputRepository() throws IOException {
-        if (!cmd.hasOption("output")) {
+        if (cmd.hasOption("output-dup")) {
+            // duplicate mode
+            return null;
+        } else if (cmd.hasOption("output")) {
+            final File path = new File(cmd.getOptionValue("output"));
+            final FileRepositoryBuilder builder = new FileRepositoryBuilder();
+            if (cmd.hasOption("bare")) {
+                builder.setGitDir(path);
+            } else {
+                final File gitdb = new File(path, Constants.DOT_GIT);
+                builder.setGitDir(gitdb);
+            }
+            return builder.build();
+        } else {
             return null;
         }
-        final File path = new File(cmd.getOptionValue("output"));
-        final FileRepositoryBuilder builder = new FileRepositoryBuilder();
-        if (cmd.hasOption("bare")) {
-            builder.setGitDir(path);
-        } else {
-            final File gitdb = new File(path, Constants.DOT_GIT);
-            builder.setGitDir(gitdb);
-        }
-        return builder.build();
+    }
+
+    /**
+     * Copy a directory recursively.
+     */
+    protected void copyDirectory(final Path source, final Path target) throws IOException {
+        log.debug("Duplicate repository: {} to {}", source, target);
+        Files.walkFileTree(source, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult preVisitDirectory(final Path dir, final BasicFileAttributes attrs) throws IOException {
+                Files.createDirectories(target.resolve(source.relativize(dir)));
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
+                Files.copy(file, target.resolve(source.relativize(file)));
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }
