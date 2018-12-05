@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein;
+package jp.ac.titech.c.se.stein.core;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

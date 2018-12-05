@@ -23,6 +23,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.Level;
+import jp.ac.titech.c.se.stein.core.Configurable;
+import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 
 public class CLI {
     private static final Logger log = LoggerFactory.getLogger(CLI.class);

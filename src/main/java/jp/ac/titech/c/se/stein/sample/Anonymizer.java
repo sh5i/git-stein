@@ -11,8 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
-import jp.ac.titech.c.se.stein.ConcurrentRepositoryRewriter;
-import jp.ac.titech.c.se.stein.EntrySet.Entry;
+import jp.ac.titech.c.se.stein.core.ConcurrentRepositoryRewriter;
+import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 
 public class Anonymizer extends ConcurrentRepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Anonymizer.class);

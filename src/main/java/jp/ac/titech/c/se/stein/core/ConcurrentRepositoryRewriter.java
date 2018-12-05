@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein;
+package jp.ac.titech.c.se.stein.core;
 
 import java.util.HashMap;
 import java.util.Spliterator;
@@ -16,7 +16,7 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jp.ac.titech.c.se.stein.Try.ThrowableFunction;
+import jp.ac.titech.c.se.stein.core.Try.ThrowableFunction;
 
 public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(ConcurrentRepositoryRewriter.class);

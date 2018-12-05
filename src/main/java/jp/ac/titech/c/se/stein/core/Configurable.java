@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein;
+package jp.ac.titech.c.se.stein.core;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;

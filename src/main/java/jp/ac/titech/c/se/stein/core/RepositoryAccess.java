@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein;
+package jp.ac.titech.c.se.stein.core;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,8 +26,8 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jp.ac.titech.c.se.stein.EntrySet.Entry;
-import jp.ac.titech.c.se.stein.Try.ThrowableFunction;
+import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
+import jp.ac.titech.c.se.stein.core.Try.ThrowableFunction;
 
 public class RepositoryAccess implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(RepositoryAccess.class);

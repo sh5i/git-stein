@@ -18,8 +18,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
-import jp.ac.titech.c.se.stein.ConcurrentRepositoryRewriter;
-import jp.ac.titech.c.se.stein.Try;
+import jp.ac.titech.c.se.stein.core.ConcurrentRepositoryRewriter;
+import jp.ac.titech.c.se.stein.core.Try;
 
 public class SvnMetadataAnnotator extends ConcurrentRepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(SvnMetadataAnnotator.class);
