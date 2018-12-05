@@ -65,7 +65,7 @@ public class RepositoryAccess implements Configurable {
     public void initialize(final Repository readRepo, final Repository writeRepo) {
         this.repo = readRepo;
         this.writeRepo = writeRepo;
-        this.overwrite = repo == writeRepo;
+        this.overwrite = readRepo == writeRepo;
     }
 
     /**
