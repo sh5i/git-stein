@@ -6,8 +6,6 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
@@ -49,13 +47,13 @@ public class RepositoryAccess implements Configurable {
     }
 
     @Override
-    public void addOptions(final Options opts) {
-        opts.addOption("n", "dry-run", false, "don't actually write anything");
+    public void addOptions(final Config conf) {
+        conf.addOption("n", "dry-run", false, "don't actually write anything");
     }
 
     @Override
-    public void configure(final CommandLine cmd) {
-        if (cmd.hasOption("dry-run")) {
+    public void configure(final Config conf) {
+        if (conf.hasOption("dry-run")) {
             setDryRunning(true);
         }
     }

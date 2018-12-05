@@ -10,8 +10,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
@@ -19,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
 import jp.ac.titech.c.se.stein.core.ConcurrentRepositoryRewriter;
+import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Try;
 
 public class SvnMetadataAnnotator extends ConcurrentRepositoryRewriter {
@@ -27,17 +26,17 @@ public class SvnMetadataAnnotator extends ConcurrentRepositoryRewriter {
     private Map<ObjectId, Integer> mapping;
 
     @Override
-    public void addOptions(final Options opts) {
-        super.addOptions(opts);
-        opts.addOption(null, "svn-mapping", true, "specify svn mapping (log-git-repository)");
-        opts.addOption(null, "object-mapping", true, "specify object mapping (marks-git-repository)");
+    public void addOptions(final Config conf) {
+        super.addOptions(conf);
+        conf.addOption(null, "svn-mapping", true, "specify svn mapping (log-git-repository)");
+        conf.addOption(null, "object-mapping", true, "specify object mapping (marks-git-repository)");
     }
 
     @Override
-    public void configure(final CommandLine cmd) {
-        super.configure(cmd);
-        final Path svnMappingFile = Paths.get(cmd.getOptionValue("svn-mapping"));
-        final Path objectMappingFile = Paths.get(cmd.getOptionValue("object-mapping"));
+    public void configure(final Config conf) {
+        super.configure(conf);
+        final Path svnMappingFile = Paths.get(conf.getOptionValue("svn-mapping"));
+        final Path objectMappingFile = Paths.get(conf.getOptionValue("object-mapping"));
         mapping = Try.io(() -> collectCommitMapping(svnMappingFile, objectMappingFile));
     }
 

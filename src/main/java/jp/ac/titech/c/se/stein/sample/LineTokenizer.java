@@ -2,8 +2,6 @@ package jp.ac.titech.c.se.stein.sample;
 
 import java.io.UnsupportedEncodingException;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.ToolFactory;
 import org.eclipse.jdt.core.compiler.IScanner;
@@ -16,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
 import jp.ac.titech.c.se.stein.core.ConcurrentRepositoryRewriter;
+import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 
 public class LineTokenizer extends ConcurrentRepositoryRewriter {
@@ -29,15 +28,15 @@ public class LineTokenizer extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    public void addOptions(final Options opts) {
-        super.addOptions(opts);
-        opts.addOption("d", "decode", true, "decode tokenlines");
+    public void addOptions(final Config conf) {
+        super.addOptions(conf);
+        conf.addOption("d", "decode", true, "decode tokenlines");
     }
 
     @Override
-    public void configure(final CommandLine cmd) {
-        super.configure(cmd);
-        if (cmd.hasOption("decode")) {
+    public void configure(final Config conf) {
+        super.configure(conf);
+        if (conf.hasOption("decode")) {
             setDecode(true);
         }
     }

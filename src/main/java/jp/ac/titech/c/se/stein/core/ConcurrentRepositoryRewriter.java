@@ -8,8 +8,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -33,15 +31,15 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements 
     }
 
     @Override
-    public void addOptions(final Options opts) {
-        super.addOptions(opts);
-        opts.addOption("c", "concurrent", false, "rewrite trees concurrently");
+    public void addOptions(final Config conf) {
+        super.addOptions(conf);
+        conf.addOption("c", "concurrent", false, "rewrite trees concurrently");
     }
 
     @Override
-    public void configure(final CommandLine cmd) {
-        super.configure(cmd);
-        if (cmd.hasOption("concurrent")) {
+    public void configure(final Config conf) {
+        super.configure(conf);
+        if (conf.hasOption("concurrent")) {
             setConcurrent(true);
         }
     }

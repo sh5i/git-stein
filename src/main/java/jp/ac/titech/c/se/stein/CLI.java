@@ -10,12 +10,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
@@ -33,7 +28,7 @@ public class CLI {
 
     private final RepositoryRewriter rewriter;
 
-    private final CommandLine cmd;
+    private final CommonsConfig conf;
 
     public static void main(final String[] args) {
         final String className = args[0];
@@ -47,30 +42,25 @@ public class CLI {
         log.debug("Set log level to {}", level);
     }
 
-    public static CommandLine parseOptions(final String[] args, final RepositoryRewriter rewriter) {
-        final Options opts = new Options();
-        opts.addOption("o", "output", true, "specify output path (non-overwrite)");
-        opts.addOption("d", "output-dup", true, "specify output path (duplicate-and-overwrite)");
-        opts.addOption("b", "bare", false, "treat the repository as a bare repository");
-        opts.addOption(null, "level", true, "set log level (default: INFO)");
-        opts.addOption("v", "verbose", false, "verbose mode (same as --log=trace)");
-        opts.addOption("q", "quiet", false, "quiet mode (same as --log=error)");
-        opts.addOption(null, "help", false, "print this help");
+    public static CommonsConfig parseOptions(final String[] args, final RepositoryRewriter rewriter) {
+        final CommonsConfig conf = new CommonsConfig();
+        conf.addOption("o", "output", true, "specify output path (non-overwrite)");
+        conf.addOption("d", "output-dup", true, "specify output path (duplicate-and-overwrite)");
+        conf.addOption("b", "bare", false, "treat the repository as a bare repository");
+        conf.addOption(null, "level", true, "set log level (default: INFO)");
+        conf.addOption("v", "verbose", false, "verbose mode (same as --log=trace)");
+        conf.addOption("q", "quiet", false, "quiet mode (same as --log=error)");
+        conf.addOption(null, "help", false, "print this help");
         if (rewriter instanceof Configurable) {
-            ((Configurable) rewriter).addOptions(opts);
+            ((Configurable) rewriter).addOptions(conf);
         }
 
-        try {
-            final CommandLineParser parser = new DefaultParser();
-            final CommandLine result = parser.parse(opts, args);
-            if (result.hasOption("help") || args.length == 0) {
-                new HelpFormatter().printHelp("[options] path/to/repo", opts);
-                System.exit(result.hasOption("help") ? 0 : 1);
-            }
-            return result;
-        } catch (final ParseException e) {
-            throw new RuntimeException(e);
+        conf.run(args);
+        if (conf.hasOption("help") || args.length == 0) {
+            new HelpFormatter().printHelp("[options] path/to/repo", conf.getOptions());
+            System.exit(conf.hasOption("help") ? 0 : 1);
         }
+        return conf;
     }
 
     public static Class<? extends RepositoryRewriter> loadClass(final String className) {
@@ -96,7 +86,7 @@ public class CLI {
     public CLI(final Class<? extends RepositoryRewriter> rewriterClass, final String[] args) {
         this.rewriterClass = rewriterClass;
         this.rewriter = newInstance(rewriterClass);
-        this.cmd = parseOptions(args, this.rewriter);
+        this.conf = parseOptions(args, this.rewriter);
     }
 
     public CLI(final String className, final String[] args) {
@@ -108,7 +98,7 @@ public class CLI {
         log.debug("Rewriter: {}", rewriterClass.getName());
 
         if (rewriter instanceof Configurable) {
-            ((Configurable) rewriter).configure(cmd);
+            ((Configurable) rewriter).configure(conf);
         }
 
         try (final Repository readRepo = getInputRepository()) {
@@ -128,11 +118,11 @@ public class CLI {
     }
 
     protected void setLoggerLevel() {
-        if (cmd.hasOption("level")) {
-            setLoggerLevel(Level.valueOf(cmd.getOptionValue("level")));
-        } else if (cmd.hasOption("verbose")) {
+        if (conf.hasOption("level")) {
+            setLoggerLevel(Level.valueOf(conf.getOptionValue("level")));
+        } else if (conf.hasOption("verbose")) {
             setLoggerLevel(Level.TRACE);
-        } else if (cmd.hasOption("quiet")) {
+        } else if (conf.hasOption("quiet")) {
             setLoggerLevel(Level.ERROR);
         } else {
             setLoggerLevel(Level.INFO);
@@ -144,17 +134,17 @@ public class CLI {
      */
     protected Repository getInputRepository() throws IOException {
         final File path;
-        if (cmd.hasOption("output-dup")) {
+        if (conf.hasOption("output-dup")) {
             // duplicate mode
-            final String target = cmd.getOptionValue("output-dup");
-            copyDirectory(Paths.get(cmd.getArgs()[0]), Paths.get(target));
+            final String target = conf.getOptionValue("output-dup");
+            copyDirectory(Paths.get(conf.getArgs()[0]), Paths.get(target));
             path = new File(target);
         } else {
-            path = new File(cmd.getArgs()[0]);
+            path = new File(conf.getArgs()[0]);
         }
 
         final FileRepositoryBuilder builder = new FileRepositoryBuilder();
-        if (cmd.hasOption("bare")) {
+        if (conf.hasOption("bare")) {
             builder.setGitDir(path).readEnvironment();
         } else {
             builder.findGitDir(path);
@@ -166,13 +156,13 @@ public class CLI {
      * Returns the output repository object. Returns null in overwrite mode.
      */
     protected Repository getOutputRepository() throws IOException {
-        if (cmd.hasOption("output-dup")) {
+        if (conf.hasOption("output-dup")) {
             // duplicate mode
             return null;
-        } else if (cmd.hasOption("output")) {
-            final File path = new File(cmd.getOptionValue("output"));
+        } else if (conf.hasOption("output")) {
+            final File path = new File(conf.getOptionValue("output"));
             final FileRepositoryBuilder builder = new FileRepositoryBuilder();
-            if (cmd.hasOption("bare")) {
+            if (conf.hasOption("bare")) {
                 builder.setGitDir(path);
             } else {
                 final File gitdb = new File(path, Constants.DOT_GIT);
