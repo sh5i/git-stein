@@ -18,6 +18,7 @@ import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.TagBuilder;
 import org.eclipse.jgit.lib.TreeFormatter;
+import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.TreeWalk;
@@ -69,11 +70,21 @@ public class RepositoryAccess implements Configurable {
     }
 
     /**
-     * Specifies the commit that the given ref indicates.
+     * Specifies the target object that the given ref indicates.
      */
-    protected ObjectId specifyCommit(final Ref ref) {
+    protected ObjectId getRefTarget(final Ref ref) {
         final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
         return peeled.getPeeledObjectId() != null ? peeled.getPeeledObjectId() : ref.getObjectId();
+    }
+
+    /**
+     * Specifies the type of the given object.
+     */
+    protected int getObjectType(final ObjectId id) {
+        try (final RevWalk walk = new RevWalk(repo)) {
+            final RevObject object = Try.io(() -> walk.parseAny(id));
+            return object.getType();
+        }
     }
 
     /**

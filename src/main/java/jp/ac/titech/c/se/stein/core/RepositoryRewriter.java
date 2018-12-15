@@ -95,9 +95,13 @@ public class RepositoryRewriter extends RepositoryAccess {
         final List<Ref> refs = Try.io(() -> repo.getRefDatabase().getRefs());
         for (final Ref ref : refs) {
             if (confirmStartRef(ref)) {
-                final ObjectId commitId = specifyCommit(ref);
-                log.debug("Add start point: {} (specified by {})", commitId.name(), ref.getName());
-                result.add(specifyCommit(ref));
+                final ObjectId commitId = getRefTarget(ref);
+                if (getObjectType(commitId) == Constants.OBJ_COMMIT) {
+                    log.debug("Ref {}: added as a start point (id: {})", ref.getName(), commitId.name());
+                    result.add(getRefTarget(ref));
+                } else {
+                    log.debug("Ref {}: non-commit; skipped (id: {})", ref.getName(), commitId.name());
+                }
             }
         }
         return result;
@@ -351,8 +355,17 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites the referred commit object by a ref.
      */
     protected ObjectId rewriteReferredCommit(final ObjectId id, final Ref ref) {
+        if (getObjectType(id) != Constants.OBJ_COMMIT) {
+            // referring non-commit; ignore it
+            log.debug("Ref {}: Ignore non-commit (id: {})", ref.getName(), id.name());
+            return id;
+        }
         final ObjectId result = commitMapping.get(id);
-        return result != null ? result : id;
+        if (result == null) {
+            log.warn("Ref {}: Rewritten commit not found (id: {})", ref.getName(), id.name());
+            return id;
+        }
+        return result;
     }
 
     /**
