@@ -162,7 +162,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId) {
         // A root tree is represented as a special entry whose name is "/"
-        final Entry root = new Entry(FileMode.TREE, "/", treeId, pathSensitive ? "" : null);
+        final Entry root = new Entry(FileMode.TREE, "", treeId, pathSensitive ? "" : null);
         final EntrySet newRoot = getEntry(root);
         final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(EntrySet.EMPTY_ENTRIES) : ((Entry) newRoot).id;
 
@@ -199,7 +199,11 @@ public class RepositoryRewriter extends RepositoryAccess {
      */
     protected ObjectId rewriteTree(final ObjectId treeId, final Entry entry) {
         final List<Entry> entries = new ArrayList<>();
-        for (final Entry e : readTree(treeId, pathSensitive ? entry.pathContext + "/" + entry.name : null)) {
+        String pathContext = null;
+        if (pathSensitive) {
+            pathContext = entry.isRoot() ? "" : entry.pathContext + "/" + entry.name;
+        }
+        for (final Entry e : readTree(treeId, pathContext)) {
             final EntrySet rewritten = getEntry(e);
             rewritten.registerTo(entries);
         }

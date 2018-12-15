@@ -37,17 +37,21 @@ public interface EntrySet {
             this.pathContext = pathContext;
         }
 
+        public String getPath() {
+            return pathContext != null ? pathContext + "/" + name : name;
+        }
+
         @Override
         public String toString() {
-            if (pathContext != null) {
-                return String.format("%s %s %s", mode, name, id);
-            } else {
-                return String.format("%s %s/%s %s", mode, pathContext, name, id);
-            }
+            return String.format("%s %s %s", mode, getPath(), id.name());
         }
 
         public boolean isTree() {
             return FileMode.TREE.equals(mode.getBits());
+        }
+
+        public boolean isRoot() {
+            return isTree() && name.equals("");
         }
 
         @Override
