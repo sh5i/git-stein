@@ -8,6 +8,9 @@ import org.apache.commons.cli.ParseException;
 
 import jp.ac.titech.c.se.stein.core.Config;
 
+/**
+ * A Config implementation using Apache Commons CLI
+ */
 public class CommonsConfig implements Config {
 
     private CommandLine cmd;
@@ -15,7 +18,6 @@ public class CommonsConfig implements Config {
     private final Options opts = new Options();
 
     public CommonsConfig() {
-
     }
 
     @Override
