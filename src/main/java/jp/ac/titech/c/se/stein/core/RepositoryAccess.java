@@ -162,18 +162,19 @@ public class RepositoryAccess implements Configurable {
      * Applies ref update.
      */
     protected void applyRefUpdate(final RefEntry entry) {
-        if (!dryRunning) {
-            Try.io(() -> {
-                final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(entry.name, false);
-                cmd.setForceUpdate(true);
-                if (entry.isSymbolic()) {
-                    cmd.link(entry.target);
-                } else {
-                    cmd.setNewObjectId(entry.id);
-                    cmd.update();
-                }
-            });
+        if (dryRunning) {
+            return;
         }
+        Try.io(() -> {
+            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(entry.name, false);
+            cmd.setForceUpdate(true);
+            if (entry.isSymbolic()) {
+                cmd.link(entry.target);
+            } else {
+                cmd.setNewObjectId(entry.id);
+                cmd.update();
+            }
+        });
     }
 
     /**
@@ -206,25 +207,27 @@ public class RepositoryAccess implements Configurable {
      * Applies ref delete.
      */
     protected void applyRefDelete(final RefEntry entry) {
-        if (!dryRunning) {
-            Try.io(() -> {
-                final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(entry.name, false);
-                cmd.setForceUpdate(true);
-                cmd.delete();
-            });
+        if (dryRunning) {
+            return;
         }
+        Try.io(() -> {
+            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(entry.name, false);
+            cmd.setForceUpdate(true);
+            cmd.delete();
+        });
     }
 
     /**
      * Applies ref rename.
      */
     protected void applyRefRename(final String name, final String newName) {
-        if (!dryRunning) {
-            Try.io(() -> {
-                final RefRename cmd = writeRepo.getRefDatabase().newRename(name, newName);
-                cmd.rename();
-            });
+        if (dryRunning) {
+            return;
         }
+        Try.io(() -> {
+            final RefRename cmd = writeRepo.getRefDatabase().newRename(name, newName);
+            cmd.rename();
+        });
     }
 
     /**
