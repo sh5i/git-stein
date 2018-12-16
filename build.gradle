@@ -12,7 +12,7 @@ dependencies {
     testImplementation 'junit:junit:4.12'
 
     // dependencies for sample code: available only if a properties is defined
-    if (project.hasProperty("stein.runsample")) {
+    if (project.findProperty("stein.runsample") == "yes") {
         implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.15.0'
         implementation 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
     } else {
