@@ -98,7 +98,7 @@ public class RepositoryRewriter extends RepositoryAccess {
                 final ObjectId commitId = getRefTarget(ref);
                 if (getObjectType(commitId) == Constants.OBJ_COMMIT) {
                     log.debug("Ref {}: added as a start point (id: {})", ref.getName(), commitId.name());
-                    result.add(getRefTarget(ref));
+                    result.add(commitId);
                 } else {
                     log.debug("Ref {}: non-commit; skipped (id: {})", ref.getName(), commitId.name());
                 }
