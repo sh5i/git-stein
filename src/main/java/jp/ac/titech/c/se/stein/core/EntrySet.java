@@ -43,7 +43,7 @@ public interface EntrySet {
 
         @Override
         public String toString() {
-            return String.format("%s %s %s", mode, getPath(), id.name());
+            return String.format("<Entry:%s %s %s>", mode, getPath(), id.name());
         }
 
         public boolean isTree() {

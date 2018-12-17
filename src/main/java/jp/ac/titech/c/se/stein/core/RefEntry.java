@@ -39,7 +39,7 @@ public class RefEntry {
 
     @Override
     public String toString() {
-        return String.format("%s %s", name, target != null ? target : id.name());
+        return String.format("<Ref:%s %s>", name, target != null ? target : id.name());
     }
 
     @Override

@@ -324,7 +324,7 @@ public class RepositoryRewriter extends RepositoryAccess {
 
         if (!overwrite || !linkEquals || !idEquals) {
             // update
-            log.debug("Update ref: [{}] -> [{}]", oldEntry, newEntry);
+            log.debug("Update ref: {} -> {}", oldEntry, newEntry);
             applyRefUpdate(newEntry);
         }
     }
