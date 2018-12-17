@@ -41,6 +41,7 @@ public class RepositoryRewriter extends RepositoryAccess {
     public void rewrite() {
         rewriteCommits();
         updateRefs();
+        cleanUp();
     }
 
     /**
@@ -431,6 +432,12 @@ public class RepositoryRewriter extends RepositoryAccess {
      */
     protected String rewriteTagName(final String name, final Ref ref) {
         return name;
+    }
+
+    /**
+     * A hook method for cleaning up.
+     */
+    protected void cleanUp() {
     }
 
     @Override
