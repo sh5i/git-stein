@@ -14,6 +14,7 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.Try.ThrowableFunction;
 
 public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements Configurable {
@@ -65,10 +66,10 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements 
             final int characteristics = Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL;
             final Spliterator<RevCommit> split = Spliterators.spliteratorUnknownSize(walk.iterator(), characteristics);
             final Stream<RevCommit> stream = StreamSupport.stream(split, true);
-            stream.forEach(commit -> rewriteRootTree(commit.getTree().getId(), c));
+            stream.forEach(commit -> rewriteRootTree(commit.getTree().getId(), c.with(Key.commit, commit.getId().name())));
         }
 
-        Try.io(() -> {
+        Try.io(c, () -> {
             for (final ObjectInserter ins : inserters.values()) {
                 ins.close();
             }
