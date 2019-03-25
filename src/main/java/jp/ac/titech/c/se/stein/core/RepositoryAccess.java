@@ -123,7 +123,7 @@ public class RepositoryAccess implements Configurable {
         for (final Entry e : entries) {
             final String key = e.name + (e.isTree() ? "/" : "");
             if (map.containsKey(key)) {
-                log.warn("Entry occurred twice: {} (found: {}, new: {})", e.getPath(), map.get(key).id.name(), e.id.name());
+                log.warn("Entry occurred twice: {} (found: {}, new: {}, {})", e.getPath(), map.get(key).id.name(), e.id.name(), c);
             }
             map.put(key, e);
         }

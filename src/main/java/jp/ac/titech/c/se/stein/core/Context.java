@@ -16,7 +16,7 @@ import org.eclipse.jgit.revwalk.RevTag;
 public class Context implements Map<Context.Key, Object> {
 
     public enum Key {
-        Commit, Entry, Id, Path, Ref, Root, Tag, Tree;
+        commit, entry, id, path, ref, repo, root, tag, tree;
     }
 
     private final Context parent;
@@ -49,9 +49,9 @@ public class Context implements Map<Context.Key, Object> {
     }
 
     protected void appendKeyValue(final StringBuilder sb) {
-        sb.append(key).append(":").append('"').append(value).append('"');
+        sb.append(key).append(": ").append('"').append(value).append('"');
         if (parent != null) {
-            sb.append(",");
+            sb.append(", ");
             parent.appendKeyValue(sb);
         }
     }
@@ -147,22 +147,22 @@ public class Context implements Map<Context.Key, Object> {
     // Utility methods
 
     public RevCommit getCommit() {
-        return (RevCommit) get(Key.Commit);
+        return (RevCommit) get(Key.commit);
     }
 
     public RevTag getTag() {
-        return (RevTag) get(Key.Tag);
+        return (RevTag) get(Key.tag);
     }
 
     public ObjectId getId() {
-        return (ObjectId) get(Key.Id);
+        return (ObjectId) get(Key.id);
     }
 
     public Ref getRef() {
-        return (Ref) get(Key.Ref);
+        return (Ref) get(Key.ref);
     }
 
     public EntrySet.Entry getEntry() {
-        return (EntrySet.Entry) get(Key.Entry);
+        return (EntrySet.Entry) get(Key.entry);
     }
 }

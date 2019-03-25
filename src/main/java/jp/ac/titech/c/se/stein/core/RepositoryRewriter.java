@@ -20,6 +20,7 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.Try.ThrowableFunction;
 
@@ -45,7 +46,7 @@ public class RepositoryRewriter extends RepositoryAccess {
     }
 
     public void rewrite() {
-        rewrite(null);
+        rewrite(new Context(null, Key.repo, writeRepo.getDirectory()));
     }
 
     /**
@@ -137,12 +138,14 @@ public class RepositoryRewriter extends RepositoryAccess {
      * @return the object ID of the rewritten commit
      */
     protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
-        final ObjectId[] parentIds = rewriteParents(commit.getParents(), c);
-        final ObjectId treeId = rewriteRootTree(commit.getTree().getId(), c);
-        final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), commit, c);
-        final PersonIdent committer = rewriteCommitter(commit.getCommitterIdent(), commit, c);
-        final String message = rewriteCommitMessage(commit.getFullMessage(), commit, c);
-        final ObjectId newId = writeCommit(parentIds, treeId, author, committer, message, c);
+        final Context uc = c.with(Key.commit, commit);
+
+        final ObjectId[] parentIds = rewriteParents(commit.getParents(), uc);
+        final ObjectId treeId = rewriteRootTree(commit.getTree().getId(), uc);
+        final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), commit, uc);
+        final PersonIdent committer = rewriteCommitter(commit.getCommitterIdent(), commit, uc);
+        final String message = rewriteCommitMessage(commit.getFullMessage(), commit, uc);
+        final ObjectId newId = writeCommit(parentIds, treeId, author, committer, message, uc);
 
         final ObjectId oldId = commit.getId();
         commitMapping.put(oldId, newId);
@@ -166,10 +169,12 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites the root tree of a commit.
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
+        final Context uc = c.with(Key.root, treeId);
+
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = new Entry(FileMode.TREE, "", treeId, pathSensitive ? "" : null);
-        final EntrySet newRoot = getEntry(root, c);
-        final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(EntrySet.EMPTY_ENTRIES, c) : ((Entry) newRoot).id;
+        final EntrySet newRoot = getEntry(root, uc);
+        final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(EntrySet.EMPTY_ENTRIES, uc) : ((Entry) newRoot).id;
 
         log.debug("Rewrite tree: {} -> {}", treeId.name(), newId.name());
         return newId;
@@ -194,8 +199,10 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a tree entry.
      */
     protected EntrySet rewriteEntry(final Entry entry, final Context c) {
-        final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, entry, c) : rewriteBlob(entry.id, entry, c);
-        final String newName = rewriteName(entry.name, entry, c);
+        final Context uc = c.with(Key.path, entry.getPath());
+
+        final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, entry, c) : rewriteBlob(entry.id, entry, uc);
+        final String newName = rewriteName(entry.name, entry, uc);
         return newId == ZERO ? EntrySet.EMPTY : new Entry(entry.mode, newName, newId, entry.pathContext);
     }
 
@@ -203,16 +210,18 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a tree object.
      */
     protected ObjectId rewriteTree(final ObjectId treeId, final Entry entry, final Context c) {
+        final Context uc = c.with(Key.path, entry.getPath());
+
         final List<Entry> entries = new ArrayList<>();
         String pathContext = null;
         if (pathSensitive) {
             pathContext = entry.isRoot() ? "" : entry.pathContext + "/" + entry.name;
         }
-        for (final Entry e : readTree(treeId, pathContext, c)) {
+        for (final Entry e : readTree(treeId, pathContext, uc)) {
             final EntrySet rewritten = getEntry(e, c);
             rewritten.registerTo(entries);
         }
-        return entries.isEmpty() ? ZERO : writeTree(entries, c);
+        return entries.isEmpty() ? ZERO : writeTree(entries, uc);
     }
 
     /**
