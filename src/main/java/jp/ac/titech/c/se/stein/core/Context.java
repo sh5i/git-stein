@@ -26,7 +26,7 @@ public class Context implements Map<Context.Key, Object> {
     private final Object value;
 
     public Context(final Context parent, final Key key, final Object value) {
-        this.parent = null;
+        this.parent = parent;
         this.key = key;
         this.value = value;
     }
