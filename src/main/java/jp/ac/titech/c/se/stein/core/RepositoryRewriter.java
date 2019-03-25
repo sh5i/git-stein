@@ -46,7 +46,7 @@ public class RepositoryRewriter extends RepositoryAccess {
     }
 
     public void rewrite() {
-        rewrite(new Context(null, Key.repo, writeRepo.getDirectory()));
+        rewrite(new Context(Key.repo, writeRepo.getDirectory()));
     }
 
     /**
@@ -79,7 +79,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
 
         final RevWalk walk = new RevWalk(repo);
-        Try.io(() -> {
+        Try.io(c, () -> {
             for (final ObjectId id : starts) {
                 walk.markStart(walk.parseCommit(id));
             }
@@ -98,7 +98,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      */
     protected Collection<ObjectId> collectStarts(final Context c) {
         final List<ObjectId> result = new ArrayList<>();
-        final List<Ref> refs = Try.io(() -> repo.getRefDatabase().getRefs());
+        final List<Ref> refs = Try.io(c, () -> repo.getRefDatabase().getRefs());
         for (final Ref ref : refs) {
             if (confirmStartRef(ref, c)) {
                 final ObjectId commitId = getRefTarget(ref, c);
@@ -138,7 +138,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * @return the object ID of the rewritten commit
      */
     protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
-        final Context uc = c.with(Key.commit, commit);
+        final Context uc = c.with(Key.commit, commit.getId().name());
 
         final ObjectId[] parentIds = rewriteParents(commit.getParents(), uc);
         final ObjectId treeId = rewriteRootTree(commit.getTree().getId(), uc);
@@ -169,7 +169,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites the root tree of a commit.
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
-        final Context uc = c.with(Key.root, treeId);
+        final Context uc = c.with(Key.root, treeId.name());
 
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = new Entry(FileMode.TREE, "", treeId, pathSensitive ? "" : null);
@@ -281,7 +281,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Updates ref objects.
      */
     protected void updateRefs(final Context c) {
-        final List<Ref> refs = Try.io(() -> repo.getRefDatabase().getRefs());
+        final List<Ref> refs = Try.io(c, () -> repo.getRefDatabase().getRefs());
         for (final Ref ref : refs) {
             if (confirmUpdateRef(ref, c)) {
                 updateRef(ref, c);

@@ -31,11 +31,27 @@ public class Try {
         }
     }
 
+    public static void io(final Context c, final ThrowableRunnable f) {
+        try {
+            f.run();
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Exception raised (context: " + c + ")", e);
+        }
+    }
+
     public static <T> T io(final ThrowableSupplier<T> f) {
         try {
             return f.get();
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    public static <T> T io(final Context c, final ThrowableSupplier<T> f) {
+        try {
+            return f.get();
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Exception raised (context: " + c + ")", e);
         }
     }
 
@@ -45,6 +61,16 @@ public class Try {
                 return f.apply(x);
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);
+            }
+        };
+    }
+
+    public static <T, R> Function<T, R> io(final Context c, final ThrowableFunction<T, R> f) {
+        return (x) -> {
+            try {
+                return f.apply(x);
+            } catch (final IOException e) {
+                throw new UncheckedIOException("Exception raised (context: " + c + ")", e);
             }
         };
     }

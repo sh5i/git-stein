@@ -73,7 +73,7 @@ public class RepositoryAccess implements Configurable {
      * Specifies the target object that the given ref indicates.
      */
     protected ObjectId getRefTarget(final Ref ref, final Context c) {
-        final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
+        final Ref peeled = Try.io(c, () -> repo.getRefDatabase().peel(ref));
         return peeled.getPeeledObjectId() != null ? peeled.getPeeledObjectId() : ref.getObjectId();
     }
 
@@ -82,7 +82,7 @@ public class RepositoryAccess implements Configurable {
      */
     protected int getObjectType(final ObjectId id, final Context c) {
         try (final RevWalk walk = new RevWalk(repo)) {
-            final RevObject object = Try.io(() -> walk.parseAny(id));
+            final RevObject object = Try.io(c, () -> walk.parseAny(id));
             return object.getType();
         }
     }
@@ -92,7 +92,7 @@ public class RepositoryAccess implements Configurable {
      */
     protected List<Entry> readTree(final ObjectId treeId, final String path, final Context c) {
         final List<Entry> result = new ArrayList<>();
-        Try.io(() -> {
+        Try.io(c, () -> {
             try (final TreeWalk walk = new TreeWalk(repo)) {
                 walk.addTree(treeId);
                 walk.setRecursive(false);
@@ -134,7 +134,7 @@ public class RepositoryAccess implements Configurable {
      * Reads a blob object.
      */
     protected byte[] readBlob(final ObjectId blobId, final Context c) {
-        return Try.io(() -> repo.getObjectDatabase().open(blobId, Constants.OBJ_BLOB).getBytes());
+        return Try.io(c, () -> repo.getObjectDatabase().open(blobId, Constants.OBJ_BLOB).getBytes());
     }
 
     /**
@@ -176,7 +176,7 @@ public class RepositoryAccess implements Configurable {
         if (dryRunning) {
             return;
         }
-        Try.io(() -> {
+        Try.io(c, () -> {
             final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(entry.name, false);
             cmd.setForceUpdate(true);
             if (entry.isSymbolic()) {
@@ -192,7 +192,7 @@ public class RepositoryAccess implements Configurable {
      * Tests whether the given ref indicates a tag.
      */
     protected boolean isTag(final Ref ref, final Context c) {
-        final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
+        final Ref peeled = Try.io(c, () -> repo.getRefDatabase().peel(ref));
         return peeled.getPeeledObjectId() != null;
     }
 
@@ -201,7 +201,7 @@ public class RepositoryAccess implements Configurable {
      */
     protected AnyObjectId parseAny(final ObjectId id, final Context c) {
         try (final RevWalk walk = new RevWalk(repo)) {
-            return Try.io(() -> walk.parseAny(id));
+            return Try.io(c, () -> walk.parseAny(id));
         }
     }
 
@@ -210,7 +210,7 @@ public class RepositoryAccess implements Configurable {
      */
     protected RevTag parseTag(final ObjectId id, final Context c) {
         try (final RevWalk walk = new RevWalk(repo)) {
-            return Try.io(() -> walk.parseTag(id));
+            return Try.io(c, () -> walk.parseTag(id));
         }
     }
 
@@ -221,7 +221,7 @@ public class RepositoryAccess implements Configurable {
         if (dryRunning) {
             return;
         }
-        Try.io(() -> {
+        Try.io(c, () -> {
             final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(entry.name, false);
             cmd.setForceUpdate(true);
             cmd.delete();
@@ -235,7 +235,7 @@ public class RepositoryAccess implements Configurable {
         if (dryRunning) {
             return;
         }
-        Try.io(() -> {
+        Try.io(c, () -> {
             final RefRename cmd = writeRepo.getRefDatabase().newRename(name, newName);
             cmd.rename();
         });
