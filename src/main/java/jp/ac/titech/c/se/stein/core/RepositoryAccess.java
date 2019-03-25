@@ -72,7 +72,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Specifies the target object that the given ref indicates.
      */
-    protected ObjectId getRefTarget(final Ref ref) {
+    protected ObjectId getRefTarget(final Ref ref, final Context c) {
         final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
         return peeled.getPeeledObjectId() != null ? peeled.getPeeledObjectId() : ref.getObjectId();
     }
@@ -80,7 +80,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Specifies the type of the given object.
      */
-    protected int getObjectType(final ObjectId id) {
+    protected int getObjectType(final ObjectId id, final Context c) {
         try (final RevWalk walk = new RevWalk(repo)) {
             final RevObject object = Try.io(() -> walk.parseAny(id));
             return object.getType();
@@ -90,7 +90,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Reads a tree object.
      */
-    protected List<Entry> readTree(final ObjectId treeId, final String path) {
+    protected List<Entry> readTree(final ObjectId treeId, final String path, final Context c) {
         final List<Entry> result = new ArrayList<>();
         Try.io(() -> {
             try (final TreeWalk walk = new TreeWalk(repo)) {
@@ -107,9 +107,9 @@ public class RepositoryAccess implements Configurable {
     /**
      * Writes tree entries to a tree object.
      */
-    protected ObjectId writeTree(final Collection<Entry> entries) {
+    protected ObjectId writeTree(final Collection<Entry> entries, final Context c) {
         final TreeFormatter f = new TreeFormatter();
-        for (final Entry e : sortEntries(entries)) {
+        for (final Entry e : sortEntries(entries, c)) {
             f.append(e.name, e.mode, e.id);
         }
         return tryInsert((ins) -> dryRunning ? ins.idFor(f) : ins.insert(f));
@@ -118,7 +118,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Sorts tree entries.
      */
-    protected Collection<Entry> sortEntries(final Collection<Entry> entries) {
+    protected Collection<Entry> sortEntries(final Collection<Entry> entries, final Context c) {
         final SortedMap<String, Entry> map = new TreeMap<>();
         for (final Entry e : entries) {
             final String key = e.name + (e.isTree() ? "/" : "");
@@ -133,21 +133,21 @@ public class RepositoryAccess implements Configurable {
     /**
      * Reads a blob object.
      */
-    protected byte[] readBlob(final ObjectId blobId) {
+    protected byte[] readBlob(final ObjectId blobId, final Context c) {
         return Try.io(() -> repo.getObjectDatabase().open(blobId, Constants.OBJ_BLOB).getBytes());
     }
 
     /**
      * Writes data to a blob object.
      */
-    public ObjectId writeBlob(final byte[] data) {
+    public ObjectId writeBlob(final byte[] data, final Context c) {
         return tryInsert((ins) -> dryRunning ? ins.idFor(Constants.OBJ_BLOB, data) : ins.insert(Constants.OBJ_BLOB, data));
     }
 
     /**
      * Writes a commit object.
      */
-    protected ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer, final String message) {
+    protected ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer, final String message, final Context c) {
         final CommitBuilder builder = new CommitBuilder();
         builder.setParentIds(parentIds);
         builder.setTreeId(treeId);
@@ -160,7 +160,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Writes a tag object.
      */
-    protected ObjectId writeTag(final ObjectId objectId, final String tag, final PersonIdent tagger, final String message) {
+    protected ObjectId writeTag(final ObjectId objectId, final String tag, final PersonIdent tagger, final String message, final Context c) {
         final TagBuilder builder = new TagBuilder();
         builder.setObjectId(objectId, Constants.OBJ_COMMIT);
         builder.setTag(tag);
@@ -172,7 +172,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Applies ref update.
      */
-    protected void applyRefUpdate(final RefEntry entry) {
+    protected void applyRefUpdate(final RefEntry entry, final Context c) {
         if (dryRunning) {
             return;
         }
@@ -191,7 +191,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Tests whether the given ref indicates a tag.
      */
-    protected boolean isTag(final Ref ref) {
+    protected boolean isTag(final Ref ref, final Context c) {
         final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
         return peeled.getPeeledObjectId() != null;
     }
@@ -199,7 +199,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Extracts tag object.
      */
-    protected AnyObjectId parseAny(final ObjectId id) {
+    protected AnyObjectId parseAny(final ObjectId id, final Context c) {
         try (final RevWalk walk = new RevWalk(repo)) {
             return Try.io(() -> walk.parseAny(id));
         }
@@ -208,7 +208,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Extracts tag object.
      */
-    protected RevTag parseTag(final ObjectId id) {
+    protected RevTag parseTag(final ObjectId id, final Context c) {
         try (final RevWalk walk = new RevWalk(repo)) {
             return Try.io(() -> walk.parseTag(id));
         }
@@ -217,7 +217,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Applies ref delete.
      */
-    protected void applyRefDelete(final RefEntry entry) {
+    protected void applyRefDelete(final RefEntry entry, final Context c) {
         if (dryRunning) {
             return;
         }
@@ -231,7 +231,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Applies ref rename.
      */
-    protected void applyRefRename(final String name, final String newName) {
+    protected void applyRefRename(final String name, final String newName, final Context c) {
         if (dryRunning) {
             return;
         }

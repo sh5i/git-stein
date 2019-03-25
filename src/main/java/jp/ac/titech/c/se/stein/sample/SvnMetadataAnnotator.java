@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import jp.ac.titech.c.se.stein.CLI;
 import jp.ac.titech.c.se.stein.core.ConcurrentRepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Config;
+import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.Try;
 
 public class SvnMetadataAnnotator extends ConcurrentRepositoryRewriter {
@@ -41,7 +42,7 @@ public class SvnMetadataAnnotator extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    protected String rewriteCommitMessage(final String message, final RevCommit commit) {
+    protected String rewriteCommitMessage(final String message, final RevCommit commit, final Context c) {
         final Integer svnId = mapping.get(commit.getId());
         if (svnId != null) {
             log.debug("Mapping: {} -> r{}", commit.getId().name(), svnId);

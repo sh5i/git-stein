@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
 import jp.ac.titech.c.se.stein.core.ConcurrentRepositoryRewriter;
+import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 
 public class Anonymizer extends ConcurrentRepositoryRewriter {
@@ -65,17 +66,17 @@ public class Anonymizer extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    public String rewriteMessage(final String message, final ObjectId id) {
+    public String rewriteMessage(final String message, final ObjectId id, final Context c) {
         return "orig:" + id.name() + " " + hash7(message);
     }
 
     @Override
-    public ObjectId rewriteBlob(final ObjectId blobId, final Entry entry) {
-        return writeBlob(blobId.name().getBytes());
+    public ObjectId rewriteBlob(final ObjectId blobId, final Entry entry, final Context c) {
+        return writeBlob(blobId.name().getBytes(), c);
     }
 
     @Override
-    public String rewriteName(final String name, final Entry entry) {
+    public String rewriteName(final String name, final Entry entry, final Context c) {
         if (entry.isTree()) {
             return treeNameMap.convert(name);
         } else {
@@ -84,7 +85,7 @@ public class Anonymizer extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    public PersonIdent rewritePerson(final PersonIdent person) {
+    public PersonIdent rewritePerson(final PersonIdent person, final Context c) {
         if (person == null) {
             return person;
         }
@@ -94,7 +95,7 @@ public class Anonymizer extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    public String rewriteBranchName(final String name, final Ref ref) {
+    public String rewriteBranchName(final String name, final Ref ref, final Context c) {
         if (name.equals("master")) {
             return name;
         } else {
@@ -103,7 +104,7 @@ public class Anonymizer extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    public String rewriteTagName(final String name, final Ref ref) {
+    public String rewriteTagName(final String name, final Ref ref, final Context c) {
         return tagNameMap.convert(name);
     }
 

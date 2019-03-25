@@ -38,10 +38,14 @@ public class RepositoryRewriter extends RepositoryAccess {
 
     protected boolean pathSensitive = false;
 
+    public void rewrite(final Context c) {
+        rewriteCommits(c);
+        updateRefs(c);
+        cleanUp(c);
+    }
+
     public void rewrite() {
-        rewriteCommits();
-        updateRefs();
-        cleanUp();
+        rewrite(null);
     }
 
     /**
@@ -54,12 +58,12 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites all commits.
      */
-    protected void rewriteCommits() {
+    protected void rewriteCommits(final Context c) {
         try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
             this.inserter = ins;
-            try (final RevWalk walk = prepareRevisionWalk()) {
-                for (final RevCommit c : walk) {
-                    rewriteCommit(c);
+            try (final RevWalk walk = prepareRevisionWalk(c)) {
+                for (final RevCommit commit : walk) {
+                    rewriteCommit(commit, c);
                 }
             }
             this.inserter = null;
@@ -69,9 +73,9 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Prepares the revision walk.
      */
-    protected RevWalk prepareRevisionWalk() {
-        final Collection<ObjectId> starts = collectStarts();
-        final Collection<ObjectId> uninterestings = collectUninterestings();
+    protected RevWalk prepareRevisionWalk(final Context c) {
+        final Collection<ObjectId> starts = collectStarts(c);
+        final Collection<ObjectId> uninterestings = collectUninterestings(c);
 
         final RevWalk walk = new RevWalk(repo);
         Try.io(() -> {
@@ -91,13 +95,13 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Collects the set of commit Ids used as start points.
      */
-    protected Collection<ObjectId> collectStarts() {
+    protected Collection<ObjectId> collectStarts(final Context c) {
         final List<ObjectId> result = new ArrayList<>();
         final List<Ref> refs = Try.io(() -> repo.getRefDatabase().getRefs());
         for (final Ref ref : refs) {
-            if (confirmStartRef(ref)) {
-                final ObjectId commitId = getRefTarget(ref);
-                if (getObjectType(commitId) == Constants.OBJ_COMMIT) {
+            if (confirmStartRef(ref, c)) {
+                final ObjectId commitId = getRefTarget(ref, c);
+                if (getObjectType(commitId, c) == Constants.OBJ_COMMIT) {
                     log.debug("Ref {}: added as a start point (id: {})", ref.getName(), commitId.name());
                     result.add(commitId);
                 } else {
@@ -111,7 +115,7 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Confirms whether the given ref is used for a start point.
      */
-    protected boolean confirmStartRef(final Ref ref) {
+    protected boolean confirmStartRef(final Ref ref, final Context c) {
         final String name = ref.getName();
         return name.equals(Constants.HEAD) || name.startsWith(Constants.R_HEADS) || name.startsWith(Constants.R_TAGS);
     }
@@ -119,7 +123,7 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Collects the set of commit Ids used as uninteresting points.
      */
-    protected Collection<ObjectId> collectUninterestings() {
+    protected Collection<ObjectId> collectUninterestings(final Context c) {
         @SuppressWarnings("unchecked")
         final List<ObjectId> result = Collections.EMPTY_LIST;
         return result;
@@ -132,13 +136,13 @@ public class RepositoryRewriter extends RepositoryAccess {
      *            target commit.
      * @return the object ID of the rewritten commit
      */
-    protected ObjectId rewriteCommit(final RevCommit commit) {
-        final ObjectId[] parentIds = rewriteParents(commit.getParents());
-        final ObjectId treeId = rewriteRootTree(commit.getTree().getId());
-        final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), commit);
-        final PersonIdent committer = rewriteCommitter(commit.getCommitterIdent(), commit);
-        final String message = rewriteCommitMessage(commit.getFullMessage(), commit);
-        final ObjectId newId = writeCommit(parentIds, treeId, author, committer, message);
+    protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
+        final ObjectId[] parentIds = rewriteParents(commit.getParents(), c);
+        final ObjectId treeId = rewriteRootTree(commit.getTree().getId(), c);
+        final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), commit, c);
+        final PersonIdent committer = rewriteCommitter(commit.getCommitterIdent(), commit, c);
+        final String message = rewriteCommitMessage(commit.getFullMessage(), commit, c);
+        final ObjectId newId = writeCommit(parentIds, treeId, author, committer, message, c);
 
         final ObjectId oldId = commit.getId();
         commitMapping.put(oldId, newId);
@@ -150,7 +154,7 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites the parents of a commit.
      */
-    protected ObjectId[] rewriteParents(final ObjectId[] parents) {
+    protected ObjectId[] rewriteParents(final ObjectId[] parents, final Context c) {
         final ObjectId[] result = new ObjectId[parents.length];
         for (int i = 0; i < parents.length; i++) {
             result[i] = commitMapping.get(parents[i]);
@@ -161,11 +165,11 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites the root tree of a commit.
      */
-    protected ObjectId rewriteRootTree(final ObjectId treeId) {
+    protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = new Entry(FileMode.TREE, "", treeId, pathSensitive ? "" : null);
-        final EntrySet newRoot = getEntry(root);
-        final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(EntrySet.EMPTY_ENTRIES) : ((Entry) newRoot).id;
+        final EntrySet newRoot = getEntry(root, c);
+        final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(EntrySet.EMPTY_ENTRIES, c) : ((Entry) newRoot).id;
 
         log.debug("Rewrite tree: {} -> {}", treeId.name(), newId.name());
         return newId;
@@ -174,13 +178,13 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Obtains tree entries from a tree entry.
      */
-    protected EntrySet getEntry(final Entry entry) {
+    protected EntrySet getEntry(final Entry entry, final Context c) {
         // computeIfAbsent is unsuitable because this may be invoked recursively
         final EntrySet cache = entryMapping.get(entry);
         if (cache != null) {
             return cache;
         } else {
-            final EntrySet result = rewriteEntry(entry);
+            final EntrySet result = rewriteEntry(entry, c);
             entryMapping.put(entry, result);
             return result;
         }
@@ -189,89 +193,89 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites a tree entry.
      */
-    protected EntrySet rewriteEntry(final Entry entry) {
-        final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, entry) : rewriteBlob(entry.id, entry);
-        final String newName = rewriteName(entry.name, entry);
+    protected EntrySet rewriteEntry(final Entry entry, final Context c) {
+        final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, entry, c) : rewriteBlob(entry.id, entry, c);
+        final String newName = rewriteName(entry.name, entry, c);
         return newId == ZERO ? EntrySet.EMPTY : new Entry(entry.mode, newName, newId, entry.pathContext);
     }
 
     /**
      * Rewrites a tree object.
      */
-    protected ObjectId rewriteTree(final ObjectId treeId, final Entry entry) {
+    protected ObjectId rewriteTree(final ObjectId treeId, final Entry entry, final Context c) {
         final List<Entry> entries = new ArrayList<>();
         String pathContext = null;
         if (pathSensitive) {
             pathContext = entry.isRoot() ? "" : entry.pathContext + "/" + entry.name;
         }
-        for (final Entry e : readTree(treeId, pathContext)) {
-            final EntrySet rewritten = getEntry(e);
+        for (final Entry e : readTree(treeId, pathContext, c)) {
+            final EntrySet rewritten = getEntry(e, c);
             rewritten.registerTo(entries);
         }
-        return entries.isEmpty() ? ZERO : writeTree(entries);
+        return entries.isEmpty() ? ZERO : writeTree(entries, c);
     }
 
     /**
      * Rewrites a blob object.
      */
-    protected ObjectId rewriteBlob(final ObjectId blobId, final Entry entry) {
+    protected ObjectId rewriteBlob(final ObjectId blobId, final Entry entry, final Context c) {
         if (overwrite) {
             return blobId;
         } else {
-            return writeBlob(readBlob(blobId));
+            return writeBlob(readBlob(blobId, c), c);
         }
     }
 
     /**
      * Rewrites the name of a tree entry.
      */
-    protected String rewriteName(final String name, final Entry entry) {
+    protected String rewriteName(final String name, final Entry entry, final Context c) {
         return name;
     }
 
     /**
      * Rewrites the author identity of a commit.
      */
-    protected PersonIdent rewriteAuthor(final PersonIdent author, final RevCommit commit) {
-        return rewritePerson(author);
+    protected PersonIdent rewriteAuthor(final PersonIdent author, final RevCommit commit, final Context c) {
+        return rewritePerson(author, c);
     }
 
     /**
      * Rewrites the committer identity of a commit.
      */
-    protected PersonIdent rewriteCommitter(final PersonIdent committer, final RevCommit commit) {
-        return rewritePerson(committer);
+    protected PersonIdent rewriteCommitter(final PersonIdent committer, final RevCommit commit, final Context c) {
+        return rewritePerson(committer, c);
     }
 
     /**
      * Rewrites a person identity.
      */
-    protected PersonIdent rewritePerson(final PersonIdent person) {
+    protected PersonIdent rewritePerson(final PersonIdent person, final Context c) {
         return person;
     }
 
     /**
      * Rewrites the message of a commit.
      */
-    protected String rewriteCommitMessage(final String message, final RevCommit commit) {
-        return rewriteMessage(message, commit.getId());
+    protected String rewriteCommitMessage(final String message, final RevCommit commit, final Context c) {
+        return rewriteMessage(message, commit.getId(), c);
     }
 
     /**
      * Rewrites a message.
      */
-    protected String rewriteMessage(final String message, final ObjectId id) {
+    protected String rewriteMessage(final String message, final ObjectId id, final Context c) {
         return "orig:" + id.name() + " " + message;
     }
 
     /**
      * Updates ref objects.
      */
-    protected void updateRefs() {
+    protected void updateRefs(final Context c) {
         final List<Ref> refs = Try.io(() -> repo.getRefDatabase().getRefs());
         for (final Ref ref : refs) {
-            if (confirmUpdateRef(ref)) {
-                updateRef(ref);
+            if (confirmUpdateRef(ref, c)) {
+                updateRef(ref, c);
             }
         }
     }
@@ -279,19 +283,19 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Confirms whether the given ref is to be updated.
      */
-    protected boolean confirmUpdateRef(final Ref ref) {
-        return confirmStartRef(ref);
+    protected boolean confirmUpdateRef(final Ref ref, final Context c) {
+        return confirmStartRef(ref, c);
     }
 
     /**
      * Updates a ref object.
      */
-    protected RefEntry getRefEntry(final RefEntry entry, final Ref ref) {
+    protected RefEntry getRefEntry(final RefEntry entry, final Ref ref, final Context c) {
         final RefEntry cache = refEntryMapping.get(entry);
         if (cache != null) {
             return cache;
         } else {
-            final RefEntry result = rewriteRefEntry(entry, ref);
+            final RefEntry result = rewriteRefEntry(entry, ref, c);
             refEntryMapping.put(entry, result);
             return result;
         }
@@ -300,14 +304,14 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Updates a ref object.
      */
-    protected void updateRef(final Ref ref) {
+    protected void updateRef(final Ref ref, final Context c) {
         final RefEntry oldEntry = new RefEntry(ref);
-        final RefEntry newEntry = getRefEntry(oldEntry, ref);
+        final RefEntry newEntry = getRefEntry(oldEntry, ref, c);
         if (newEntry == RefEntry.EMPTY) {
             // delete
             if (overwrite) {
                 log.debug("Delete ref: {}", oldEntry);
-                applyRefDelete(oldEntry);
+                applyRefDelete(oldEntry, c);
             }
             return;
         }
@@ -316,7 +320,7 @@ public class RepositoryRewriter extends RepositoryAccess {
             // rename
             if (overwrite) {
                 log.debug("Rename ref: {} -> {}", oldEntry.name, newEntry.name);
-                applyRefRename(oldEntry.name, newEntry.name);
+                applyRefRename(oldEntry.name, newEntry.name, c);
             }
         }
 
@@ -326,21 +330,21 @@ public class RepositoryRewriter extends RepositoryAccess {
         if (!overwrite || !linkEquals || !idEquals) {
             // update
             log.debug("Update ref: {} -> {}", oldEntry, newEntry);
-            applyRefUpdate(newEntry);
+            applyRefUpdate(newEntry, c);
         }
     }
 
     /**
      * Rewrites a ref entry.
      */
-    protected RefEntry rewriteRefEntry(final RefEntry entry, final Ref ref) {
+    protected RefEntry rewriteRefEntry(final RefEntry entry, final Ref ref, final Context c) {
         if (entry.isSymbolic()) {
-            final String newName = rewriteRefName(entry.name, ref);
-            final String newTarget = getRefEntry(new RefEntry(ref.getTarget()), ref.getTarget()).name;
+            final String newName = rewriteRefName(entry.name, ref, c);
+            final String newTarget = getRefEntry(new RefEntry(ref.getTarget()), ref.getTarget(), c).name;
             return new RefEntry(newName, newTarget);
         } else {
-            final String newName = rewriteRefName(entry.name, ref);
-            final ObjectId newObjectId = rewriteRefObject(entry.id, ref);
+            final String newName = rewriteRefName(entry.name, ref, c);
+            final ObjectId newObjectId = rewriteRefObject(entry.id, ref, c);
             return newObjectId == ZERO ? RefEntry.EMPTY : new RefEntry(newName, newObjectId);
         }
     }
@@ -348,19 +352,19 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites the referred object by a ref.
      */
-    protected ObjectId rewriteRefObject(final ObjectId id, final Ref ref) {
-        if (isTag(ref)) {
-            return rewriteTag(id, parseTag(id), ref);
+    protected ObjectId rewriteRefObject(final ObjectId id, final Ref ref, final Context c) {
+        if (isTag(ref, c)) {
+            return rewriteTag(id, parseTag(id, c), ref, c);
         } else {
-            return rewriteReferredCommit(id, ref);
+            return rewriteReferredCommit(id, ref, c);
         }
     }
 
     /**
      * Rewrites the referred commit object by a ref.
      */
-    protected ObjectId rewriteReferredCommit(final ObjectId id, final Ref ref) {
-        if (getObjectType(id) != Constants.OBJ_COMMIT) {
+    protected ObjectId rewriteReferredCommit(final ObjectId id, final Ref ref, final Context c) {
+        if (getObjectType(id, c) != Constants.OBJ_COMMIT) {
             // referring non-commit; ignore it
             log.debug("Ref {}: Ignore non-commit (id: {})", ref.getName(), id.name());
             return id;
@@ -376,17 +380,17 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites a tag object.
      */
-    protected ObjectId rewriteTag(final ObjectId tagId, final RevTag tag, final Ref ref) {
-        final ObjectId newObjectId = rewriteReferredCommit(tag.getObject(), ref);
+    protected ObjectId rewriteTag(final ObjectId tagId, final RevTag tag, final Ref ref, final Context c) {
+        final ObjectId newObjectId = rewriteReferredCommit(tag.getObject(), ref, c);
         if (newObjectId == ZERO) {
             return ZERO;
         }
         log.debug("Rewrite tag target: {} -> {}", tag.getObject().name(), newObjectId.name());
 
         final String tagName = tag.getTagName();
-        final PersonIdent tagger = rewriteTagger(tag.getTaggerIdent(), tag, ref);
-        final String message = rewriteTagMessage(tag.getFullMessage(), tag, ref);
-        final ObjectId newId = writeTag(newObjectId, tagName, tagger, message);
+        final PersonIdent tagger = rewriteTagger(tag.getTaggerIdent(), tag, ref, c);
+        final String message = rewriteTagMessage(tag.getFullMessage(), tag, ref, c);
+        final ObjectId newId = writeTag(newObjectId, tagName, tagger, message, c);
         log.debug("Rewrite tag: {} -> {}", tagId.name(), newId.name());
         return newId;
     }
@@ -394,27 +398,27 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites the tagger identity of a tag.
      */
-    protected PersonIdent rewriteTagger(final PersonIdent tagger, final RevTag tag, final Ref ref) {
-        return rewritePerson(tagger);
+    protected PersonIdent rewriteTagger(final PersonIdent tagger, final RevTag tag, final Ref ref, final Context c) {
+        return rewritePerson(tagger, c);
     }
 
     /**
      * Rewrites the message of a tag.
      */
-    protected String rewriteTagMessage(final String message, final RevTag tag, final Ref ref) {
-        return rewriteMessage(message, tag.getId());
+    protected String rewriteTagMessage(final String message, final RevTag tag, final Ref ref, final Context c) {
+        return rewriteMessage(message, tag.getId(), c);
     }
 
     /**
      * Rewrites a ref name.
      */
-    protected String rewriteRefName(final String name, final Ref ref) {
+    protected String rewriteRefName(final String name, final Ref ref, final Context c) {
         if (name.startsWith(Constants.R_HEADS)) {
             final String branchName = name.substring(Constants.R_HEADS.length());
-            return Constants.R_HEADS + rewriteBranchName(branchName, ref);
+            return Constants.R_HEADS + rewriteBranchName(branchName, ref, c);
         } else if (name.startsWith(Constants.R_TAGS)) {
             final String tagName = name.substring(Constants.R_TAGS.length());
-            return Constants.R_TAGS + rewriteTagName(tagName, ref);
+            return Constants.R_TAGS + rewriteTagName(tagName, ref, c);
         } else {
             return name;
         }
@@ -423,21 +427,21 @@ public class RepositoryRewriter extends RepositoryAccess {
     /**
      * Rewrites a local branch name.
      */
-    protected String rewriteBranchName(final String name, final Ref ref) {
+    protected String rewriteBranchName(final String name, final Ref ref, final Context c) {
         return name;
     }
 
     /**
      * Rewrites a tag name.
      */
-    protected String rewriteTagName(final String name, final Ref ref) {
+    protected String rewriteTagName(final String name, final Ref ref, final Context c) {
         return name;
     }
 
     /**
      * A hook method for cleaning up.
      */
-    protected void cleanUp() {
+    protected void cleanUp(final Context c) {
     }
 
     @Override

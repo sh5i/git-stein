@@ -48,24 +48,24 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements 
      * Rewrites all commits.
      */
     @Override
-    protected void rewriteCommits() {
+    protected void rewriteCommits(final Context c) {
         if (concurrent) {
-            rewriteTreesConcurrently();
+            rewriteTreesConcurrently(c);
         }
-        super.rewriteCommits();
+        super.rewriteCommits(c);
     }
 
     /**
      * Rewrites all trees concurrently.
      */
-    protected void rewriteTreesConcurrently() {
+    protected void rewriteTreesConcurrently(final Context c) {
         inserters = new ConcurrentHashMap<>();
 
-        try (final RevWalk walk = prepareRevisionWalk()) {
+        try (final RevWalk walk = prepareRevisionWalk(c)) {
             final int characteristics = Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL;
             final Spliterator<RevCommit> split = Spliterators.spliteratorUnknownSize(walk.iterator(), characteristics);
             final Stream<RevCommit> stream = StreamSupport.stream(split, true);
-            stream.forEach(c -> rewriteRootTree(c.getTree().getId()));
+            stream.forEach(commit -> rewriteRootTree(commit.getTree().getId(), c));
         }
 
         Try.io(() -> {

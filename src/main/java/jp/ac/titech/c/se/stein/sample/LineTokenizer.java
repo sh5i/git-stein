@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import jp.ac.titech.c.se.stein.CLI;
 import jp.ac.titech.c.se.stein.core.ConcurrentRepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Config;
+import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 
 public class LineTokenizer extends ConcurrentRepositoryRewriter {
@@ -71,19 +72,19 @@ public class LineTokenizer extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    protected ObjectId rewriteBlob(final ObjectId blobId, final Entry entry) {
+    protected ObjectId rewriteBlob(final ObjectId blobId, final Entry entry, final Context c) {
         if (entry.name.toLowerCase().endsWith(".java")) {
             log.debug("Process: {} ({})", entry.name, blobId);
-            final String source = load(blobId);
+            final String source = load(blobId, c);
             final String converted = decode ? decode(source) : encode(source);
-            return writeBlob(converted.getBytes());
+            return writeBlob(converted.getBytes(), c);
         } else {
             return blobId;
         }
     }
 
-    protected String load(final ObjectId blobId) {
-        final byte[] data = readBlob(blobId);
+    protected String load(final ObjectId blobId, final Context c) {
+        final byte[] data = readBlob(blobId, c);
         final String charset = guessCharset(data);
         if (charset != null) {
             try {
