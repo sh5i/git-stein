@@ -138,7 +138,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * @return the object ID of the rewritten commit
      */
     protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
-        final Context uc = c.with(Key.commit, commit.getId().name());
+        final Context uc = c.with(Key.commit_id, commit.getId().name()).with(Key.commit, commit);
 
         final ObjectId[] parentIds = rewriteParents(commit.getParents(), uc);
         final ObjectId treeId = rewriteRootTree(commit.getTree().getId(), uc);
@@ -169,7 +169,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites the root tree of a commit.
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
-        final Context uc = c.with(Key.root, treeId.name());
+        final Context uc = c.with(Key.tree_id, treeId.name());
 
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = new Entry(FileMode.TREE, "", treeId, pathSensitive ? "" : null);
@@ -199,7 +199,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a tree entry.
      */
     protected EntrySet rewriteEntry(final Entry entry, final Context c) {
-        final Context uc = c.with(Key.path, entry.getPath());
+        final Context uc = c.with(Key.path, entry.getPath()).with(Key.entry, entry);
 
         final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, entry, c) : rewriteBlob(entry.id, entry, uc);
         final String newName = rewriteName(entry.name, entry, uc);
@@ -210,7 +210,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a tree object.
      */
     protected ObjectId rewriteTree(final ObjectId treeId, final Entry entry, final Context c) {
-        final Context uc = c.with(Key.path, entry.getPath());
+        final Context uc = c.with(Key.path, entry.getPath()).with(Key.entry, entry);
 
         final List<Entry> entries = new ArrayList<>();
         String pathContext = null;

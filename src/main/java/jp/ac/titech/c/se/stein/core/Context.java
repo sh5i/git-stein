@@ -16,7 +16,7 @@ import org.eclipse.jgit.revwalk.RevTag;
 public class Context implements Map<Context.Key, Object> {
 
     public enum Key {
-        commit, commit_id, entry, id, path, ref, repo, root, tag, tree;
+        commit, commit_id, entry, id, path, ref, repo, tree_id, tag, tree;
     }
 
     private final Context parent;
@@ -50,20 +50,20 @@ public class Context implements Map<Context.Key, Object> {
     }
 
     public String doToString() {
-        final StringBuilder sb = new StringBuilder();
-        sb.append(key).append(": ");
         if (value instanceof String) {
+            final StringBuilder sb = new StringBuilder();
+            sb.append(key).append(": ");
             sb.append('"').append(value).append('"');
-        } else {
-            sb.append(value);
-        }
-        if (parent != null) {
-            final String parentString = parent.toString();
-            if (!parentString.isEmpty()) {
-                sb.append(", ").append(parentString);
+            if (parent != null) {
+                final String parentString = parent.toString();
+                if (!parentString.isEmpty()) {
+                    sb.append(", ").append(parentString);
+                }
             }
+            return sb.toString();
+        } else {
+            return parent == null ? "" : parent.toString();
         }
-        return sb.toString();
     }
 
     @Override

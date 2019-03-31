@@ -66,7 +66,10 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements 
             final int characteristics = Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL;
             final Spliterator<RevCommit> split = Spliterators.spliteratorUnknownSize(walk.iterator(), characteristics);
             final Stream<RevCommit> stream = StreamSupport.stream(split, true);
-            stream.forEach(commit -> rewriteRootTree(commit.getTree().getId(), c.with(Key.commit, commit.getId().name())));
+            stream.forEach(commit -> {
+                final Context uc = c.with(Key.commit_id, commit.getId().name()).with(Key.commit, commit);
+                rewriteRootTree(commit.getTree().getId(), uc);
+            });
         }
 
         Try.io(c, () -> {
