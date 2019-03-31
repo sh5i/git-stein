@@ -51,18 +51,19 @@ public class Context implements Map<Context.Key, Object> {
 
     public String doToString() {
         final StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        appendKeyValue(sb);
-        sb.append("}");
-        return sb.toString();
-    }
-
-    protected void appendKeyValue(final StringBuilder sb) {
-        sb.append(key).append(": ").append('"').append(value).append('"');
-        if (parent != null) {
-            sb.append(", ");
-            parent.appendKeyValue(sb);
+        sb.append(key).append(": ");
+        if (value instanceof String) {
+            sb.append('"').append(value).append('"');
+        } else {
+            sb.append(value);
         }
+        if (parent != null) {
+            final String parentString = parent.toString();
+            if (!parentString.isEmpty()) {
+                sb.append(", ").append(parentString);
+            }
+        }
+        return sb.toString();
     }
 
     @Override
