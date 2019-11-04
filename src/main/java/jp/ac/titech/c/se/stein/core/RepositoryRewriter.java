@@ -46,7 +46,8 @@ public class RepositoryRewriter extends RepositoryAccess {
     }
 
     public void rewrite() {
-        rewrite(new Context(Key.Repo, writeRepo.getDirectory()));
+        final Context c = new Context(Key.Repo, writeRepo);
+        rewrite(c);
     }
 
     /**
@@ -103,10 +104,10 @@ public class RepositoryRewriter extends RepositoryAccess {
             if (confirmStartRef(ref, c)) {
                 final ObjectId commitId = getRefTarget(ref, c);
                 if (getObjectType(commitId, c) == Constants.OBJ_COMMIT) {
-                    log.debug("Ref {}: added as a start point (id: {})", ref.getName(), commitId.name());
+                    log.debug("Ref {}: added as a start point (commit: {})", ref.getName(), commitId.name());
                     result.add(commitId);
                 } else {
-                    log.debug("Ref {}: non-commit; skipped (id: {})", ref.getName(), commitId.name());
+                    log.debug("Ref {}: non-commit; skipped (commit: {})", ref.getName(), commitId.name());
                 }
             }
         }
@@ -138,7 +139,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * @return the object ID of the rewritten commit
      */
     protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
-        final Context uc = c.with(Key.Rev, commit).with(Key.Commit, commit).with(Key.RevId, commit.name());
+        final Context uc = c.with(Key.Rev, commit).with(Key.Commit, commit);
         final ObjectId[] parentIds = rewriteParents(commit.getParents(), uc);
         final ObjectId treeId = rewriteRootTree(commit.getTree().getId(), uc);
         final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), uc);
@@ -149,7 +150,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         final ObjectId oldId = commit.getId();
         commitMapping.put(oldId, newId);
 
-        log.debug("Rewrite commit: {} -> {}", oldId.name(), newId.name());
+        log.debug("Rewrite commit: {} -> {} ({})", oldId.name(), newId.name(), c);
         return newId;
     }
 
@@ -168,14 +169,14 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites the root tree of a commit.
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
-        final Context uc = c.with(Key.TreeId, treeId.name());
+        final Context uc = c.with(Key.Tree, treeId.name());
 
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = new Entry(FileMode.TREE, "", treeId, pathSensitive ? "" : null);
         final EntrySet newRoot = getEntry(root, uc);
         final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(EntrySet.EMPTY_ENTRIES, uc) : ((Entry) newRoot).id;
 
-        log.debug("Rewrite tree: {} -> {}", treeId.name(), newId.name());
+        log.debug("Rewrite tree: {} -> {} ({})", treeId.name(), newId.name(), c);
         return newId;
     }
 
@@ -229,7 +230,11 @@ public class RepositoryRewriter extends RepositoryAccess {
         if (overwrite) {
             return blobId;
         } else {
-            return writeBlob(readBlob(blobId, c), c);
+            final ObjectId newId = writeBlob(readBlob(blobId, c), c);
+            if (log.isDebugEnabled() && !newId.equals(blobId)) {
+                log.debug("Rewrite blob: {} -> {} ({})", blobId.name(), newId.name(), c);
+            }
+            return newId;
         }
     }
 
@@ -313,14 +318,14 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Updates a ref object.
      */
     protected void updateRef(final Ref ref, final Context c) {
-        final Context uc = c.with(Key.Ref, ref).with(Key.RefName, ref.getName());
+        final Context uc = c.with(Key.Ref, ref);
 
         final RefEntry oldEntry = new RefEntry(ref);
         final RefEntry newEntry = getRefEntry(oldEntry, uc);
         if (newEntry == RefEntry.EMPTY) {
             // delete
             if (overwrite) {
-                log.debug("Delete ref: {}", oldEntry);
+                log.debug("Delete ref: {} ({})", oldEntry, c);
                 applyRefDelete(oldEntry, uc);
             }
             return;
@@ -329,7 +334,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         if (!oldEntry.name.equals(newEntry.name)) {
             // rename
             if (overwrite) {
-                log.debug("Rename ref: {} -> {}", oldEntry.name, newEntry.name);
+                log.debug("Rename ref: {} -> {} ({})", oldEntry.name, newEntry.name, c);
                 applyRefRename(oldEntry.name, newEntry.name, uc);
             }
         }
@@ -339,7 +344,7 @@ public class RepositoryRewriter extends RepositoryAccess {
 
         if (!overwrite || !linkEquals || !idEquals) {
             // update
-            log.debug("Update ref: {} -> {}", oldEntry, newEntry);
+            log.debug("Update ref: {} -> {} ({})", oldEntry, newEntry, c);
             applyRefUpdate(newEntry, uc);
         }
     }
@@ -352,7 +357,7 @@ public class RepositoryRewriter extends RepositoryAccess {
             final String newName = rewriteRefName(entry.name, c);
 
             final Ref targetRef = c.getRef().getTarget();
-            final Context uc = c.with(Key.Ref, targetRef).with(Key.RefName, targetRef.getName());
+            final Context uc = c.with(Key.Ref, targetRef);
             final String newTarget = getRefEntry(new RefEntry(targetRef), uc).name;
             return new RefEntry(newName, newTarget);
         } else {
@@ -379,12 +384,12 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected ObjectId rewriteReferredCommit(final ObjectId id, final Context c) {
         if (getObjectType(id, c) != Constants.OBJ_COMMIT) {
             // referring non-commit; ignore it
-            log.debug("Ref {}: Ignore non-commit (id: {})", c.getRef().getName(), id.name());
+            log.debug("Ignore non-commit: {} ({})", id.name());
             return id;
         }
         final ObjectId result = commitMapping.get(id);
         if (result == null) {
-            log.warn("Ref {}: Rewritten commit not found (id: {})", c.getRef().getName(), id.name());
+            log.warn("Rewritten commit not found: {} ({})", id.name());
             return id;
         }
         return result;
@@ -394,19 +399,19 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a tag object.
      */
     protected ObjectId rewriteTag(final RevTag tag, final Context c) {
-        final Context uc = c.with(Key.Rev, tag).with(Key.Tag, tag).with(Key.RevId, tag.name());
+        final Context uc = c.with(Key.Rev, tag).with(Key.Tag, tag);
 
         final ObjectId newObjectId = rewriteReferredCommit(tag.getObject(), uc);
         if (newObjectId == ZERO) {
             return ZERO;
         }
-        log.debug("Rewrite tag target: {} -> {}", tag.getObject().name(), newObjectId.name());
+        log.debug("Rewrite tag target: {} -> {} ({})", tag.getObject().name(), newObjectId.name(), c);
 
         final String tagName = tag.getTagName();
         final PersonIdent tagger = rewriteTagger(tag.getTaggerIdent(), tag, uc);
         final String message = rewriteTagMessage(tag.getFullMessage(), uc);
         final ObjectId newId = writeTag(newObjectId, tagName, tagger, message, uc);
-        log.debug("Rewrite tag: {} -> {}", tag.name(), newId.name());
+        log.debug("Rewrite tag: {} -> {} ({})", tag.name(), newId.name(), c);
         return newId;
     }
 

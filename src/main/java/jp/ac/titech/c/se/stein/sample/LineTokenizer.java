@@ -75,10 +75,11 @@ public class LineTokenizer extends ConcurrentRepositoryRewriter {
     protected ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
         final Entry entry = c.getEntry();
         if (entry.name.toLowerCase().endsWith(".java")) {
-            log.debug("Process: {} ({})", entry.name, blobId);
             final String source = load(blobId, c);
             final String converted = decode ? decode(source) : encode(source);
-            return writeBlob(converted.getBytes(), c);
+            final ObjectId newId = writeBlob(converted.getBytes(), c);
+            log.debug("Rewrite blob: {} -> {} ({})", blobId.name(), newId.name(), c);
+            return newId;
         } else {
             return blobId;
         }

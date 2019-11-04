@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevTag;
@@ -16,7 +17,7 @@ import org.eclipse.jgit.revwalk.RevTag;
 public class Context implements Map<Context.Key, Object> {
 
     public enum Key {
-        Repo, Rev, Tag, Commit, RevId, TreeId, Path, Entry, Ref, RefName;
+        Repo, Rev, Tag, Commit, Tree, Path, Entry, Ref;
     }
 
     private final Context parent;
@@ -49,20 +50,35 @@ public class Context implements Map<Context.Key, Object> {
         return cache;
     }
 
-    public String doToString() {
-        if (value instanceof String) {
-            final StringBuilder sb = new StringBuilder();
-            sb.append(key).append(": ");
-            sb.append('"').append(value).append('"');
-            if (parent != null) {
-                final String parentString = parent.toString();
-                if (!parentString.isEmpty()) {
-                    sb.append(", ").append(parentString);
-                }
-            }
-            return sb.toString();
-        } else {
+    protected String doToString() {
+        final String stringValue = getStringValue();
+        if (stringValue == null) {
             return parent == null ? "" : parent.toString();
+        }
+        final StringBuilder sb = new StringBuilder();
+        sb.append(key.toString().toLowerCase()).append(": ");
+        sb.append('"').append(stringValue).append('"');
+        if (parent != null) {
+            final String parentString = parent.toString();
+            if (!parentString.isEmpty()) {
+                sb.append(", ").append(parentString);
+            }
+        }
+        return sb.toString();
+    }
+
+    protected String getStringValue() {
+        switch (key) {
+        case Repo:
+            return ((Repository) value).getDirectory().toString();
+        case Tag:
+            return ((RevTag) value).name();
+        case Commit:
+            return ((RevCommit) value).name();
+        case Ref:
+            return ((Ref) value).getName();
+        default:
+            return value instanceof String ? (String) value : null;
         }
     }
 
