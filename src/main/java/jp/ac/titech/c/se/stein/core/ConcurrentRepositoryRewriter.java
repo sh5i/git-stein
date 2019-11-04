@@ -67,7 +67,7 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements 
             final Spliterator<RevCommit> split = Spliterators.spliteratorUnknownSize(walk.iterator(), characteristics);
             final Stream<RevCommit> stream = StreamSupport.stream(split, true);
             stream.forEach(commit -> {
-                final Context uc = c.with(Key.commit_id, commit.getId().name()).with(Key.commit, commit);
+                final Context uc = c.with(Key.Rev, commit).with(Key.Commit, commit);
                 rewriteRootTree(commit.getTree().getId(), uc);
             });
         }

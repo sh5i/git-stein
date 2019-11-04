@@ -42,7 +42,8 @@ public class SvnMetadataAnnotator extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    protected String rewriteCommitMessage(final String message, final RevCommit commit, final Context c) {
+    protected String rewriteCommitMessage(final String message, final Context c) {
+        final RevCommit commit = c.getCommit();
         final Integer svnId = mapping.get(commit.getId());
         if (svnId != null) {
             log.debug("Mapping: {} -> r{}", commit.getId().name(), svnId);

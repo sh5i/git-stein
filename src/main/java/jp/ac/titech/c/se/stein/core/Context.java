@@ -5,9 +5,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevTag;
 
 /**
@@ -16,7 +16,7 @@ import org.eclipse.jgit.revwalk.RevTag;
 public class Context implements Map<Context.Key, Object> {
 
     public enum Key {
-        commit, commit_id, entry, id, path, ref, repo, tree_id, tag, tree;
+        Repo, Rev, Tag, Commit, RevId, TreeId, Path, Entry, Ref, RefName;
     }
 
     private final Context parent;
@@ -156,23 +156,27 @@ public class Context implements Map<Context.Key, Object> {
 
     // Utility methods
 
+    public String getCommitId() {
+        return getCommit().name();
+    }
+
+    public RevObject getRev() {
+        return (RevObject) get(Key.Rev);
+    }
+
     public RevCommit getCommit() {
-        return (RevCommit) get(Key.commit);
+        return (RevCommit) get(Key.Commit);
     }
 
     public RevTag getTag() {
-        return (RevTag) get(Key.tag);
-    }
-
-    public ObjectId getId() {
-        return (ObjectId) get(Key.id);
-    }
-
-    public Ref getRef() {
-        return (Ref) get(Key.ref);
+        return (RevTag) get(Key.Tag);
     }
 
     public EntrySet.Entry getEntry() {
-        return (EntrySet.Entry) get(Key.entry);
+        return (EntrySet.Entry) get(Key.Entry);
+    }
+
+    public Ref getRef() {
+        return (Ref) get(Key.Ref);
     }
 }

@@ -5,7 +5,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.util.sha1.SHA1;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,17 +65,19 @@ public class Anonymizer extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    public String rewriteMessage(final String message, final ObjectId id, final Context c) {
-        return "orig:" + id.name() + " " + hash7(message);
+    public String rewriteMessage(final String message, final Context c) {
+        final String name = c.getRev().name();
+        return "orig:" + name + " " + hash7(message);
     }
 
     @Override
-    public ObjectId rewriteBlob(final ObjectId blobId, final Entry entry, final Context c) {
+    public ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
         return writeBlob(blobId.name().getBytes(), c);
     }
 
     @Override
-    public String rewriteName(final String name, final Entry entry, final Context c) {
+    public String rewriteName(final String name, final Context c) {
+        final Entry entry = c.getEntry();
         if (entry.isTree()) {
             return treeNameMap.convert(name);
         } else {
@@ -95,7 +96,7 @@ public class Anonymizer extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    public String rewriteBranchName(final String name, final Ref ref, final Context c) {
+    public String rewriteBranchName(final String name, final Context c) {
         if (name.equals("master")) {
             return name;
         } else {
@@ -104,7 +105,7 @@ public class Anonymizer extends ConcurrentRepositoryRewriter {
     }
 
     @Override
-    public String rewriteTagName(final String name, final Ref ref, final Context c) {
+    public String rewriteTagName(final String name, final Context c) {
         return tagNameMap.convert(name);
     }
 
