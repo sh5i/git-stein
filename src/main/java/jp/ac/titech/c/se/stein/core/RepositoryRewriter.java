@@ -464,6 +464,31 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected void cleanUp(final Context c) {
     }
 
+    /**
+     * Exports source-to-destination mapping of commits.
+     */
+    public Map<String, String> exportCommitMapping() {
+        final Map<String, String> result = new HashMap<>();
+        for (final Map.Entry<ObjectId, ObjectId> e : commitMapping.entrySet()) {
+            final String src = e.getKey().name();
+            final String dst = e.getValue().name();
+            result.put(src, dst);
+        }
+        return result;
+    }
+
+    /**
+     * Imports source-to-destination mapping of commits.
+     */
+    public void importCommitMapping(final Map<String, String> map) {
+        commitMapping.clear();
+        for (final Map.Entry<String, String> e : map.entrySet()) {
+            final ObjectId src = ObjectId.fromString(e.getKey());
+            final ObjectId dst = ObjectId.fromString(e.getValue());
+            commitMapping.put(src, dst);
+        }
+    }
+
     @Override
     protected <R> R tryInsert(final ThrowableFunction<ObjectInserter, R> f) {
         if (inserter != null) {

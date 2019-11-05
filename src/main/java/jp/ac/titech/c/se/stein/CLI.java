@@ -17,6 +17,8 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.gson.Gson;
+
 import ch.qos.logback.classic.Level;
 import jp.ac.titech.c.se.stein.core.Configurable;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
@@ -50,6 +52,7 @@ public class CLI {
         conf.addOption(null, "level", true, "set log level (default: INFO)");
         conf.addOption("v", "verbose", false, "verbose mode (same as --log=trace)");
         conf.addOption("q", "quiet", false, "quiet mode (same as --log=error)");
+        conf.addOption("m", "commit-mapping", true, "specify a file for dumping the commit mapping");
         conf.addOption(null, "help", false, "print this help");
         if (rewriter instanceof Configurable) {
             ((Configurable) rewriter).addOptions(conf);
@@ -115,6 +118,16 @@ public class CLI {
         } catch (final IOException e) {
             e.printStackTrace();
         }
+
+        if (conf.hasOption("commit-mapping")) {
+            final String filename = conf.getOptionValue("commit-mapping");
+            try {
+                exportObject(rewriter.exportCommitMapping(), filename);
+            } catch (final IOException e) {
+                e.printStackTrace();
+            }
+        }
+
     }
 
     protected void setLoggerLevel() {
@@ -172,6 +185,14 @@ public class CLI {
         } else {
             return null;
         }
+    }
+
+    /**
+     * Dump an object to a file as JSON format.
+     */
+    protected void exportObject(final Object object, final String filename) throws IOException {
+        final Gson gson = new Gson();
+        Files.write(Paths.get(filename), gson.toJson(object).getBytes());
     }
 
     /**
