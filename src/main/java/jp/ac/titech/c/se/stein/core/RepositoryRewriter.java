@@ -13,6 +13,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.notes.NoteMap;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTag;
@@ -39,9 +40,14 @@ public class RepositoryRewriter extends RepositoryAccess {
 
     protected boolean pathSensitive = false;
 
+    protected NoteMap notes;
+
     public void rewrite(final Context c) {
         rewriteCommits(c);
         updateRefs(c);
+        if (notes != null) {
+            writeNotes(notes, c);
+        }
         cleanUp(c);
     }
 
@@ -149,9 +155,31 @@ public class RepositoryRewriter extends RepositoryAccess {
 
         final ObjectId oldId = commit.getId();
         commitMapping.put(oldId, newId);
-
         log.debug("Rewrite commit: {} -> {} ({})", oldId.name(), newId.name(), c);
+
+        addNote(newId, note(commit, c), uc);
         return newId;
+    }
+
+    /**
+     * Returns a note for a commit.
+     */
+    protected String note(final RevCommit commit, final Context c) {
+        return "orig:" + commit.name() + "\n";
+    }
+
+    /**
+     * Add a note for a commit.
+     */
+    protected void addNote(final ObjectId newId, final String note, final Context c) {
+        if (note == null) {
+            return;
+        }
+        if (notes == null) {
+            notes = NoteMap.newEmptyMap();
+        }
+        final ObjectId blob = writeBlob(note.getBytes(), c);
+        Try.io(() -> notes.set(newId, blob));
     }
 
     /**

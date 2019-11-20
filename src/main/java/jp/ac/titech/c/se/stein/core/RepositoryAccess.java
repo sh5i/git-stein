@@ -18,6 +18,7 @@ import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.TagBuilder;
 import org.eclipse.jgit.lib.TreeFormatter;
+import org.eclipse.jgit.notes.NoteMap;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -30,6 +31,8 @@ import jp.ac.titech.c.se.stein.core.Try.ThrowableFunction;
 
 public class RepositoryAccess implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(RepositoryAccess.class);
+
+    public static final ObjectId[] NO_PARENTS = new ObjectId[0];
 
     protected Repository repo;
 
@@ -155,6 +158,17 @@ public class RepositoryAccess implements Configurable {
         builder.setCommitter(committer);
         builder.setMessage(message);
         return tryInsert((ins) -> dryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder));
+    }
+
+    protected void writeNotes(final NoteMap map, final Context c) {
+        // TODO dry-running of map tree writing.
+        final ObjectId treeId = tryInsert((ins) -> map.writeTree(ins));
+        // TODO building PersonIdent better.
+        final PersonIdent ident = new PersonIdent(repo);
+        final String message = "Notes added by 'git notes add'";
+        final ObjectId commit = writeCommit(NO_PARENTS, treeId, ident, ident, message, c);
+
+        applyRefUpdate(new RefEntry(Constants.R_NOTES_COMMITS, commit), c);
     }
 
     /**
