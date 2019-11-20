@@ -160,7 +160,14 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected ObjectId[] rewriteParents(final ObjectId[] parents, final Context c) {
         final ObjectId[] result = new ObjectId[parents.length];
         for (int i = 0; i < parents.length; i++) {
-            result[i] = commitMapping.get(parents[i]);
+            final ObjectId parent = parents[i];
+            final ObjectId newParent = commitMapping.get(parent);
+            if (newParent == null) {
+                log.warn("Parent commit has not rewritten yet: {} ({})", parent.name(), c);
+                result[i] = parent;
+            } else {
+                result[i] = newParent;
+            }
         }
         return result;
     }
