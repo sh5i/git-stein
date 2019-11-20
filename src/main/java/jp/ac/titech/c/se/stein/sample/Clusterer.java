@@ -5,7 +5,9 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import org.eclipse.jgit.lib.ObjectId;
@@ -32,6 +34,8 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(Clusterer.class);
 
     private List<List<String>> clusters;
+
+    protected final Map<ObjectId, ObjectId> mergeMapping = new HashMap<>();
 
     private final Graph graph = new Graph();
 
@@ -69,6 +73,18 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
         buildGraph(c);
         mergeClusters();
         walkGraph((commit) -> rewriteCommit(commit, c), c);
+
+        for (final Map.Entry<ObjectId, ObjectId> e : mergeMapping.entrySet()) {
+            final ObjectId merged = e.getKey();
+            final ObjectId base = e.getValue();
+            final ObjectId rewritten = commitMapping.get(base);
+            if (rewritten == null) {
+                log.warn("Base commit has not rewritten yet: base: {}, merged: {} ({})", base.name(), merged.name(), c);
+            } else {
+                log.debug("Add commit mapping: {} merged into {} -> {} ({})", merged.name(), base.name(), rewritten.name(), c);
+                commitMapping.put(merged, rewritten);
+            }
+        }
     }
 
     protected void buildGraph(final Context c) {
@@ -116,6 +132,7 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
             for (int i = 1; i < cluster.size(); i++) {
                 final Vertex target = Vertex.of(cluster.get(i));
                 if (mergeVertices(graph, base, target)) {
+                    mergeMapping.put(target.id, base.id);
                     merged++;
                 }
             }
