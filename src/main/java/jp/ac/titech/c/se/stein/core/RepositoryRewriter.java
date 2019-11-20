@@ -312,8 +312,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a message.
      */
     protected String rewriteMessage(final String message, final Context c) {
-        final String name = c.getRev().name();
-        return "orig:" + name + " " + message;
+        return message;
     }
 
     /**
