@@ -46,8 +46,9 @@ public class CLI {
 
     public static CommonsConfig parseOptions(final String[] args, final RepositoryRewriter rewriter) {
         final CommonsConfig conf = new CommonsConfig();
-        conf.addOption("o", "output", true, "specify output path (non-overwrite)");
+        conf.addOption("o", "output", true, "specify output path");
         conf.addOption("d", "output-dup", true, "specify output path (duplicate-and-overwrite)");
+        conf.addOption("f", "clean", false, "delete the output beforehand if it exists");
         conf.addOption("b", "bare", false, "treat the repository as a bare repository");
         conf.addOption(null, "level", true, "set log level (default: INFO)");
         conf.addOption("v", "verbose", false, "verbose mode (same as --log=trace)");
@@ -146,21 +147,28 @@ public class CLI {
      * Returns the input repository object.
      */
     protected Repository getInputRepository() throws IOException {
-        final File path;
+        final File inputDir;
         if (conf.hasOption("output-dup")) {
             // duplicate mode
-            final String target = conf.getOptionValue("output-dup");
-            copyDirectory(Paths.get(conf.getArgs()[0]), Paths.get(target));
-            path = new File(target);
+            final String output = conf.getOptionValue("output-dup");
+            final Path outputPath = Paths.get(output);
+
+            // cleaning
+            if (conf.hasOption("clean") && Files.exists(outputPath)) {
+                deleteDirectory(outputPath);
+            }
+
+            copyDirectory(Paths.get(conf.getArgs()[0]), outputPath);
+            inputDir = new File(output);
         } else {
-            path = new File(conf.getArgs()[0]);
+            inputDir = new File(conf.getArgs()[0]);
         }
 
         final FileRepositoryBuilder builder = new FileRepositoryBuilder();
         if (conf.hasOption("bare")) {
-            builder.setGitDir(path).readEnvironment();
+            builder.setGitDir(inputDir).readEnvironment();
         } else {
-            builder.findGitDir(path);
+            builder.findGitDir(inputDir);
         }
         return builder.build();
     }
@@ -172,19 +180,28 @@ public class CLI {
         if (conf.hasOption("output-dup")) {
             // duplicate mode
             return null;
-        } else if (conf.hasOption("output")) {
-            final File path = new File(conf.getOptionValue("output"));
-            final FileRepositoryBuilder builder = new FileRepositoryBuilder();
-            if (conf.hasOption("bare")) {
-                builder.setGitDir(path);
-            } else {
-                final File gitdb = new File(path, Constants.DOT_GIT);
-                builder.setGitDir(gitdb);
-            }
-            return builder.build();
-        } else {
+        }
+
+        if (!conf.hasOption("output")) {
             return null;
         }
+
+        final File outputDir = new File(conf.getOptionValue("output"));
+
+        // cleaning
+        final Path outputPath = Paths.get(outputDir.toString());
+        if (conf.hasOption("clean") && Files.exists(outputPath)) {
+            deleteDirectory(outputPath);
+        }
+
+        final FileRepositoryBuilder builder = new FileRepositoryBuilder();
+        if (conf.hasOption("bare")) {
+            builder.setGitDir(outputDir);
+        } else {
+            final File gitdbDir = new File(outputDir, Constants.DOT_GIT);
+            builder.setGitDir(gitdbDir);
+        }
+        return builder.build();
     }
 
     /**
@@ -214,4 +231,27 @@ public class CLI {
             }
         });
     }
+
+    /**
+     * Delete a directory recursively.
+     */
+    protected void deleteDirectory(final Path target) throws IOException {
+        log.debug("Delete directory: {}", target);
+        Files.walkFileTree(target, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(final Path dir, IOException exc) throws IOException {
+                if (exc == null) {
+                    Files.delete(dir);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
 }
