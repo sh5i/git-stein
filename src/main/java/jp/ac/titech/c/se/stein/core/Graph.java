@@ -4,10 +4,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.jgrapht.alg.lca.NaiveLCAFinder;
 import org.jgrapht.graph.DirectedAcyclicGraph;
 
@@ -25,6 +27,38 @@ public class Graph extends DirectedAcyclicGraph<Vertex, Edge> {
      */
     public Graph() {
         super(null, new EdgeSupplier(), false);
+    }
+
+    /**
+     * Builds vertices and edges from a RevWalk.
+     */
+    public Graph build(final RevWalk walk) {
+        try (final RevWalk w = walk) {
+            for (final RevCommit commit : w) {
+                final Vertex v = Vertex.of(commit);
+                addVertex(v);
+                for (final RevCommit parent : commit.getParents()) {
+                    final Vertex p = Vertex.of(parent);
+                    addVertex(p);
+                    addEdge(v, p);
+                }
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Walk ObjectIds based on reversed topological order.
+     */
+    public void walk(final Consumer<ObjectId> f) {
+        // TODO: More efficient implementation
+        final List<ObjectId> ids = new ArrayList<>();
+        for (final Vertex v : this) {
+            ids.add(v.id);
+        }
+        for (int i = ids.size() - 1; i >= 0; i--) {
+            f.accept(ids.get(i));
+        }
     }
 
     /**
@@ -73,6 +107,14 @@ public class Graph extends DirectedAcyclicGraph<Vertex, Edge> {
             result.add(getEdgeTarget(e));
         }
         return result;
+    }
+
+    /**
+     * Gets the parent IDs of the given ID.
+     */
+    public ObjectId[] getParentIds(final ObjectId id) {
+        final List<Vertex> parents = getParents(Vertex.of(id));
+        return parents.stream().map((v) -> v.id).toArray(ObjectId[]::new);
     }
 
     /**

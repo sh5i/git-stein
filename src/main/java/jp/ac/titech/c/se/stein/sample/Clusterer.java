@@ -2,18 +2,13 @@ package jp.ac.titech.c.se.stein.sample;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
-import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.revwalk.RevWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +24,7 @@ import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.Graph;
 import jp.ac.titech.c.se.stein.core.Graph.Vertex;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.core.Try;
 
 public class Clusterer extends RepositoryRewriter implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(Clusterer.class);
@@ -70,9 +66,16 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
 
     @Override
     protected void rewriteCommits(final Context c) {
-        buildGraph(c);
+        graph.build(prepareRevisionWalk(c));
+        log.debug("Graph: {} vertices, {} edges", graph.vertexSet().size(), graph.edgeSet().size());
+
         mergeClusters();
-        walkGraph((commit) -> rewriteCommit(commit, c), c);
+
+        try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
+            this.inserter = ins;
+            graph.walk((id) -> rewriteCommit(Try.io(() -> repo.parseCommit(id)), c));
+            this.inserter = null;
+        }
 
         for (final Map.Entry<ObjectId, ObjectId> e : mergeMapping.entrySet()) {
             final ObjectId merged = e.getKey();
@@ -84,44 +87,6 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
                 log.debug("Add commit mapping: {} merged into {} -> {} ({})", merged.name(), base.name(), rewritten.name(), c);
                 commitMapping.put(merged, rewritten);
             }
-        }
-    }
-
-    protected void buildGraph(final Context c) {
-        try (final RevWalk walk = prepareRevisionWalk(c)) {
-            for (final RevCommit commit : walk) {
-                final Vertex v = Vertex.of(commit);
-                graph.addVertex(v);
-                for (final RevCommit parent : commit.getParents()) {
-                    final Vertex p = Vertex.of(parent);
-                    graph.addVertex(p);
-                    graph.addEdge(v, p);
-                }
-            }
-        }
-        log.debug("Graph: {} vertices, {} edges", graph.vertexSet().size(), graph.edgeSet().size());
-    }
-
-    protected void walkGraph(final Consumer<RevCommit> f, final Context c) {
-        // TODO: More efficient implementation
-        final List<ObjectId> ids = new ArrayList<>();
-        for (final Vertex v : graph) {
-            ids.add(v.id);
-        }
-
-        try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
-            this.inserter = ins;
-            try (final RevWalk walk = prepareRevisionWalk(c)) {
-                for (int i = ids.size() - 1; i >= 0; i--) {
-                    try {
-                        final RevCommit commit = walk.parseCommit(ids.get(i));
-                        f.accept(commit);
-                    } catch (final IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-            this.inserter = null;
         }
     }
 
@@ -152,15 +117,12 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
 
     @Override
     protected ObjectId[] rewriteParents(final ObjectId[] parents, final Context c) {
-        final List<Vertex> parentVertices = graph.getParents(Vertex.of(c.getCommit()));
-        final ObjectId[] newParents = new ObjectId[parentVertices.size()];
-        for (int i = 0; i < parentVertices.size(); i++) {
-            newParents[i] = parentVertices.get(i).id;
-        }
+        final ObjectId[] newParents = graph.getParentIds(c.getCommit().getId());
         if (log.isDebugEnabled()) {
-            final String[] before = Arrays.stream(parents).map((id) -> id.name()).toArray(String[]::new);
-            final String[] after = Arrays.stream(newParents).map((id) -> id.name()).toArray(String[]::new);
-            log.debug("Substitute parents: {} -> {} ({})", before, after, c);
+            log.debug("Substitute parents: {} -> {} ({})",
+                    Stream.of(parents).map(ObjectId::name),
+                    Stream.of(newParents).map(ObjectId::name),
+                    c);
         }
         return super.rewriteParents(newParents, c);
     }
