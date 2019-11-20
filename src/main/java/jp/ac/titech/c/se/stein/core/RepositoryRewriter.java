@@ -160,7 +160,14 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected ObjectId[] rewriteParents(final ObjectId[] parents, final Context c) {
         final ObjectId[] result = new ObjectId[parents.length];
         for (int i = 0; i < parents.length; i++) {
-            result[i] = commitMapping.get(parents[i]);
+            final ObjectId parent = parents[i];
+            final ObjectId newParent = commitMapping.get(parent);
+            if (newParent == null) {
+                log.warn("Parent commit has not rewritten yet: {} ({})", parent.name(), c);
+                result[i] = parent;
+            } else {
+                result[i] = newParent;
+            }
         }
         return result;
     }
@@ -384,12 +391,12 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected ObjectId rewriteReferredCommit(final ObjectId id, final Context c) {
         if (getObjectType(id, c) != Constants.OBJ_COMMIT) {
             // referring non-commit; ignore it
-            log.debug("Ignore non-commit: {} ({})", id.name());
+            log.debug("Ignore non-commit: {} ({})", id.name(), c);
             return id;
         }
         final ObjectId result = commitMapping.get(id);
         if (result == null) {
-            log.warn("Rewritten commit not found: {} ({})", id.name());
+            log.warn("Rewritten commit not found: {} ({})", id.name(), c);
             return id;
         }
         return result;
