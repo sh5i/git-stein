@@ -384,12 +384,12 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected ObjectId rewriteReferredCommit(final ObjectId id, final Context c) {
         if (getObjectType(id, c) != Constants.OBJ_COMMIT) {
             // referring non-commit; ignore it
-            log.debug("Ignore non-commit: {} ({})", id.name());
+            log.debug("Ignore non-commit: {} ({})", id.name(), c);
             return id;
         }
         final ObjectId result = commitMapping.get(id);
         if (result == null) {
-            log.warn("Rewritten commit not found: {} ({})", id.name());
+            log.warn("Rewritten commit not found: {} ({})", id.name(), c);
             return id;
         }
         return result;
