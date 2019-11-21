@@ -4,9 +4,9 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
 
 import jp.ac.titech.c.se.stein.core.Config;
+import jp.ac.titech.c.se.stein.core.Try;
 
 /**
  * A Config implementation using Apache Commons CLI
@@ -45,11 +45,7 @@ public class CommonsConfig implements Config {
 
     public void run(final String[] args) {
         final CommandLineParser parser = new DefaultParser();
-        try {
-            cmd = parser.parse(opts, args);
-        } catch (final ParseException e) {
-            throw new RuntimeException(e);
-        }
+        cmd = Try.run(() -> parser.parse(opts, args));
     }
 
     public String[] getArgs() {

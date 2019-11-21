@@ -4,8 +4,9 @@ import org.eclipse.jgit.api.CleanCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
-import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
+
+import jp.ac.titech.c.se.stein.core.Try;
 
 public class PorcelainAPI implements AutoCloseable {
 
@@ -24,26 +25,22 @@ public class PorcelainAPI implements AutoCloseable {
      * Applies `git reset --hard (HEAD)`.
      */
     public void resetHard() {
-        try {
+        Try.run(() -> {
             final ResetCommand cmd = git.reset();
             cmd.setMode(ResetType.HARD);
             cmd.call();
-        } catch (final GitAPIException e) {
-            throw new RuntimeException(e);
-        }
+        });
     }
 
     /**
      * Applies `git clean -fd`.
      */
     public void clean() {
-        try {
+        Try.run(() -> {
             final CleanCommand cmd = git.clean();
             cmd.setForce(true);
             cmd.setCleanDirectories(true);
             cmd.call();
-        } catch (final GitAPIException e) {
-            throw new RuntimeException(e);
-        }
+        });
     }
 }
