@@ -264,7 +264,7 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected EntrySet rewriteEntry(final Entry entry, final Context c) {
         final Context uc = c.with(Key.Path, entry.getPath()).with(Key.Entry, entry);
 
-        final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, c) : rewriteBlob(entry.id, uc);
+        final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, uc) : rewriteBlob(entry.id, uc);
         final String newName = rewriteName(entry.name, uc);
         return newId == ZERO ? EntrySet.EMPTY : new Entry(entry.mode, newName, newId, entry.pathContext);
     }
