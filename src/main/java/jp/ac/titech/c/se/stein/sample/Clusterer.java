@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.sample;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.util.HashMap;
@@ -33,12 +34,15 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
 
     protected final Map<ObjectId, ObjectId> mergeMapping = new HashMap<>();
 
+    protected File graphOutput;
+
     private final Graph graph = new Graph();
 
     @Override
     public void addOptions(final Config conf) {
         super.addOptions(conf);
         conf.addOption(null, "clusters", true, "set clustering info");
+        conf.addOption(null, "dump-graph", true, "dump graph as GML");
     }
 
     @Override
@@ -46,6 +50,9 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
         super.configure(conf);
         if (conf.hasOption("clusters")) {
             clusters = loadJSON(conf.getOptionValue("clusters"));
+        }
+        if (conf.hasOption("dump-graph")) {
+            graphOutput = new File(conf.getOptionValue("dump-graph"));
         }
     }
 
@@ -70,6 +77,10 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
         log.debug("Graph: {} vertices, {} edges", graph.vertexSet().size(), graph.edgeSet().size());
 
         mergeClusters();
+
+        if (graphOutput != null) {
+            graph.dump(graphOutput);
+        }
 
         try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
             this.inserter = ins;

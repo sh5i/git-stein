@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.core;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -12,6 +13,9 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.jgrapht.alg.lca.NaiveLCAFinder;
 import org.jgrapht.graph.DirectedAcyclicGraph;
+import org.jgrapht.io.ComponentNameProvider;
+import org.jgrapht.io.GmlExporter;
+import org.jgrapht.io.GraphExporter;
 
 import jp.ac.titech.c.se.stein.core.Graph.Edge;
 import jp.ac.titech.c.se.stein.core.Graph.Vertex;
@@ -118,6 +122,14 @@ public class Graph extends DirectedAcyclicGraph<Vertex, Edge> {
     }
 
     /**
+     * Dumps the graph as GML.
+     */
+    public void dump(final File file) {
+        final GraphExporter<Vertex, Edge> exporter = new GmlExporter<>(new VertexNameProvider(), null, new EdgeNameProvider(), null);
+        Try.run(() -> exporter.exportGraph(this, file));
+    }
+
+    /**
      * Vertices of the graph (commits).
      */
     public static class Vertex {
@@ -184,6 +196,26 @@ public class Graph extends DirectedAcyclicGraph<Vertex, Edge> {
         @Override
         public Edge get() {
             return new Edge(++index);
+        }
+    }
+
+    /**
+     * Name provider for GML export.
+     */
+    public static class VertexNameProvider implements ComponentNameProvider<Vertex> {
+        @Override
+        public String getName(final Vertex component) {
+            return component.id.name();
+        }
+    }
+
+    /**
+     * Name provider for GML export.
+     */
+    public static class EdgeNameProvider implements ComponentNameProvider<Edge> {
+        @Override
+        public String getName(final Edge component) {
+            return String.valueOf(component.index);
         }
     }
 }
