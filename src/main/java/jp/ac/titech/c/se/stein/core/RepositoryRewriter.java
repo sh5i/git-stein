@@ -40,7 +40,23 @@ public class RepositoryRewriter extends RepositoryAccess {
 
     protected boolean pathSensitive = false;
 
+    protected boolean noteOriginalCommit = false;
+
     protected NoteMap notes;
+
+    @Override
+    public void addOptions(final Config conf) {
+        super.addOptions(conf);
+        conf.addOption(null, "note", false, "note original commit ID as git-notes");
+    }
+
+    @Override
+    public void configure(final Config conf) {
+        super.configure(conf);
+        if (conf.hasOption("note")) {
+            setNoteOriginalCommit(true);
+        }
+    }
 
     public void rewrite(final Context c) {
         rewriteCommits(c);
@@ -61,6 +77,14 @@ public class RepositoryRewriter extends RepositoryAccess {
      */
     protected void setPathSensitive(final boolean value) {
         this.pathSensitive = value;
+    }
+
+    /**
+     * Sets whether the information of the original commit is noted as
+     * git-notes.
+     */
+    protected void setNoteOriginalCommit(final boolean value) {
+        this.noteOriginalCommit = value;
     }
 
     /**
@@ -165,7 +189,11 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Returns a note for a commit.
      */
     protected String note(final RevCommit commit, final Context c) {
-        return "orig:" + commit.name() + "\n";
+        if (noteOriginalCommit) {
+            return "orig:" + commit.name() + "\n";
+        } else {
+            return null;
+        }
     }
 
     /**
