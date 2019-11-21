@@ -189,11 +189,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Returns a note for a commit.
      */
     protected String note(final RevCommit commit, final Context c) {
-        if (noteOriginalCommit) {
-            return "orig:" + commit.name() + "\n";
-        } else {
-            return null;
-        }
+        return noteOriginalCommit ? commit.name() : null;
     }
 
     /**
