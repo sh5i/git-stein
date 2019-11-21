@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
-import jp.ac.titech.c.se.stein.core.Try.ThrowableFunction;
+import jp.ac.titech.c.se.stein.core.Try.IOThrowableFunction;
 
 public class RepositoryRewriter extends RepositoryAccess {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
@@ -548,7 +548,7 @@ public class RepositoryRewriter extends RepositoryAccess {
     }
 
     @Override
-    protected <R> R tryInsert(final ThrowableFunction<ObjectInserter, R> f) {
+    protected <R> R tryInsert(final IOThrowableFunction<ObjectInserter, R> f) {
         if (inserter != null) {
             return Try.io(f).apply(inserter);
         } else {

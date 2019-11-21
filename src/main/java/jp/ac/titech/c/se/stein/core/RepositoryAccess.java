@@ -27,7 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
-import jp.ac.titech.c.se.stein.core.Try.ThrowableFunction;
+import jp.ac.titech.c.se.stein.core.Try.IOThrowableFunction;
 
 public class RepositoryAccess implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(RepositoryAccess.class);
@@ -258,7 +258,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Prepares an object inserter.
      */
-    protected <R> R tryInsert(final ThrowableFunction<ObjectInserter, R> f) {
+    protected <R> R tryInsert(final IOThrowableFunction<ObjectInserter, R> f) {
         try (final ObjectInserter inserter = writeRepo.newObjectInserter()) {
             return Try.io(f).apply(inserter);
         }

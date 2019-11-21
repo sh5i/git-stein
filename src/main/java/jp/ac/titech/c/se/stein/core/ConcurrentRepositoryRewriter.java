@@ -15,7 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.core.Context.Key;
-import jp.ac.titech.c.se.stein.core.Try.ThrowableFunction;
+import jp.ac.titech.c.se.stein.core.Try.IOThrowableFunction;
 
 public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(ConcurrentRepositoryRewriter.class);
@@ -81,7 +81,7 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements 
     }
 
     @Override
-    protected <R> R tryInsert(final ThrowableFunction<ObjectInserter, R> f) {
+    protected <R> R tryInsert(final IOThrowableFunction<ObjectInserter, R> f) {
         if (inserters != null) {
             final Thread thread = Thread.currentThread();
             final ObjectInserter ins = inserters.computeIfAbsent(thread, (t) -> writeRepo.newObjectInserter());
