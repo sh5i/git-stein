@@ -3,27 +3,32 @@ package jp.ac.titech.c.se.stein.core;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.jgrapht.alg.lca.NaiveLCAFinder;
-import org.jgrapht.graph.DirectedAcyclicGraph;
+import org.jgrapht.graph.EdgeReversedGraph;
+import org.jgrapht.graph.SimpleDirectedGraph;
 import org.jgrapht.io.ComponentNameProvider;
 import org.jgrapht.io.GmlExporter;
 import org.jgrapht.io.GraphExporter;
+import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import jp.ac.titech.c.se.stein.core.Graph.Edge;
 import jp.ac.titech.c.se.stein.core.Graph.Vertex;
 
 /**
  * jGraphT DAG for a commit graph.
+ *
+ * This inherits from SimpleDirectedGraph rather than DirectedAcyclicGraph due
+ * to efficiency.
  */
-public class Graph extends DirectedAcyclicGraph<Vertex, Edge> {
+public class Graph extends SimpleDirectedGraph<Vertex, Edge> implements Iterable<Vertex> {
     private static final long serialVersionUID = 1L;
 
     /**
@@ -54,15 +59,9 @@ public class Graph extends DirectedAcyclicGraph<Vertex, Edge> {
     /**
      * Walk ObjectIds based on reversed topological order.
      */
-    public void walk(final Consumer<ObjectId> f) {
-        // TODO: More efficient implementation
-        final List<ObjectId> ids = new ArrayList<>();
-        for (final Vertex v : this) {
-            ids.add(v.id);
-        }
-        for (int i = ids.size() - 1; i >= 0; i--) {
-            f.accept(ids.get(i));
-        }
+    @Override
+    public Iterator<Vertex> iterator() {
+        return new TopologicalOrderIterator<>(new EdgeReversedGraph<>(this));
     }
 
     /**

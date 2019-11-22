@@ -76,7 +76,9 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
 
         try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
             this.inserter = ins;
-            graph.walk(id -> rewriteCommit(Try.io(() -> repo.parseCommit(id)), c));
+            for (final Vertex v : graph) {
+                rewriteCommit(Try.io(() -> repo.parseCommit(v.id)), c);
+            }
             this.inserter = null;
         }
 
