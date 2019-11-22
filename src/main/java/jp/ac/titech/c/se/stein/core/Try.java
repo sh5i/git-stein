@@ -75,7 +75,7 @@ public class Try {
     }
 
     public static <T, R> Function<T, R> run(final ThrowableFunction<T, R> f) {
-        return (x) -> {
+        return x -> {
             try {
                 return f.apply(x);
             } catch (final Exception e) {
@@ -85,7 +85,7 @@ public class Try {
     }
 
     public static <T, R> Function<T, R> run(final Context c, final ThrowableFunction<T, R> f) {
-        return (x) -> {
+        return x -> {
             try {
                 return f.apply(x);
             } catch (final Exception e) {
@@ -129,7 +129,7 @@ public class Try {
     }
 
     public static <T, R> Function<T, R> io(final IOThrowableFunction<T, R> f) {
-        return (x) -> {
+        return x -> {
             try {
                 return f.apply(x);
             } catch (final IOException e) {
@@ -139,7 +139,7 @@ public class Try {
     }
 
     public static <T, R> Function<T, R> io(final Context c, final IOThrowableFunction<T, R> f) {
-        return (x) -> {
+        return x -> {
             try {
                 return f.apply(x);
             } catch (final IOException e) {

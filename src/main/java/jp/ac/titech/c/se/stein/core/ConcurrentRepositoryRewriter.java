@@ -84,7 +84,7 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements 
     protected <R> R tryInsert(final IOThrowableFunction<ObjectInserter, R> f) {
         if (inserters != null) {
             final Thread thread = Thread.currentThread();
-            final ObjectInserter ins = inserters.computeIfAbsent(thread, (t) -> writeRepo.newObjectInserter());
+            final ObjectInserter ins = inserters.computeIfAbsent(thread, t -> writeRepo.newObjectInserter());
             return Try.io(f).apply(ins);
         } else {
             return super.tryInsert(f);
