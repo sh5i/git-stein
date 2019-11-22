@@ -142,8 +142,8 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
         final ObjectId[] newParents = graph.getParentIds(c.getCommit().getId());
         if (log.isDebugEnabled()) {
             log.debug("Substitute parents: {} -> {} ({})",
-                    Stream.of(parents).map(ObjectId::name),
-                    Stream.of(newParents).map(ObjectId::name),
+                    Stream.of(parents).map(ObjectId::name).toArray(String[]::new),
+                    Stream.of(newParents).map(ObjectId::name).toArray(String[]::new),
                     c);
         }
         return super.rewriteParents(newParents, c);
