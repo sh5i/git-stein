@@ -100,6 +100,20 @@ public class Graph extends DirectedAcyclicGraph<Vertex, Edge> {
     }
 
     /**
+     * Merge the <code>target</code> vertex into <code>base</code> vertex only
+     * if they are mergeable.
+     *
+     * @return true if they are mergeable and merged.
+     */
+    public boolean mergeVerticesSafely(final Vertex base, final Vertex target) {
+        if (!isMergeable(base, target)) {
+            return false;
+        }
+        mergeVertices(base, target);
+        return true;
+    }
+
+    /**
      * Gets the parent vertices of the given vertex.
      */
     public List<Vertex> getParents(final Vertex v) {
@@ -118,7 +132,7 @@ public class Graph extends DirectedAcyclicGraph<Vertex, Edge> {
      */
     public ObjectId[] getParentIds(final ObjectId id) {
         final List<Vertex> parents = getParents(Vertex.of(id));
-        return parents.stream().map((v) -> v.id).toArray(ObjectId[]::new);
+        return parents.stream().map(v -> v.id).toArray(ObjectId[]::new);
     }
 
     /**
