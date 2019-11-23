@@ -31,6 +31,8 @@ import jp.ac.titech.c.se.stein.core.Graph.Vertex;
 public class Graph extends SimpleDirectedGraph<Vertex, Edge> implements Iterable<Vertex> {
     private static final long serialVersionUID = 1L;
 
+    private final org.jgrapht.Graph<Vertex, Edge> reversed = new EdgeReversedGraph<>(this);
+
     /**
      * The constructor.
      */
@@ -61,14 +63,14 @@ public class Graph extends SimpleDirectedGraph<Vertex, Edge> implements Iterable
      */
     @Override
     public Iterator<Vertex> iterator() {
-        return new TopologicalOrderIterator<>(new EdgeReversedGraph<>(this));
+        return new TopologicalOrderIterator<>(reversed);
     }
 
     /**
      * Checks whether two vertices can be merged (no parent-child relationship).
      */
     public boolean isMergeable(final Vertex base, final Vertex target) {
-        final Set<Vertex> lca = new NaiveLCAFinder<Vertex, Edge>(this).getLCASet(base, target);
+        final Set<Vertex> lca = new NaiveLCAFinder<Vertex, Edge>(reversed).getLCASet(base, target);
         return !lca.contains(base) && !lca.contains(target);
     }
 
