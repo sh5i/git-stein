@@ -11,6 +11,7 @@ import java.util.function.Supplier;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.jgrapht.Graph;
 import org.jgrapht.alg.lca.NaiveLCAFinder;
 import org.jgrapht.graph.EdgeReversedGraph;
 import org.jgrapht.graph.SimpleDirectedGraph;
@@ -19,8 +20,8 @@ import org.jgrapht.io.GmlExporter;
 import org.jgrapht.io.GraphExporter;
 import org.jgrapht.traverse.TopologicalOrderIterator;
 
-import jp.ac.titech.c.se.stein.core.Graph.Edge;
-import jp.ac.titech.c.se.stein.core.Graph.Vertex;
+import jp.ac.titech.c.se.stein.core.CommitGraph.Edge;
+import jp.ac.titech.c.se.stein.core.CommitGraph.Vertex;
 
 /**
  * jGraphT DAG for a commit graph.
@@ -28,22 +29,22 @@ import jp.ac.titech.c.se.stein.core.Graph.Vertex;
  * This inherits from SimpleDirectedGraph rather than DirectedAcyclicGraph due
  * to efficiency.
  */
-public class Graph extends SimpleDirectedGraph<Vertex, Edge> implements Iterable<Vertex> {
+public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements Iterable<Vertex> {
     private static final long serialVersionUID = 1L;
 
-    private final org.jgrapht.Graph<Vertex, Edge> reversed = new EdgeReversedGraph<>(this);
+    private final Graph<Vertex, Edge> reversed = new EdgeReversedGraph<>(this);
 
     /**
      * The constructor.
      */
-    public Graph() {
+    public CommitGraph() {
         super(null, new EdgeSupplier(), false);
     }
 
     /**
      * Builds vertices and edges from a RevWalk.
      */
-    public Graph build(final RevWalk walk) {
+    public CommitGraph build(final RevWalk walk) {
         try (final RevWalk w = walk) {
             for (final RevCommit commit : w) {
                 final Vertex v = Vertex.of(commit);

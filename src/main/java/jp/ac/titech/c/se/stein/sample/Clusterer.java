@@ -21,8 +21,8 @@ import jp.ac.titech.c.se.stein.CLI;
 import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Configurable;
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.Graph;
-import jp.ac.titech.c.se.stein.core.Graph.Vertex;
+import jp.ac.titech.c.se.stein.core.CommitGraph;
+import jp.ac.titech.c.se.stein.core.CommitGraph.Vertex;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Try;
 
@@ -35,7 +35,7 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
 
     protected File graphOutput;
 
-    private final Graph graph = new Graph();
+    private final CommitGraph graph = new CommitGraph();
 
     @Override
     public void addOptions(final Config conf) {
