@@ -29,7 +29,7 @@ import jp.ac.titech.c.se.stein.core.Try;
 public class Clusterer extends RepositoryRewriter implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(Clusterer.class);
 
-    private List<List<String>> recipe;
+    private Map<String, List<List<String>>> recipe;
 
     protected final Map<ObjectId, ObjectId> alternateMapping = new HashMap<>();
 
@@ -58,9 +58,9 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
     /**
      * Loads the clustering info.
      */
-    protected List<List<String>> loadRecipe(final File file) {
+    protected Map<String, List<List<String>>> loadRecipe(final File file) {
         final Gson gson = new Gson();
-        final TypeToken<List<List<String>>> t = new TypeToken<List<List<String>>>() {};
+        final TypeToken<Map<String, List<List<String>>>> t = new TypeToken<Map<String, List<List<String>>>>() {};
         return Try.run(() -> gson.fromJson(new FileReader(file), t.getType()));
     }
 
@@ -109,10 +109,13 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
     }
 
     protected void rewriteGraph() {
-        for (final List<String> info : recipe) {
-            final List<Vertex> in = info.stream().map(Vertex::of).collect(Collectors.toList());
-            final List<Vertex> out = mergeCluster(in);
-            log.debug("Merge cluster: {} -> {} (size: {} -> {})", in, out, in.size(), out.size());
+        final List<List<String>> clusters = recipe.get("clusters");
+        if (clusters != null) {
+            for (final List<String> info : clusters) {
+                final List<Vertex> in = info.stream().map(Vertex::of).collect(Collectors.toList());
+                final List<Vertex> out = mergeCluster(in);
+                log.debug("Merge cluster: {} -> {} (size: {} -> {})", in, out, in.size(), out.size());
+            }
         }
     }
 
