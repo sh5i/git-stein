@@ -18,18 +18,18 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import jp.ac.titech.c.se.stein.CLI;
+import jp.ac.titech.c.se.stein.core.CommitGraph;
+import jp.ac.titech.c.se.stein.core.CommitGraph.Vertex;
 import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Configurable;
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.CommitGraph;
-import jp.ac.titech.c.se.stein.core.CommitGraph.Vertex;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Try;
 
 public class Clusterer extends RepositoryRewriter implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(Clusterer.class);
 
-    private List<List<String>> clustersInfo;
+    private List<List<String>> recipe;
 
     protected final Map<ObjectId, ObjectId> alternateMapping = new HashMap<>();
 
@@ -40,15 +40,15 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
     @Override
     public void addOptions(final Config conf) {
         super.addOptions(conf);
-        conf.addOption(null, "clusters", true, "set clustering info");
+        conf.addOption(null, "recipe", true, "set recipe JSON file");
         conf.addOption(null, "dump-graph", true, "dump graph as GML");
     }
 
     @Override
     public void configure(final Config conf) {
         super.configure(conf);
-        if (conf.hasOption("clusters")) {
-            clustersInfo = loadClustersInfo(new File(conf.getOptionValue("clusters")));
+        if (conf.hasOption("recipe")) {
+            recipe = loadRecipe(new File(conf.getOptionValue("recipe")));
         }
         if (conf.hasOption("dump-graph")) {
             graphOutput = new File(conf.getOptionValue("dump-graph"));
@@ -58,7 +58,7 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
     /**
      * Loads the clustering info.
      */
-    protected List<List<String>> loadClustersInfo(final File file) {
+    protected List<List<String>> loadRecipe(final File file) {
         final Gson gson = new Gson();
         final TypeToken<List<List<String>>> t = new TypeToken<List<List<String>>>() {};
         return Try.run(() -> gson.fromJson(new FileReader(file), t.getType()));
@@ -69,7 +69,8 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
         graph.build(prepareRevisionWalk(c));
         log.debug("Graph: {} vertices, {} edges ({})", graph.vertexSet().size(), graph.edgeSet().size(), c);
 
-        mergeClusters();
+        rewriteGraph();
+
         if (graphOutput != null) {
             graph.dump(graphOutput);
         }
@@ -107,8 +108,8 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
         }
     }
 
-    protected void mergeClusters() {
-        for (final List<String> info : clustersInfo) {
+    protected void rewriteGraph() {
+        for (final List<String> info : recipe) {
             final List<Vertex> in = info.stream().map(Vertex::of).collect(Collectors.toList());
             final List<Vertex> out = mergeCluster(in);
             log.debug("Merge cluster: {} -> {} (size: {} -> {})", in, out, in.size(), out.size());
