@@ -109,13 +109,40 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
     }
 
     protected void rewriteGraph() {
-        final List<List<String>> clusters = recipe.get("clusters");
-        if (clusters != null) {
-            for (final List<String> info : clusters) {
-                final List<Vertex> in = info.stream().map(Vertex::of).collect(Collectors.toList());
-                final List<Vertex> out = mergeCluster(in);
-                log.debug("Merge cluster: {} -> {} (size: {} -> {})", in, out, in.size(), out.size());
-            }
+        if (recipe.containsKey("removeEdges")) {
+            removeEdges(recipe.get("removeEdges"));
+        }
+        if (recipe.containsKey("addEdges")) {
+            addEdges(recipe.get("addEdges"));
+        }
+        if (recipe.containsKey("clusters")) {
+            mergeClusters(recipe.get("clusters"));
+        }
+    }
+
+    private void removeEdges(final List<List<String>> removeEdgesRecipe) {
+        for (final List<String> e : removeEdgesRecipe) {
+            final Vertex source = Vertex.of(e.get(0));
+            final Vertex target = Vertex.of(e.get(1));
+            graph.removeEdge(source, target);
+            log.debug("Remove edge: {} -> {}", source, target);
+        }
+    }
+
+    private void addEdges(final List<List<String>> addEdgesRecipe) {
+        for (final List<String> e : addEdgesRecipe) {
+            final Vertex source = Vertex.of(e.get(0));
+            final Vertex target = Vertex.of(e.get(1));
+            graph.addEdge(source, target);
+            log.debug("Add edge: {} -> {}", source, target);
+        }
+    }
+
+    private void mergeClusters(final List<List<String>> clustersRecipe) {
+        for (final List<String> c : clustersRecipe) {
+            final List<Vertex> in = c.stream().map(Vertex::of).collect(Collectors.toList());
+            final List<Vertex> out = mergeCluster(in);
+            log.debug("Merge cluster: {} -> {} (size: {} -> {})", in, out, in.size(), out.size());
         }
     }
 
