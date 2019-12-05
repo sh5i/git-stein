@@ -3,8 +3,10 @@ package jp.ac.titech.c.se.stein.sample;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Stack;
 import java.util.stream.Collectors;
 
@@ -17,9 +19,11 @@ import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.AbstractTypeDeclaration;
 import org.eclipse.jdt.core.dom.AnnotationTypeDeclaration;
 import org.eclipse.jdt.core.dom.AnonymousClassDeclaration;
+import org.eclipse.jdt.core.dom.BodyDeclaration;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.EnumDeclaration;
 import org.eclipse.jdt.core.dom.FieldDeclaration;
+import org.eclipse.jdt.core.dom.Javadoc;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.Type;
@@ -197,10 +201,7 @@ public class Historage extends ConcurrentRepositoryRewriter {
             return parser;
         }
 
-        protected String getSource(final ASTNode node) {
-            final int start = node.getStartPosition();
-            final int end = start + node.getLength();
-
+        protected String getSource(final int start, final int end) {
             // include the prefix indent
             int prefix = 0;
             LOOP: while (start > prefix) {
@@ -220,6 +221,39 @@ public class Historage extends ConcurrentRepositoryRewriter {
 
             final String content = source.substring(start - prefix, end);
             return source.charAt(end - 1) == '\n' ? content : content + "\n";
+        }
+
+        protected String getSource(final ASTNode node) {
+            return getSource(node.getStartPosition(), node.getStartPosition() + node.getLength());
+        }
+
+        protected String getSourceWithoutJavadoc(final BodyDeclaration node) {
+            final Optional<Integer> start = findChildNodes(node).stream()
+                    .filter(n -> !(n instanceof Javadoc))
+                    .map(n -> n.getStartPosition())
+                    .min(Comparator.naturalOrder());
+            if (start.isPresent() && start.get() > node.getStartPosition()) {
+                return getSource(start.get(), node.getStartPosition() + node.getLength());
+            } else {
+                return getSource(node);
+            }
+        }
+
+        protected List<ASTNode> findChildNodes(final ASTNode node) {
+            final List<ASTNode> result = new ArrayList<>();
+            node.accept(new ASTVisitor() {
+                boolean isRoot = true;
+                @Override
+                public boolean preVisit2(final ASTNode node) {
+                    if (isRoot) {
+                        isRoot = false;
+                        return true;
+                    }
+                    result.add(node);
+                    return false;
+                }
+            });
+            return result;
         }
 
         @Override
@@ -254,7 +288,7 @@ public class Historage extends ConcurrentRepositoryRewriter {
 
         protected boolean visitType(final AbstractTypeDeclaration node) {
             final String name = node.getName().getIdentifier();
-            final Module klass = new Module.Class(name, stack.peek(), getSource(node));
+            final Module klass = new Module.Class(name, stack.peek(), getSourceWithoutJavadoc(node));
             modules.add(klass);
             if (node.getJavadoc() != null) {
                 modules.add(new Module.Javadoc(klass, getSource(node.getJavadoc())));
@@ -275,7 +309,7 @@ public class Historage extends ConcurrentRepositoryRewriter {
         @Override
         public boolean visit(final MethodDeclaration node) {
             final String name = new MethodNameGenerator(node).generate();
-            final Module method = new Module.Method(name, stack.peek(), getSource(node));
+            final Module method = new Module.Method(name, stack.peek(), getSourceWithoutJavadoc(node));
             modules.add(method);
             if (node.getJavadoc() != null) {
                 modules.add(new Module.Javadoc(method, getSource(node.getJavadoc())));
@@ -287,7 +321,7 @@ public class Historage extends ConcurrentRepositoryRewriter {
         public boolean visit(final FieldDeclaration node) {
             for (final Object f : node.fragments()) {
                 final String name = ((VariableDeclarationFragment) f).getName().toString();
-                final Module field = new Module.Field(name, stack.peek(), getSource(node));
+                final Module field = new Module.Field(name, stack.peek(), getSourceWithoutJavadoc(node));
                 modules.add(field);
                 if (node.getJavadoc() != null) {
                     modules.add(new Module.Javadoc(field, getSource(node.getJavadoc())));
