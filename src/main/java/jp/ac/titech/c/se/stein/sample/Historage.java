@@ -19,10 +19,12 @@ import org.eclipse.jdt.core.dom.AnnotationTypeDeclaration;
 import org.eclipse.jdt.core.dom.AnonymousClassDeclaration;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.EnumDeclaration;
+import org.eclipse.jdt.core.dom.FieldDeclaration;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.Type;
 import org.eclipse.jdt.core.dom.TypeDeclaration;
+import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 import org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.slf4j.Logger;
@@ -121,6 +123,16 @@ public class Historage extends ConcurrentRepositoryRewriter {
         public static class Method extends Module {
             public Method(final String name, final Module parent, final String content) {
                 super(name, ".mjava", parent, content);
+            }
+            @Override
+            public String getBasename() {
+                return parent.getBasename() + "#" + name;
+            }
+        }
+
+        public static class Field extends Module {
+            public Field(final String name, final Module parent, final String content) {
+                super(name, ".fjava", parent, content);
             }
             @Override
             public String getBasename() {
@@ -267,6 +279,19 @@ public class Historage extends ConcurrentRepositoryRewriter {
             modules.add(method);
             if (node.getJavadoc() != null) {
                 modules.add(new Module.Javadoc(method, getSource(node.getJavadoc())));
+            }
+            return false;
+        }
+
+        @Override
+        public boolean visit(final FieldDeclaration node) {
+            for (final Object f : node.fragments()) {
+                final String name = ((VariableDeclarationFragment) f).getName().toString();
+                final Module field = new Module.Field(name, stack.peek(), getSource(node));
+                modules.add(field);
+                if (node.getJavadoc() != null) {
+                    modules.add(new Module.Javadoc(field, getSource(node.getJavadoc())));
+                }
             }
             return false;
         }
