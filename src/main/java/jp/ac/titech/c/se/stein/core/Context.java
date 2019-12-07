@@ -1,9 +1,12 @@
 package jp.ac.titech.c.se.stein.core;
 
+import java.util.AbstractMap;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
@@ -18,28 +21,26 @@ public class Context implements Map<Context.Key, Object> {
 
     public enum Key {
         commit, path, entry, rev, tag, ref, repo;
+
+        public static final Key[] ALL = Key.values();
+        public static final int SIZE = ALL.length;
     }
-
-    private final Context parent;
-
-    private final Key key;
-
-    private final Object value;
 
     private transient String cache;
 
-    public Context(final Context parent, final Key key, final Object value) {
-        this.parent = parent;
-        this.key = key;
-        this.value = value;
-    }
+    private final Object[] values;
 
     public Context(final Key key, final Object value) {
-        this(null, key, value);
+        this(new Object[Key.SIZE], key, value);
+    }
+
+    private Context(final Object[] values, final Key key, final Object value) {
+        this.values = values;
+        this.values[key.ordinal()] = value;
     }
 
     public Context with(final Key key, final Object value) {
-        return new Context(this, key, value);
+        return new Context(values.clone(), key, value);
     }
 
     @Override
@@ -51,23 +52,20 @@ public class Context implements Map<Context.Key, Object> {
     }
 
     protected String doToString() {
-        final String stringValue = getStringValue();
-        if (stringValue == null) {
-            return parent == null ? "" : parent.toString();
-        }
-        final StringBuilder sb = new StringBuilder();
-        sb.append(key).append(": ");
-        sb.append('"').append(stringValue).append('"');
-        if (parent != null) {
-            final String parentString = parent.toString();
-            if (!parentString.isEmpty()) {
-                sb.append(", ").append(parentString);
-            }
-        }
-        return sb.toString();
+        return Stream.of(Key.ALL)
+                .map(k -> toEntry(k))
+                .filter(Objects::nonNull)
+                .map(e -> entryToString(e))
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(", "));
     }
 
-    protected String getStringValue() {
+    protected String entryToString(final Map.Entry<Key, Object> e) {
+        final String v = getStringValue(e.getKey(), e.getValue());
+        return v != null ? e.getKey() + ": \"" + v + '"' : null;
+    }
+
+    protected static String getStringValue(final Key key, final Object value) {
         switch (key) {
         case repo:
             return ((Repository) value).getDirectory().toString();
@@ -84,7 +82,7 @@ public class Context implements Map<Context.Key, Object> {
 
     @Override
     public int size() {
-        return parent != null ? 1 + parent.size() : 1;
+        return keySet().size();
     }
 
     @Override
@@ -93,37 +91,32 @@ public class Context implements Map<Context.Key, Object> {
     }
 
     @Override
-    public boolean containsKey(Object key) {
-        return key == this.key || parent != null && parent.containsKey(key);
+    public boolean containsKey(final Object key) {
+        return key instanceof Key && values[((Key) key).ordinal()] != null;
     }
 
     @Override
-    public boolean containsValue(Object value) {
-        return value.equals(this.value) || parent != null && parent.containsValue(value);
+    public boolean containsValue(final Object value) {
+        return Stream.of(values).anyMatch(v -> v == null ? value == null : v.equals(value));
     }
 
     @Override
-    public Object get(Object key) {
-        if (key == this.key) {
-            return value;
-        } else if (parent != null) {
-            return parent.get(key);
-        }
-        return null;
+    public Object get(final Object key) {
+        return key instanceof Key ? values[((Key) key).ordinal()] : null;
     }
 
     @Override
-    public String put(Key key, Object value) {
+    public String put(final Key key, final Object value) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public String remove(Object key) {
+    public String remove(final Object key) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void putAll(Map<? extends Key, ? extends Object> m) {
+    public void putAll(final Map<? extends Key, ? extends Object> m) {
         throw new UnsupportedOperationException();
     }
 
@@ -134,40 +127,22 @@ public class Context implements Map<Context.Key, Object> {
 
     @Override
     public Set<Key> keySet() {
-        final Set<Key> result = parent != null ? parent.keySet() : new HashSet<>();
-        result.add(key);
-        return result;
+        return Stream.of(Key.ALL).filter(k -> values[k.ordinal()] != null).collect(Collectors.toSet());
     }
 
     @Override
     public Collection<Object> values() {
-        final Collection<Object> result = parent != null ? parent.values() : new HashSet<>();
-        result.add(value);
-        return result;
+        return Stream.of(values).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     @Override
     public Set<Entry<Key, Object>> entrySet() {
-        final Set<Entry<Key, Object>> result = parent != null ? parent.entrySet() : new HashSet<>();
-        result.add(new ContextEntry());
-        return result;
+        return Stream.of(Key.ALL).map(k -> toEntry(k)).filter(e -> e != null).collect(Collectors.toSet());
     }
 
-    class ContextEntry implements Map.Entry<Key, Object> {
-        @Override
-        public Key getKey() {
-            return key;
-        }
-
-        @Override
-        public Object getValue() {
-            return value;
-        }
-
-        @Override
-        public String setValue(final Object value) {
-            throw new UnsupportedOperationException();
-        }
+    private Map.Entry<Key, Object> toEntry(final Key k) {
+        final Object v = values[k.ordinal()];
+        return v != null ? new AbstractMap.SimpleEntry<Key, Object>(k, v) : null;
     }
 
     // Utility methods
@@ -186,6 +161,10 @@ public class Context implements Map<Context.Key, Object> {
 
     public RevTag getTag() {
         return (RevTag) get(Key.tag);
+    }
+
+    public String getPath() {
+        return (String) get(Key.path);
     }
 
     public EntrySet.Entry getEntry() {
