@@ -256,7 +256,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a tree entry.
      */
     protected EntrySet rewriteEntry(final Entry entry, final Context c) {
-        final Context uc = c.with(Key.path, entry.getPath()).with(Key.entry, entry);
+        final Context uc = c.with(Key.entry, entry);
 
         final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, uc) : rewriteBlob(entry.id, uc);
         final String newName = rewriteName(entry.name, uc);
@@ -267,17 +267,18 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a tree object.
      */
     protected ObjectId rewriteTree(final ObjectId treeId, final Context c) {
+        final Entry entry = c.getEntry();
+        final String path = entry.isRoot() ? "" : c.getPath() + "/" + entry.name;
+        final Context uc = c.with(Key.path, path);
+
+        final String dir = pathSensitive ? path : null;
+
         final List<Entry> entries = new ArrayList<>();
-        String path = null;
-        if (pathSensitive) {
-            final Entry entry = c.getEntry();
-            path = entry.isRoot() ? "" : entry.directory + "/" + entry.name;
-        }
-        for (final Entry e : readTree(treeId, path, c)) {
-            final EntrySet rewritten = getEntry(e, c);
+        for (final Entry e : readTree(treeId, dir, uc)) {
+            final EntrySet rewritten = getEntry(e, uc);
             rewritten.registerTo(entries);
         }
-        return entries.isEmpty() ? ZERO : writeTree(entries, c);
+        return entries.isEmpty() ? ZERO : writeTree(entries, uc);
     }
 
     /**
