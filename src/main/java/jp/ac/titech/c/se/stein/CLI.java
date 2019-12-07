@@ -51,7 +51,7 @@ public class CLI {
         conf.addOption("f", "clean", false, "delete the output beforehand if it exists");
         conf.addOption("b", "bare", false, "treat the repository as a bare repository");
         conf.addOption(null, "level", true, "set log level (default: INFO)");
-        conf.addOption("v", "verbose", false, "verbose mode (same as --log=trace)");
+        conf.addOption("v", "verbose", false, "verbose mode (same as --log=debug)");
         conf.addOption("q", "quiet", false, "quiet mode (same as --log=error)");
         conf.addOption("m", "commit-mapping", true, "specify a file for dumping the commit mapping");
         conf.addOption(null, "help", false, "print this help");
