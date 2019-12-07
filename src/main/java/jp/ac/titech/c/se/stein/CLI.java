@@ -38,10 +38,10 @@ public class CLI {
         new CLI(className, realArgs).run();
     }
 
-    public static void setLoggerLevel(final Level level) {
-        final ch.qos.logback.classic.Logger rootLog = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
-        rootLog.setLevel(level);
-        log.debug("Set log level to {}", level);
+    public static void setLoggerLevel(final String name, final Level level) {
+        final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(name);
+        logger.setLevel(level);
+        log.debug("Set log level of {} to {}", name, level);
     }
 
     public static CommonsConfig parseOptions(final String[] args, final RepositoryRewriter rewriter) {
@@ -98,7 +98,7 @@ public class CLI {
     }
 
     public void run() {
-        setLoggerLevel();
+        setLoggerLevel(Logger.ROOT_LOGGER_NAME, getLoggerLevel());
         log.debug("Rewriter: {}", rewriterClass.getName());
 
         if (rewriter instanceof Configurable) {
@@ -131,15 +131,15 @@ public class CLI {
 
     }
 
-    protected void setLoggerLevel() {
+    protected Level getLoggerLevel() {
         if (conf.hasOption("level")) {
-            setLoggerLevel(Level.valueOf(conf.getOptionValue("level")));
+            return Level.valueOf(conf.getOptionValue("level"));
         } else if (conf.hasOption("verbose")) {
-            setLoggerLevel(Level.TRACE);
+            return Level.TRACE;
         } else if (conf.hasOption("quiet")) {
-            setLoggerLevel(Level.ERROR);
+            return Level.ERROR;
         } else {
-            setLoggerLevel(Level.INFO);
+            return Level.INFO;
         }
     }
 
