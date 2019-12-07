@@ -28,17 +28,17 @@ public interface EntrySet {
 
         public final ObjectId id;
 
-        public final String pathContext;
+        public final String directory;
 
-        public Entry(final FileMode mode, final String name, final ObjectId id, final String pathContext) {
+        public Entry(final FileMode mode, final String name, final ObjectId id, final String directory) {
             this.mode = mode;
             this.name = name;
             this.id = id;
-            this.pathContext = pathContext;
+            this.directory = directory;
         }
 
         public String getPath() {
-            return pathContext != null ? pathContext + "/" + name : name;
+            return directory != null ? directory + "/" + name : name;
         }
 
         @Override
@@ -66,7 +66,7 @@ public interface EntrySet {
             result = prime * result + (id == null ? 0 : id.hashCode());
             result = prime * result + (mode == null ? 0 : mode.hashCode());
             result = prime * result + (name == null ? 0 : name.hashCode());
-            result = prime * result + (pathContext == null ? 0 : pathContext.hashCode());
+            result = prime * result + (directory == null ? 0 : directory.hashCode());
             return result;
         }
 
@@ -103,11 +103,11 @@ public interface EntrySet {
             } else if (!name.equals(other.name)) {
                 return false;
             }
-            if (pathContext == null) {
-                if (other.pathContext != null) {
+            if (directory == null) {
+                if (other.directory != null) {
                     return false;
                 }
-            } else if (!pathContext.equals(other.pathContext)) {
+            } else if (!directory.equals(other.directory)) {
                 return false;
             }
             return true;
