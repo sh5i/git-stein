@@ -17,7 +17,7 @@ import org.eclipse.jgit.revwalk.RevTag;
 public class Context implements Map<Context.Key, Object> {
 
     public enum Key {
-        repo, rev, tag, commit, path, entry, ref;
+        commit, path, entry, rev, tag, ref, repo;
     }
 
     private final Context parent;
