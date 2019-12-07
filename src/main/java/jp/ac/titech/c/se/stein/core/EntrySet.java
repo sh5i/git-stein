@@ -1,7 +1,6 @@
 package jp.ac.titech.c.se.stein.core;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import org.eclipse.jgit.lib.FileMode;
@@ -12,9 +11,6 @@ import org.eclipse.jgit.lib.ObjectId;
  */
 public interface EntrySet {
     void registerTo(List<Entry> out);
-
-    @SuppressWarnings("unchecked")
-    public static final List<Entry> EMPTY_ENTRIES = Collections.EMPTY_LIST;
 
     public static final EmptySet EMPTY = new EmptySet();
 

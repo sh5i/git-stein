@@ -231,7 +231,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = new Entry(FileMode.TREE, "", treeId, pathSensitive ? "" : null);
         final EntrySet newRoot = getEntry(root, c);
-        final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(EntrySet.EMPTY_ENTRIES, c) : ((Entry) newRoot).id;
+        final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
         log.debug("Rewrite tree: {} -> {} ({})", treeId.name(), newId.name(), c);
         return newId;
