@@ -228,12 +228,10 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites the root tree of a commit.
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
-        final Context uc = c.with(Key.Tree, treeId.name());
-
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = new Entry(FileMode.TREE, "", treeId, pathSensitive ? "" : null);
-        final EntrySet newRoot = getEntry(root, uc);
-        final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(EntrySet.EMPTY_ENTRIES, uc) : ((Entry) newRoot).id;
+        final EntrySet newRoot = getEntry(root, c);
+        final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(EntrySet.EMPTY_ENTRIES, c) : ((Entry) newRoot).id;
 
         log.debug("Rewrite tree: {} -> {} ({})", treeId.name(), newId.name(), c);
         return newId;
