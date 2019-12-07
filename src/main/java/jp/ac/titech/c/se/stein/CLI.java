@@ -8,6 +8,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 
 import org.apache.commons.cli.HelpFormatter;
@@ -120,7 +122,14 @@ public class CLI {
                     log.debug("Output repository: {}", writeRepo.getDirectory());
                     rewriter.initialize(readRepo, writeRepo);
                 }
+
+                final Instant start = Instant.now();
+                log.info("Starting rewriting...");
+
                 rewriter.rewrite();
+
+                final Instant finish = Instant.now();
+                log.info("Finished rewriting. Runtime: {} ms", Duration.between(start, finish).toMillis());
             }
         } catch (final IOException e) {
             e.printStackTrace();
