@@ -17,7 +17,7 @@ import org.eclipse.jgit.revwalk.RevTag;
 public class Context implements Map<Context.Key, Object> {
 
     public enum Key {
-        Repo, Rev, Tag, Commit, Path, Entry, Ref;
+        repo, rev, tag, commit, path, entry, ref;
     }
 
     private final Context parent;
@@ -56,7 +56,7 @@ public class Context implements Map<Context.Key, Object> {
             return parent == null ? "" : parent.toString();
         }
         final StringBuilder sb = new StringBuilder();
-        sb.append(key.toString().toLowerCase()).append(": ");
+        sb.append(key).append(": ");
         sb.append('"').append(stringValue).append('"');
         if (parent != null) {
             final String parentString = parent.toString();
@@ -69,13 +69,13 @@ public class Context implements Map<Context.Key, Object> {
 
     protected String getStringValue() {
         switch (key) {
-        case Repo:
+        case repo:
             return ((Repository) value).getDirectory().toString();
-        case Tag:
+        case tag:
             return ((RevTag) value).name();
-        case Commit:
+        case commit:
             return ((RevCommit) value).name();
-        case Ref:
+        case ref:
             return ((Ref) value).getName();
         default:
             return value instanceof String ? (String) value : null;
@@ -177,22 +177,22 @@ public class Context implements Map<Context.Key, Object> {
     }
 
     public RevObject getRev() {
-        return (RevObject) get(Key.Rev);
+        return (RevObject) get(Key.rev);
     }
 
     public RevCommit getCommit() {
-        return (RevCommit) get(Key.Commit);
+        return (RevCommit) get(Key.commit);
     }
 
     public RevTag getTag() {
-        return (RevTag) get(Key.Tag);
+        return (RevTag) get(Key.tag);
     }
 
     public EntrySet.Entry getEntry() {
-        return (EntrySet.Entry) get(Key.Entry);
+        return (EntrySet.Entry) get(Key.entry);
     }
 
     public Ref getRef() {
-        return (Ref) get(Key.Ref);
+        return (Ref) get(Key.ref);
     }
 }

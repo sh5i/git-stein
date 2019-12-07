@@ -68,7 +68,7 @@ public class RepositoryRewriter extends RepositoryAccess {
     }
 
     public void rewrite() {
-        final Context c = new Context(Key.Repo, writeRepo);
+        final Context c = new Context(Key.repo, writeRepo);
         rewrite(c);
     }
 
@@ -169,7 +169,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * @return the object ID of the rewritten commit
      */
     protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
-        final Context uc = c.with(Key.Rev, commit).with(Key.Commit, commit);
+        final Context uc = c.with(Key.rev, commit).with(Key.commit, commit);
         final ObjectId[] parentIds = rewriteParents(commit.getParents(), uc);
         final ObjectId treeId = rewriteRootTree(commit.getTree().getId(), uc);
         final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), uc);
@@ -256,7 +256,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a tree entry.
      */
     protected EntrySet rewriteEntry(final Entry entry, final Context c) {
-        final Context uc = c.with(Key.Path, entry.getPath()).with(Key.Entry, entry);
+        final Context uc = c.with(Key.path, entry.getPath()).with(Key.entry, entry);
 
         final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, uc) : rewriteBlob(entry.id, uc);
         final String newName = rewriteName(entry.name, uc);
@@ -374,7 +374,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Updates a ref object.
      */
     protected void updateRef(final Ref ref, final Context c) {
-        final Context uc = c.with(Key.Ref, ref);
+        final Context uc = c.with(Key.ref, ref);
 
         final RefEntry oldEntry = new RefEntry(ref);
         final RefEntry newEntry = getRefEntry(oldEntry, uc);
@@ -413,7 +413,7 @@ public class RepositoryRewriter extends RepositoryAccess {
             final String newName = rewriteRefName(entry.name, c);
 
             final Ref targetRef = c.getRef().getTarget();
-            final Context uc = c.with(Key.Ref, targetRef);
+            final Context uc = c.with(Key.ref, targetRef);
             final String newTarget = getRefEntry(new RefEntry(targetRef), uc).name;
             return new RefEntry(newName, newTarget);
         } else {
@@ -455,7 +455,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a tag object.
      */
     protected ObjectId rewriteTag(final RevTag tag, final Context c) {
-        final Context uc = c.with(Key.Rev, tag).with(Key.Tag, tag);
+        final Context uc = c.with(Key.rev, tag).with(Key.tag, tag);
 
         final ObjectId newObjectId = rewriteReferredCommit(tag.getObject(), uc);
         if (newObjectId == ZERO) {
