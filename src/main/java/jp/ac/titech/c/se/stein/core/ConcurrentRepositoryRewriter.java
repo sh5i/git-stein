@@ -1,12 +1,10 @@
 package jp.ac.titech.c.se.stein.core;
 
 import java.util.HashMap;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -15,14 +13,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.core.Context.Key;
-import jp.ac.titech.c.se.stein.core.Try.IOThrowableFunction;
 
 public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(ConcurrentRepositoryRewriter.class);
 
     protected boolean concurrent = false;
-
-    protected ConcurrentMap<Thread, ObjectInserter> inserters = null;
 
     public void setConcurrent(final boolean concurrent) {
         log.debug("Set concurrent: {}", concurrent);
@@ -60,34 +55,18 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements 
      * Rewrites all trees concurrently.
      */
     protected void rewriteTreesConcurrently(final Context c) {
-        inserters = new ConcurrentHashMap<>();
-
+        final ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         try (final RevWalk walk = prepareRevisionWalk(c)) {
-            final int characteristics = Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL;
-            final Spliterator<RevCommit> split = Spliterators.spliteratorUnknownSize(walk.iterator(), characteristics);
-            final Stream<RevCommit> stream = StreamSupport.stream(split, true);
-            stream.forEach(commit -> {
+            for (final RevCommit commit : walk) {
                 final Context uc = c.with(Key.rev, commit).with(Key.commit, commit);
-                rewriteRootTree(commit.getTree().getId(), uc);
-            });
-        }
-
-        Try.io(c, () -> {
-            for (final ObjectInserter ins : inserters.values()) {
-                ins.close();
+                pool.execute(() -> {
+                    try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
+                        rewriteRootTree(commit.getTree().getId(), uc.with(Key.inserter, ins));
+                    }
+                });
             }
-        });
-        inserters = null;
-    }
-
-    @Override
-    protected <R> R tryInsert(final IOThrowableFunction<ObjectInserter, R> f, final Context c) {
-        if (inserters != null) {
-            final Thread thread = Thread.currentThread();
-            final ObjectInserter ins = inserters.computeIfAbsent(thread, t -> writeRepo.newObjectInserter());
-            return Try.io(f).apply(ins);
-        } else {
-            return super.tryInsert(f, c);
         }
+        pool.shutdown();
+        Try.run(() -> pool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS));
     }
 }
