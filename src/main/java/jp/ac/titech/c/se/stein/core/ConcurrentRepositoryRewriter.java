@@ -58,10 +58,10 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements 
         final ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         try (final RevWalk walk = prepareRevisionWalk(c)) {
             for (final RevCommit commit : walk) {
-                final Context uc = c.with(Key.rev, commit).with(Key.commit, commit);
                 pool.execute(() -> {
                     try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
-                        rewriteRootTree(commit.getTree().getId(), uc.with(Key.inserter, ins));
+                        final Context uc = c.with(Key.rev, commit, Key.commit, commit, Key.inserter, ins);
+                        rewriteRootTree(commit.getTree().getId(), uc);
                     }
                 });
             }

@@ -65,7 +65,7 @@ public class RepositoryRewriter extends RepositoryAccess {
     }
 
     public void rewrite() {
-        final Context c = new Context(Key.repo, writeRepo);
+        final Context c = Context.init().with(Key.repo, writeRepo);
         rewrite(c);
     }
 
@@ -166,7 +166,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * @return the object ID of the rewritten commit
      */
     protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
-        final Context uc = c.with(Key.rev, commit).with(Key.commit, commit);
+        final Context uc = c.with(Key.rev, commit, Key.commit, commit);
         final ObjectId[] parentIds = rewriteParents(commit.getParents(), uc);
         final ObjectId treeId = rewriteRootTree(commit.getTree().getId(), uc);
         final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), uc);
@@ -453,7 +453,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites a tag object.
      */
     protected ObjectId rewriteTag(final RevTag tag, final Context c) {
-        final Context uc = c.with(Key.rev, tag).with(Key.tag, tag);
+        final Context uc = c.with(Key.rev, tag, Key.tag, tag);
 
         final ObjectId newObjectId = rewriteReferredCommit(tag.getObject(), uc);
         if (newObjectId == ZERO) {

@@ -31,17 +31,33 @@ public class Context implements Map<Context.Key, Object> {
 
     private final Object[] values;
 
-    public Context(final Key key, final Object value) {
-        this(new Object[Key.SIZE], key, value);
-    }
-
-    private Context(final Object[] values, final Key key, final Object value) {
+    private Context(final Object[] values) {
         this.values = values;
-        this.values[key.ordinal()] = value;
     }
 
-    public Context with(final Key key, final Object value) {
-        return new Context(values.clone(), key, value);
+    public static Context init() {
+        return new Context(new Object[Key.SIZE]);
+    }
+
+    public Context with(final Key k, final Object v) {
+        final Object[] newValues = values.clone();
+        newValues[k.ordinal()] = v;
+        return new Context(newValues);
+    }
+
+    public Context with(final Key k1, final Object v1, final Key k2, final Object v2) {
+        final Object[] newValues = values.clone();
+        newValues[k1.ordinal()] = v1;
+        newValues[k2.ordinal()] = v2;
+        return new Context(newValues);
+    }
+
+    public Context with(final Key k1, final Object v1, final Key k2, final Object v2, final Key k3, final Object v3) {
+        final Object[] newValues = values.clone();
+        newValues[k1.ordinal()] = v1;
+        newValues[k2.ordinal()] = v2;
+        newValues[k3.ordinal()] = v3;
+        return new Context(newValues);
     }
 
     @Override
