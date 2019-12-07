@@ -23,7 +23,6 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
-import jp.ac.titech.c.se.stein.core.Try.IOThrowableFunction;
 
 public class RepositoryRewriter extends RepositoryAccess {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
@@ -35,8 +34,6 @@ public class RepositoryRewriter extends RepositoryAccess {
     protected Map<Entry, EntrySet> entryMapping = new HashMap<>();
 
     protected Map<RefEntry, RefEntry> refEntryMapping = new HashMap<>();
-
-    protected ObjectInserter inserter = null;
 
     protected boolean pathSensitive = false;
 
@@ -92,13 +89,13 @@ public class RepositoryRewriter extends RepositoryAccess {
      */
     protected void rewriteCommits(final Context c) {
         try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
-            this.inserter = ins;
-            try (final RevWalk walk = prepareRevisionWalk(c)) {
+            final Context uc = c.with(Key.inserter, ins);
+
+            try (final RevWalk walk = prepareRevisionWalk(uc)) {
                 for (final RevCommit commit : walk) {
-                    rewriteCommit(commit, c);
+                    rewriteCommit(commit, uc);
                 }
             }
-            this.inserter = null;
         }
     }
 
@@ -543,15 +540,6 @@ public class RepositoryRewriter extends RepositoryAccess {
             final ObjectId src = ObjectId.fromString(e.getKey());
             final ObjectId dst = ObjectId.fromString(e.getValue());
             commitMapping.put(src, dst);
-        }
-    }
-
-    @Override
-    protected <R> R tryInsert(final IOThrowableFunction<ObjectInserter, R> f) {
-        if (inserter != null) {
-            return Try.io(f).apply(inserter);
-        } else {
-            return super.tryInsert(f);
         }
     }
 }

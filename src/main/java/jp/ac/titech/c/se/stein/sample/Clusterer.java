@@ -23,6 +23,7 @@ import jp.ac.titech.c.se.stein.core.CommitGraph.Vertex;
 import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Configurable;
 import jp.ac.titech.c.se.stein.core.Context;
+import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Try;
 
@@ -76,11 +77,11 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
         }
 
         try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
-            this.inserter = ins;
+            final Context uc = c.with(Key.inserter, ins);
+
             for (final Vertex v : graph) {
-                rewriteCommit(Try.io(() -> repo.parseCommit(v.id)), c);
+                rewriteCommit(Try.io(() -> repo.parseCommit(v.id)), uc);
             }
-            this.inserter = null;
         }
 
         for (final Map.Entry<ObjectId, ObjectId> e : alternateMapping.entrySet()) {

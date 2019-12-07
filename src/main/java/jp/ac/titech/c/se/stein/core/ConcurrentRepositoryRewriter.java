@@ -81,13 +81,13 @@ public class ConcurrentRepositoryRewriter extends RepositoryRewriter implements 
     }
 
     @Override
-    protected <R> R tryInsert(final IOThrowableFunction<ObjectInserter, R> f) {
+    protected <R> R tryInsert(final IOThrowableFunction<ObjectInserter, R> f, final Context c) {
         if (inserters != null) {
             final Thread thread = Thread.currentThread();
             final ObjectInserter ins = inserters.computeIfAbsent(thread, t -> writeRepo.newObjectInserter());
             return Try.io(f).apply(ins);
         } else {
-            return super.tryInsert(f);
+            return super.tryInsert(f, c);
         }
     }
 }

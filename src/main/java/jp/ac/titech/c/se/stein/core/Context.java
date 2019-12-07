@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -20,7 +21,7 @@ import org.eclipse.jgit.revwalk.RevTag;
 public class Context implements Map<Context.Key, Object> {
 
     public enum Key {
-        commit, path, entry, rev, tag, ref, repo;
+        commit, path, entry, rev, tag, ref, repo, inserter;
 
         public static final Key[] ALL = Key.values();
         public static final int SIZE = ALL.length;
@@ -173,5 +174,9 @@ public class Context implements Map<Context.Key, Object> {
 
     public Ref getRef() {
         return (Ref) get(Key.ref);
+    }
+
+    public ObjectInserter getInserter() {
+        return (ObjectInserter) get(Key.inserter);
     }
 }

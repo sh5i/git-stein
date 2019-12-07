@@ -115,7 +115,7 @@ public class RepositoryAccess implements Configurable {
         for (final Entry e : sortEntries(entries, c)) {
             f.append(e.name, e.mode, e.id);
         }
-        return tryInsert(ins -> dryRunning ? ins.idFor(f) : ins.insert(f));
+        return tryInsert(ins -> dryRunning ? ins.idFor(f) : ins.insert(f), c);
     }
 
     /**
@@ -144,7 +144,7 @@ public class RepositoryAccess implements Configurable {
      * Writes data to a blob object.
      */
     public ObjectId writeBlob(final byte[] data, final Context c) {
-        return tryInsert(ins -> dryRunning ? ins.idFor(Constants.OBJ_BLOB, data) : ins.insert(Constants.OBJ_BLOB, data));
+        return tryInsert(ins -> dryRunning ? ins.idFor(Constants.OBJ_BLOB, data) : ins.insert(Constants.OBJ_BLOB, data), c);
     }
 
     /**
@@ -157,12 +157,12 @@ public class RepositoryAccess implements Configurable {
         builder.setAuthor(author);
         builder.setCommitter(committer);
         builder.setMessage(message);
-        return tryInsert(ins -> dryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder));
+        return tryInsert(ins -> dryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder), c);
     }
 
     protected void writeNotes(final NoteMap map, final Context c) {
         // TODO dry-running of map tree writing.
-        final ObjectId treeId = tryInsert(ins -> map.writeTree(ins));
+        final ObjectId treeId = tryInsert(ins -> map.writeTree(ins), c);
         // TODO building PersonIdent better.
         final PersonIdent ident = new PersonIdent(repo);
         final String message = "Notes added by 'git notes add'";
@@ -180,7 +180,7 @@ public class RepositoryAccess implements Configurable {
         builder.setTag(tag);
         builder.setTagger(tagger);
         builder.setMessage(message);
-        return tryInsert(ins -> dryRunning ? ins.idFor(Constants.OBJ_TAG, builder.build()) : ins.insert(builder));
+        return tryInsert(ins -> dryRunning ? ins.idFor(Constants.OBJ_TAG, builder.build()) : ins.insert(builder), c);
     }
 
     /**
@@ -258,7 +258,11 @@ public class RepositoryAccess implements Configurable {
     /**
      * Prepares an object inserter.
      */
-    protected <R> R tryInsert(final IOThrowableFunction<ObjectInserter, R> f) {
+    protected <R> R tryInsert(final IOThrowableFunction<ObjectInserter, R> f, final Context c) {
+        final ObjectInserter inserterContext = c.getInserter();
+        if (inserterContext != null) {
+            return Try.io(f).apply(inserterContext);
+        }
         try (final ObjectInserter inserter = writeRepo.newObjectInserter()) {
             return Try.io(f).apply(inserter);
         }
