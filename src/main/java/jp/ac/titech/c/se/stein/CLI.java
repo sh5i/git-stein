@@ -98,7 +98,13 @@ public class CLI {
     }
 
     public void run() {
+        final Level level = getLoggerLevel();
         setLoggerLevel(Logger.ROOT_LOGGER_NAME, getLoggerLevel());
+        if (level == Level.DEBUG) {
+            // suppress jgit's log
+            setLoggerLevel("org.eclipse.jgit", Level.INFO);
+        }
+
         log.debug("Rewriter: {}", rewriterClass.getName());
 
         if (rewriter instanceof Configurable) {
@@ -135,7 +141,7 @@ public class CLI {
         if (conf.hasOption("level")) {
             return Level.valueOf(conf.getOptionValue("level"));
         } else if (conf.hasOption("verbose")) {
-            return Level.TRACE;
+            return Level.DEBUG;
         } else if (conf.hasOption("quiet")) {
             return Level.ERROR;
         } else {
