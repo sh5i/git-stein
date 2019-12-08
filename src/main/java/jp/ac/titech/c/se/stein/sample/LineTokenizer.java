@@ -23,11 +23,6 @@ public class LineTokenizer extends RepositoryRewriter {
 
     protected boolean decode = false;
 
-    public void setDecode(final boolean decode) {
-        this.decode = decode;
-        log.debug("Set decode mode: {}", decode);
-    }
-
     @Override
     public void addOptions(final Config conf) {
         super.addOptions(conf);
@@ -37,9 +32,7 @@ public class LineTokenizer extends RepositoryRewriter {
     @Override
     public void configure(final Config conf) {
         super.configure(conf);
-        if (conf.hasOption("decode")) {
-            setDecode(true);
-        }
+        this.decode = conf.hasOption("decode");
     }
 
     /**
