@@ -14,12 +14,10 @@ import java.util.concurrent.TimeUnit;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.notes.NoteMap;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.slf4j.Logger;
@@ -107,15 +105,14 @@ public class RepositoryRewriter extends RepositoryAccess {
         if (concurrent) {
             rewriteTreesConcurrently(c);
         }
-        try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
+        openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
-
             try (final RevWalk walk = prepareRevisionWalk(uc)) {
                 for (final RevCommit commit : walk) {
                     rewriteCommit(commit, uc);
                 }
             }
-        }
+        }, c);
     }
 
     /**
@@ -126,10 +123,10 @@ public class RepositoryRewriter extends RepositoryAccess {
         try (final RevWalk walk = prepareRevisionWalk(c)) {
             for (final RevCommit commit : walk) {
                 pool.execute(() -> {
-                    try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
+                    openInserter(ins -> {
                         final Context uc = c.with(Key.rev, commit, Key.commit, commit, Key.inserter, ins);
                         rewriteRootTree(commit.getTree().getId(), uc);
-                    }
+                    }, c);
                 });
             }
         }
@@ -146,7 +143,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         final Collection<ObjectId> starts = collectStarts(c);
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
 
-        final RevWalk walk = new RevWalk(repo);
+        final RevWalk walk = walk(c);
         Try.io(c, () -> {
             for (final ObjectId id : starts) {
                 walk.markStart(walk.parseCommit(id));
@@ -155,9 +152,6 @@ public class RepositoryRewriter extends RepositoryAccess {
                 walk.markUninteresting(walk.parseCommit(id));
             }
         });
-
-        walk.sort(RevSort.TOPO, true);
-        walk.sort(RevSort.REVERSE, true);
         return walk;
     }
 
@@ -166,8 +160,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      */
     protected Collection<ObjectId> collectStarts(final Context c) {
         final List<ObjectId> result = new ArrayList<>();
-        final List<Ref> refs = Try.io(c, () -> repo.getRefDatabase().getRefs());
-        for (final Ref ref : refs) {
+        for (final Ref ref : getRefs(c)) {
             if (confirmStartRef(ref, c)) {
                 final ObjectId commitId = getRefTarget(ref, c);
                 if (getObjectType(commitId, c) == Constants.OBJ_COMMIT) {
@@ -379,8 +372,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Updates ref objects.
      */
     protected void updateRefs(final Context c) {
-        final List<Ref> refs = Try.io(c, () -> repo.getRefDatabase().getRefs());
-        for (final Ref ref : refs) {
+        for (final Ref ref : getRefs(c)) {
             if (confirmUpdateRef(ref, c)) {
                 updateRef(ref, c);
             }

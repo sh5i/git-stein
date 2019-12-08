@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.CommitBuilder;
@@ -20,6 +21,7 @@ import org.eclipse.jgit.lib.TagBuilder;
 import org.eclipse.jgit.lib.TreeFormatter;
 import org.eclipse.jgit.notes.NoteMap;
 import org.eclipse.jgit.revwalk.RevObject;
+import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.TreeWalk;
@@ -72,6 +74,17 @@ public class RepositoryAccess implements Configurable {
         this.overwrite = readRepo == writeRepo;
     }
 
+
+    /**
+     * Returns a RevWalk object.
+     */
+    protected RevWalk walk(final Context c) {
+        final RevWalk walk = new RevWalk(repo);
+        walk.sort(RevSort.TOPO, true);
+        walk.sort(RevSort.REVERSE, true);
+        return walk;
+    }
+
     /**
      * Specifies the target object that the given ref indicates.
      */
@@ -115,7 +128,7 @@ public class RepositoryAccess implements Configurable {
         for (final Entry e : sortEntries(entries, c)) {
             f.append(e.name, e.mode, e.id);
         }
-        return tryInsert(ins -> dryRunning ? ins.idFor(f) : ins.insert(f), c);
+        return insert(ins -> dryRunning ? ins.idFor(f) : ins.insert(f), c);
     }
 
     /**
@@ -144,7 +157,7 @@ public class RepositoryAccess implements Configurable {
      * Writes data to a blob object.
      */
     public ObjectId writeBlob(final byte[] data, final Context c) {
-        return tryInsert(ins -> dryRunning ? ins.idFor(Constants.OBJ_BLOB, data) : ins.insert(Constants.OBJ_BLOB, data), c);
+        return insert(ins -> dryRunning ? ins.idFor(Constants.OBJ_BLOB, data) : ins.insert(Constants.OBJ_BLOB, data), c);
     }
 
     /**
@@ -157,12 +170,15 @@ public class RepositoryAccess implements Configurable {
         builder.setAuthor(author);
         builder.setCommitter(committer);
         builder.setMessage(message);
-        return tryInsert(ins -> dryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder), c);
+        return insert(ins -> dryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder), c);
     }
 
+    /**
+     * Writes notes.
+     */
     protected void writeNotes(final NoteMap map, final Context c) {
         // TODO dry-running of map tree writing.
-        final ObjectId treeId = tryInsert(ins -> map.writeTree(ins), c);
+        final ObjectId treeId = insert(ins -> map.writeTree(ins), c);
         // TODO building PersonIdent better.
         final PersonIdent ident = new PersonIdent(repo);
         final String message = "Notes added by 'git notes add'";
@@ -180,7 +196,14 @@ public class RepositoryAccess implements Configurable {
         builder.setTag(tag);
         builder.setTagger(tagger);
         builder.setMessage(message);
-        return tryInsert(ins -> dryRunning ? ins.idFor(Constants.OBJ_TAG, builder.build()) : ins.insert(builder), c);
+        return insert(ins -> dryRunning ? ins.idFor(Constants.OBJ_TAG, builder.build()) : ins.insert(builder), c);
+    }
+
+    /**
+     * Retrieves all Ref objects.
+     */
+    protected List<Ref> getRefs(final Context c) {
+        return Try.io(c, () -> repo.getRefDatabase().getRefs());
     }
 
     /**
@@ -211,7 +234,7 @@ public class RepositoryAccess implements Configurable {
     }
 
     /**
-     * Extracts tag object.
+     * Extracts a rev object.
      */
     protected AnyObjectId parseAny(final ObjectId id, final Context c) {
         try (final RevWalk walk = new RevWalk(repo)) {
@@ -220,7 +243,7 @@ public class RepositoryAccess implements Configurable {
     }
 
     /**
-     * Extracts tag object.
+     * Extracts a tag object.
      */
     protected RevTag parseTag(final ObjectId id, final Context c) {
         try (final RevWalk walk = new RevWalk(repo)) {
@@ -256,9 +279,18 @@ public class RepositoryAccess implements Configurable {
     }
 
     /**
-     * Prepares an object inserter.
+     * Opens and provides an object inserter.
      */
-    protected <R> R tryInsert(final IOThrowableFunction<ObjectInserter, R> f, final Context c) {
+    protected void openInserter(final Consumer<ObjectInserter> f, final Context c) {
+        try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
+            f.accept(ins);
+        }
+    }
+
+    /**
+     * Inserts objects using a prepared object inserter.
+     */
+    protected <R> R insert(final IOThrowableFunction<ObjectInserter, R> f, final Context c) {
         final ObjectInserter inserterContext = c.getInserter();
         if (inserterContext != null) {
             return Try.io(f).apply(inserterContext);
