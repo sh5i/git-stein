@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
+import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
@@ -50,13 +51,49 @@ import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 public class Historage extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Historage.class);
 
+    protected boolean requiresFields = true;
+
+    protected boolean requiresClasses = true;
+
+    protected boolean requiresDocs = true;
+
+    protected boolean requiresOriginals = true;
+
+    protected boolean requiresNonCode = true;
+
+    @Override
+    public void addOptions(final Config conf) {
+        super.addOptions(conf);
+        conf.addOption(null, "no-fields", false, "exclude field files");
+        conf.addOption(null, "no-classes", false, "exclude class files");
+        conf.addOption(null, "no-docs", false, "exclude documentation files");
+        conf.addOption(null, "no-original", false, "exclude original files");
+        conf.addOption(null, "no-noncode", false, "exclude non-code files");
+    }
+
+    @Override
+    public void configure(final Config conf) {
+        super.configure(conf);
+        this.requiresFields = !conf.hasOption("no-fields");
+        this.requiresClasses = !conf.hasOption("no-classes");
+        this.requiresDocs = !conf.hasOption("no-docs");
+        this.requiresOriginals = !conf.hasOption("no-original");
+        this.requiresNonCode = !conf.hasOption("no-noncode");
+    }
+
     @Override
     public EntrySet rewriteEntry(final Entry entry, final Context c) {
-        if (entry.isTree() || !entry.name.endsWith(".java")) {
+        if (entry.isTree()) {
             return super.rewriteEntry(entry, c);
         }
+        if (!entry.name.toLowerCase().endsWith(".java") && requiresOriginals) {
+            return super.rewriteEntry(entry, c);
+        }
+
         final EntryList result = new EntryList();
-        result.add(entry);
+        if (requiresOriginals) {
+            result.add(entry);
+        }
         final String source = new String(in.readBlob(entry.id, c), StandardCharsets.UTF_8);
         for (final Module m : new ModuleGenerator(entry.name, source).generate()) {
             final ObjectId newId = out.writeBlob(m.getContent().getBytes(StandardCharsets.UTF_8), c);
@@ -289,9 +326,11 @@ public class Historage extends RepositoryRewriter {
         protected boolean visitType(final AbstractTypeDeclaration node) {
             final String name = node.getName().getIdentifier();
             final Module klass = new Module.Class(name, stack.peek(), getSourceWithoutJavadoc(node));
-            modules.add(klass);
-            if (node.getJavadoc() != null) {
-                modules.add(new Module.Javadoc(klass, getSource(node.getJavadoc())));
+            if (requiresClasses) {
+                modules.add(klass);
+                if (requiresDocs && node.getJavadoc() != null) {
+                    modules.add(new Module.Javadoc(klass, getSource(node.getJavadoc())));
+                }
             }
             stack.push(klass);
             return true;
@@ -311,7 +350,7 @@ public class Historage extends RepositoryRewriter {
             final String name = new MethodNameGenerator(node).generate();
             final Module method = new Module.Method(name, stack.peek(), getSourceWithoutJavadoc(node));
             modules.add(method);
-            if (node.getJavadoc() != null) {
+            if (requiresDocs && node.getJavadoc() != null) {
                 modules.add(new Module.Javadoc(method, getSource(node.getJavadoc())));
             }
             return false;
@@ -322,9 +361,11 @@ public class Historage extends RepositoryRewriter {
             for (final Object f : node.fragments()) {
                 final String name = ((VariableDeclarationFragment) f).getName().toString();
                 final Module field = new Module.Field(name, stack.peek(), getSourceWithoutJavadoc(node));
-                modules.add(field);
-                if (node.getJavadoc() != null) {
-                    modules.add(new Module.Javadoc(field, getSource(node.getJavadoc())));
+                if (requiresFields) {
+                    modules.add(field);
+                    if (requiresDocs && node.getJavadoc() != null) {
+                        modules.add(new Module.Javadoc(field, getSource(node.getJavadoc())));
+                    }
                 }
             }
             return false;
