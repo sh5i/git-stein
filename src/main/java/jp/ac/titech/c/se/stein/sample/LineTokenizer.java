@@ -74,15 +74,14 @@ public class LineTokenizer extends RepositoryRewriter {
     @Override
     protected ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
         final Entry entry = c.getEntry();
-        if (entry.name.toLowerCase().endsWith(".java")) {
-            final String source = load(blobId, c);
-            final String converted = decode ? decode(source) : encode(source);
-            final ObjectId newId = out.writeBlob(converted.getBytes(), c);
-            log.debug("Rewrite blob: {} -> {} ({})", blobId.name(), newId.name(), c);
-            return newId;
-        } else {
-            return blobId;
+        if (!entry.name.toLowerCase().endsWith(".java")) {
+            return super.rewriteBlob(blobId, c);
         }
+        final String source = load(blobId, c);
+        final String converted = decode ? decode(source) : encode(source);
+        final ObjectId newId = out.writeBlob(converted.getBytes(), c);
+        log.debug("Rewrite blob: {} -> {} ({})", blobId.name(), newId.name(), c);
+        return newId;
     }
 
     protected String load(final ObjectId blobId, final Context c) {
