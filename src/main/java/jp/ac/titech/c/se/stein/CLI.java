@@ -117,7 +117,7 @@ public class CLI {
             log.debug("Input repository: {}", readRepo.getDirectory());
             try (final Repository writeRepo = getOutputRepository()) {
                 if (writeRepo == null) {
-                    rewriter.initialize(readRepo);
+                    rewriter.initialize(readRepo, readRepo);
                 } else {
                     log.debug("Output repository: {}", writeRepo.getDirectory());
                     rewriter.initialize(readRepo, writeRepo);

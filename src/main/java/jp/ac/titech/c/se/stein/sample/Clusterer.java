@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectInserter;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,14 +75,14 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
         if (graphOutput != null) {
             graph.dump(graphOutput);
         }
-
-        try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
+        ra.openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
 
+            final RevWalk walk = ra.walk(c);
             for (final Vertex v : graph) {
-                rewriteCommit(Try.io(() -> repo.parseCommit(v.id)), uc);
+                rewriteCommit(Try.io(() -> walk.parseCommit(v.id)), uc);
             }
-        }
+        }, c);
 
         for (final Map.Entry<ObjectId, ObjectId> e : alternateMapping.entrySet()) {
             final ObjectId merged = e.getKey();

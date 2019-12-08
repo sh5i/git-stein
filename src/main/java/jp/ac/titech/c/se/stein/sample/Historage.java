@@ -57,9 +57,9 @@ public class Historage extends RepositoryRewriter {
         }
         final EntryList result = new EntryList();
         result.add(entry);
-        final String source = new String(readBlob(entry.id, c), StandardCharsets.UTF_8);
+        final String source = new String(ra.readBlob(entry.id, c), StandardCharsets.UTF_8);
         for (final Module m : new ModuleGenerator(entry.name, source).generate()) {
-            final ObjectId newId = writeBlob(m.getContent().getBytes(StandardCharsets.UTF_8), c);
+            final ObjectId newId = ra.writeBlob(m.getContent().getBytes(StandardCharsets.UTF_8), c);
             log.debug("Generate module: {} [{}] from {} ({})", m.getFilename(), newId.name(), entry, c);
             result.add(new Entry(entry.mode, m.getFilename(), newId, entry.directory));
         }

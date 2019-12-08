@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.Try.IOThrowableFunction;
 
-public class RepositoryAccess implements Configurable {
+public class RepositoryAccess {
     private static final Logger log = LoggerFactory.getLogger(RepositoryAccess.class);
 
     public static final ObjectId[] NO_PARENTS = new ObjectId[0];
@@ -44,28 +44,9 @@ public class RepositoryAccess implements Configurable {
 
     protected boolean dryRunning = false;
 
-    public RepositoryAccess() {
-    }
-
     public void setDryRunning(final boolean dryRunning) {
         this.dryRunning = dryRunning;
         log.debug("Dry running mode: {}", dryRunning);
-    }
-
-    @Override
-    public void addOptions(final Config conf) {
-        conf.addOption("n", "dry-run", false, "don't actually write anything");
-    }
-
-    @Override
-    public void configure(final Config conf) {
-        if (conf.hasOption("dry-run")) {
-            setDryRunning(true);
-        }
-    }
-
-    public void initialize(final Repository repo) {
-        initialize(repo, repo);
     }
 
     public void initialize(final Repository readRepo, final Repository writeRepo) {
@@ -74,11 +55,10 @@ public class RepositoryAccess implements Configurable {
         this.overwrite = readRepo == writeRepo;
     }
 
-
     /**
      * Returns a RevWalk object.
      */
-    protected RevWalk walk(final Context c) {
+    public RevWalk walk(final Context c) {
         final RevWalk walk = new RevWalk(repo);
         walk.sort(RevSort.TOPO, true);
         walk.sort(RevSort.REVERSE, true);
@@ -88,7 +68,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Specifies the target object that the given ref indicates.
      */
-    protected ObjectId getRefTarget(final Ref ref, final Context c) {
+    public ObjectId getRefTarget(final Ref ref, final Context c) {
         final Ref peeled = Try.io(c, () -> repo.getRefDatabase().peel(ref));
         return peeled.getPeeledObjectId() != null ? peeled.getPeeledObjectId() : ref.getObjectId();
     }
@@ -96,7 +76,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Specifies the type of the given object.
      */
-    protected int getObjectType(final ObjectId id, final Context c) {
+    public int getObjectType(final ObjectId id, final Context c) {
         try (final RevWalk walk = new RevWalk(repo)) {
             final RevObject object = Try.io(c, () -> walk.parseAny(id));
             return object.getType();
@@ -106,7 +86,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Reads a tree object.
      */
-    protected List<Entry> readTree(final ObjectId treeId, final String path, final Context c) {
+    public List<Entry> readTree(final ObjectId treeId, final String path, final Context c) {
         final List<Entry> result = new ArrayList<>();
         Try.io(c, () -> {
             try (final TreeWalk walk = new TreeWalk(repo)) {
@@ -123,7 +103,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Writes tree entries to a tree object.
      */
-    protected ObjectId writeTree(final Collection<Entry> entries, final Context c) {
+    public ObjectId writeTree(final Collection<Entry> entries, final Context c) {
         final TreeFormatter f = new TreeFormatter();
         for (final Entry e : sortEntries(entries, c)) {
             f.append(e.name, e.mode, e.id);
@@ -134,7 +114,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Sorts tree entries.
      */
-    protected Collection<Entry> sortEntries(final Collection<Entry> entries, final Context c) {
+    public Collection<Entry> sortEntries(final Collection<Entry> entries, final Context c) {
         final SortedMap<String, Entry> map = new TreeMap<>();
         for (final Entry e : entries) {
             final String key = e.name + (e.isTree() ? "/" : "");
@@ -149,7 +129,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Reads a blob object.
      */
-    protected byte[] readBlob(final ObjectId blobId, final Context c) {
+    public byte[] readBlob(final ObjectId blobId, final Context c) {
         return Try.io(c, () -> repo.getObjectDatabase().open(blobId, Constants.OBJ_BLOB).getBytes());
     }
 
@@ -163,7 +143,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Writes a commit object.
      */
-    protected ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer, final String message, final Context c) {
+    public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer, final String message, final Context c) {
         final CommitBuilder builder = new CommitBuilder();
         builder.setParentIds(parentIds);
         builder.setTreeId(treeId);
@@ -176,7 +156,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Writes notes.
      */
-    protected void writeNotes(final NoteMap map, final Context c) {
+    public void writeNotes(final NoteMap map, final Context c) {
         // TODO dry-running of map tree writing.
         final ObjectId treeId = insert(ins -> map.writeTree(ins), c);
         // TODO building PersonIdent better.
@@ -190,7 +170,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Writes a tag object.
      */
-    protected ObjectId writeTag(final ObjectId objectId, final String tag, final PersonIdent tagger, final String message, final Context c) {
+    public ObjectId writeTag(final ObjectId objectId, final String tag, final PersonIdent tagger, final String message, final Context c) {
         final TagBuilder builder = new TagBuilder();
         builder.setObjectId(objectId, Constants.OBJ_COMMIT);
         builder.setTag(tag);
@@ -202,14 +182,14 @@ public class RepositoryAccess implements Configurable {
     /**
      * Retrieves all Ref objects.
      */
-    protected List<Ref> getRefs(final Context c) {
+    public List<Ref> getRefs(final Context c) {
         return Try.io(c, () -> repo.getRefDatabase().getRefs());
     }
 
     /**
      * Applies ref update.
      */
-    protected void applyRefUpdate(final RefEntry entry, final Context c) {
+    public void applyRefUpdate(final RefEntry entry, final Context c) {
         if (dryRunning) {
             return;
         }
@@ -228,7 +208,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Tests whether the given ref indicates a tag.
      */
-    protected boolean isTag(final Ref ref, final Context c) {
+    public boolean isTag(final Ref ref, final Context c) {
         final Ref peeled = Try.io(c, () -> repo.getRefDatabase().peel(ref));
         return peeled.getPeeledObjectId() != null;
     }
@@ -236,7 +216,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Extracts a rev object.
      */
-    protected AnyObjectId parseAny(final ObjectId id, final Context c) {
+    public AnyObjectId parseAny(final ObjectId id, final Context c) {
         try (final RevWalk walk = new RevWalk(repo)) {
             return Try.io(c, () -> walk.parseAny(id));
         }
@@ -245,7 +225,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Extracts a tag object.
      */
-    protected RevTag parseTag(final ObjectId id, final Context c) {
+    public RevTag parseTag(final ObjectId id, final Context c) {
         try (final RevWalk walk = new RevWalk(repo)) {
             return Try.io(c, () -> walk.parseTag(id));
         }
@@ -254,7 +234,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Applies ref delete.
      */
-    protected void applyRefDelete(final RefEntry entry, final Context c) {
+    public void applyRefDelete(final RefEntry entry, final Context c) {
         if (dryRunning) {
             return;
         }
@@ -268,7 +248,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Applies ref rename.
      */
-    protected void applyRefRename(final String name, final String newName, final Context c) {
+    public void applyRefRename(final String name, final String newName, final Context c) {
         if (dryRunning) {
             return;
         }
@@ -281,7 +261,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Opens and provides an object inserter.
      */
-    protected void openInserter(final Consumer<ObjectInserter> f, final Context c) {
+    public void openInserter(final Consumer<ObjectInserter> f, final Context c) {
         try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
             f.accept(ins);
         }
@@ -290,7 +270,7 @@ public class RepositoryAccess implements Configurable {
     /**
      * Inserts objects using a prepared object inserter.
      */
-    protected <R> R insert(final IOThrowableFunction<ObjectInserter, R> f, final Context c) {
+    public <R> R insert(final IOThrowableFunction<ObjectInserter, R> f, final Context c) {
         final ObjectInserter inserterContext = c.getInserter();
         if (inserterContext != null) {
             return Try.io(f).apply(inserterContext);

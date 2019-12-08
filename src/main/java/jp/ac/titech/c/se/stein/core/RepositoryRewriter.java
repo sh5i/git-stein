@@ -16,6 +16,7 @@ import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.notes.NoteMap;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTag;
@@ -26,7 +27,7 @@ import org.slf4j.LoggerFactory;
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 
-public class RepositoryRewriter extends RepositoryAccess {
+public class RepositoryRewriter implements Configurable {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
 
     private static final ObjectId ZERO = ObjectId.zeroId();
@@ -45,31 +46,26 @@ public class RepositoryRewriter extends RepositoryAccess {
 
     protected boolean concurrent = false;
 
+    protected RepositoryAccess ra = new RepositoryAccess();
+
     @Override
     public void addOptions(final Config conf) {
-        super.addOptions(conf);
         conf.addOption("c", "concurrent", false, "rewrite trees concurrently");
+        conf.addOption("n", "dry-run", false, "don't actually write anything");
         conf.addOption(null, "note", false, "note original commit ID as git-notes");
     }
 
     @Override
     public void configure(final Config conf) {
-        super.configure(conf);
         if (conf.hasOption("concurrent")) {
             setConcurrent(true);
+        }
+        if (conf.hasOption("dry-run")) {
+            ra.setDryRunning(true);
         }
         if (conf.hasOption("note")) {
             setNoteOriginalCommit(true);
         }
-    }
-
-    public void rewrite(final Context c) {
-        rewriteCommits(c);
-        updateRefs(c);
-        if (notes != null) {
-            writeNotes(notes, c);
-        }
-        cleanUp(c);
     }
 
     public void setConcurrent(final boolean concurrent) {
@@ -78,9 +74,22 @@ public class RepositoryRewriter extends RepositoryAccess {
         this.entryMapping = concurrent ? new ConcurrentHashMap<>() : new HashMap<>();
     }
 
+    public void initialize(final Repository readRepo, final Repository writeRepo) {
+        ra.initialize(readRepo, writeRepo);
+    }
+
     public void rewrite() {
-        final Context c = Context.init().with(Key.repo, writeRepo);
+        final Context c = Context.init().with(Key.repo, ra.writeRepo);
         rewrite(c);
+    }
+
+    public void rewrite(final Context c) {
+        rewriteCommits(c);
+        updateRefs(c);
+        if (notes != null) {
+            ra.writeNotes(notes, c);
+        }
+        cleanUp(c);
     }
 
     /**
@@ -102,10 +111,9 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites all commits.
      */
     protected void rewriteCommits(final Context c) {
-        if (concurrent) {
-            rewriteTreesConcurrently(c);
-        }
-        openInserter(ins -> {
+        rewriteRootTrees(c);
+
+        ra.openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
             try (final RevWalk walk = prepareRevisionWalk(uc)) {
                 for (final RevCommit commit : walk) {
@@ -116,14 +124,19 @@ public class RepositoryRewriter extends RepositoryAccess {
     }
 
     /**
-     * Rewrites all trees concurrently.
+     * Rewrites all root trees.
      */
-    protected void rewriteTreesConcurrently(final Context c) {
+    protected void rewriteRootTrees(final Context c) {
+        if (!concurrent) {
+            // This will be done in each rewriteCommit() in non-parallel mode.
+            return;
+        }
+
         final ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         try (final RevWalk walk = prepareRevisionWalk(c)) {
             for (final RevCommit commit : walk) {
                 pool.execute(() -> {
-                    openInserter(ins -> {
+                    ra.openInserter(ins -> {
                         final Context uc = c.with(Key.rev, commit, Key.commit, commit, Key.inserter, ins);
                         rewriteRootTree(commit.getTree().getId(), uc);
                     }, c);
@@ -131,8 +144,9 @@ public class RepositoryRewriter extends RepositoryAccess {
             }
         }
         pool.shutdown();
-        // Long.MAX_VALUE means infinity: see
-        // https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/package-summary.html
+
+        // Long.MAX_VALUE means infinity.
+        // @see java.util.concurrent
         Try.run(() -> pool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS));
     }
 
@@ -143,7 +157,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         final Collection<ObjectId> starts = collectStarts(c);
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
 
-        final RevWalk walk = walk(c);
+        final RevWalk walk = ra.walk(c);
         Try.io(c, () -> {
             for (final ObjectId id : starts) {
                 walk.markStart(walk.parseCommit(id));
@@ -160,10 +174,10 @@ public class RepositoryRewriter extends RepositoryAccess {
      */
     protected Collection<ObjectId> collectStarts(final Context c) {
         final List<ObjectId> result = new ArrayList<>();
-        for (final Ref ref : getRefs(c)) {
+        for (final Ref ref : ra.getRefs(c)) {
             if (confirmStartRef(ref, c)) {
-                final ObjectId commitId = getRefTarget(ref, c);
-                if (getObjectType(commitId, c) == Constants.OBJ_COMMIT) {
+                final ObjectId commitId = ra.getRefTarget(ref, c);
+                if (ra.getObjectType(commitId, c) == Constants.OBJ_COMMIT) {
                     log.debug("Ref {}: added as a start point (commit: {})", ref.getName(), commitId.name());
                     result.add(commitId);
                 } else {
@@ -203,7 +217,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), uc);
         final PersonIdent committer = rewriteCommitter(commit.getCommitterIdent(), uc);
         final String message = rewriteCommitMessage(commit.getFullMessage(), uc);
-        final ObjectId newId = writeCommit(parentIds, treeId, author, committer, message, uc);
+        final ObjectId newId = ra.writeCommit(parentIds, treeId, author, committer, message, uc);
 
         final ObjectId oldId = commit.getId();
         commitMapping.put(oldId, newId);
@@ -230,7 +244,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         if (notes == null) {
             notes = NoteMap.newEmptyMap();
         }
-        final ObjectId blob = writeBlob(note.getBytes(), c);
+        final ObjectId blob = ra.writeBlob(note.getBytes(), c);
         Try.io(() -> notes.set(newId, blob));
     }
 
@@ -259,7 +273,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = new Entry(FileMode.TREE, "", treeId, pathSensitive ? "" : null);
         final EntrySet newRoot = getEntry(root, c);
-        final ObjectId newId = newRoot == EntrySet.EMPTY ? writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
+        final ObjectId newId = newRoot == EntrySet.EMPTY ? ra.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
         log.debug("Rewrite tree: {} -> {} ({})", treeId.name(), newId.name(), c);
         return newId;
@@ -302,21 +316,21 @@ public class RepositoryRewriter extends RepositoryAccess {
         final String dir = pathSensitive ? path : null;
 
         final List<Entry> entries = new ArrayList<>();
-        for (final Entry e : readTree(treeId, dir, uc)) {
+        for (final Entry e : ra.readTree(treeId, dir, uc)) {
             final EntrySet rewritten = getEntry(e, uc);
             rewritten.registerTo(entries);
         }
-        return entries.isEmpty() ? ZERO : writeTree(entries, uc);
+        return entries.isEmpty() ? ZERO : ra.writeTree(entries, uc);
     }
 
     /**
      * Rewrites a blob object.
      */
     protected ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
-        if (overwrite) {
+        if (ra.overwrite) {
             return blobId;
         } else {
-            final ObjectId newId = writeBlob(readBlob(blobId, c), c);
+            final ObjectId newId = ra.writeBlob(ra.readBlob(blobId, c), c);
             if (log.isDebugEnabled() && !newId.equals(blobId)) {
                 log.debug("Rewrite blob: {} -> {} ({})", blobId.name(), newId.name(), c);
             }
@@ -370,7 +384,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Updates ref objects.
      */
     protected void updateRefs(final Context c) {
-        for (final Ref ref : getRefs(c)) {
+        for (final Ref ref : ra.getRefs(c)) {
             if (confirmUpdateRef(ref, c)) {
                 updateRef(ref, c);
             }
@@ -408,28 +422,28 @@ public class RepositoryRewriter extends RepositoryAccess {
         final RefEntry newEntry = getRefEntry(oldEntry, uc);
         if (newEntry == RefEntry.EMPTY) {
             // delete
-            if (overwrite) {
+            if (ra.overwrite) {
                 log.debug("Delete ref: {} ({})", oldEntry, c);
-                applyRefDelete(oldEntry, uc);
+                ra.applyRefDelete(oldEntry, uc);
             }
             return;
         }
 
         if (!oldEntry.name.equals(newEntry.name)) {
             // rename
-            if (overwrite) {
+            if (ra.overwrite) {
                 log.debug("Rename ref: {} -> {} ({})", oldEntry.name, newEntry.name, c);
-                applyRefRename(oldEntry.name, newEntry.name, uc);
+                ra.applyRefRename(oldEntry.name, newEntry.name, uc);
             }
         }
 
         final boolean linkEquals = oldEntry.target == null ? newEntry.target == null : oldEntry.target.equals(newEntry.target);
         final boolean idEquals = oldEntry.id == null ? newEntry.id == null : oldEntry.id.name().equals(newEntry.id.name());
 
-        if (!overwrite || !linkEquals || !idEquals) {
+        if (!ra.overwrite || !linkEquals || !idEquals) {
             // update
             log.debug("Update ref: {} -> {} ({})", oldEntry, newEntry, c);
-            applyRefUpdate(newEntry, uc);
+            ra.applyRefUpdate(newEntry, uc);
         }
     }
 
@@ -455,8 +469,8 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites the referred object by a ref.
      */
     protected ObjectId rewriteRefObject(final ObjectId id, final Context c) {
-        if (isTag(c.getRef(), c)) {
-            return rewriteTag(parseTag(id, c), c);
+        if (ra.isTag(c.getRef(), c)) {
+            return rewriteTag(ra.parseTag(id, c), c);
         } else {
             return rewriteReferredCommit(id, c);
         }
@@ -466,7 +480,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites the referred commit object by a ref.
      */
     protected ObjectId rewriteReferredCommit(final ObjectId id, final Context c) {
-        if (getObjectType(id, c) != Constants.OBJ_COMMIT) {
+        if (ra.getObjectType(id, c) != Constants.OBJ_COMMIT) {
             // referring non-commit; ignore it
             log.debug("Ignore non-commit: {} ({})", id.name(), c);
             return id;
@@ -494,7 +508,7 @@ public class RepositoryRewriter extends RepositoryAccess {
         final String tagName = tag.getTagName();
         final PersonIdent tagger = rewriteTagger(tag.getTaggerIdent(), tag, uc);
         final String message = rewriteTagMessage(tag.getFullMessage(), uc);
-        final ObjectId newId = writeTag(newObjectId, tagName, tagger, message, uc);
+        final ObjectId newId = ra.writeTag(newObjectId, tagName, tagger, message, uc);
         log.debug("Rewrite tag: {} -> {} ({})", tag.name(), newId.name(), c);
         return newId;
     }
