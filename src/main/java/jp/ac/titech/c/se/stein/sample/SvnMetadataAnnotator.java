@@ -16,12 +16,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
-import jp.ac.titech.c.se.stein.core.ConcurrentRepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Context;
+import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Try;
 
-public class SvnMetadataAnnotator extends ConcurrentRepositoryRewriter {
+public class SvnMetadataAnnotator extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(SvnMetadataAnnotator.class);
 
     private Map<ObjectId, Integer> mapping;

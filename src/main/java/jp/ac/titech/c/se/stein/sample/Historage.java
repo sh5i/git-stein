@@ -35,11 +35,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
-import jp.ac.titech.c.se.stein.core.ConcurrentRepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.EntrySet.EntryList;
+import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 
 /**
  * A simple Historage generator with FinerGit-compatible naming convention.
@@ -47,7 +47,7 @@ import jp.ac.titech.c.se.stein.core.EntrySet.EntryList;
  * @see https://github.com/hideakihata/git2historage
  * @see https://github.com/kusumotolab/FinerGit
  */
-public class Historage extends ConcurrentRepositoryRewriter {
+public class Historage extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Historage.class);
 
     @Override

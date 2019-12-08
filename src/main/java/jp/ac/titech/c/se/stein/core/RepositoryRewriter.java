@@ -6,6 +6,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -41,15 +45,21 @@ public class RepositoryRewriter extends RepositoryAccess {
 
     protected NoteMap notes;
 
+    protected boolean concurrent = false;
+
     @Override
     public void addOptions(final Config conf) {
         super.addOptions(conf);
+        conf.addOption("c", "concurrent", false, "rewrite trees concurrently");
         conf.addOption(null, "note", false, "note original commit ID as git-notes");
     }
 
     @Override
     public void configure(final Config conf) {
         super.configure(conf);
+        if (conf.hasOption("concurrent")) {
+            setConcurrent(true);
+        }
         if (conf.hasOption("note")) {
             setNoteOriginalCommit(true);
         }
@@ -62,6 +72,12 @@ public class RepositoryRewriter extends RepositoryAccess {
             writeNotes(notes, c);
         }
         cleanUp(c);
+    }
+
+    public void setConcurrent(final boolean concurrent) {
+        log.debug("Set concurrent: {}", concurrent);
+        this.concurrent = concurrent;
+        this.entryMapping = concurrent ? new ConcurrentHashMap<>() : new HashMap<>();
     }
 
     public void rewrite() {
@@ -88,6 +104,9 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Rewrites all commits.
      */
     protected void rewriteCommits(final Context c) {
+        if (concurrent) {
+            rewriteTreesConcurrently(c);
+        }
         try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
             final Context uc = c.with(Key.inserter, ins);
 
@@ -97,6 +116,27 @@ public class RepositoryRewriter extends RepositoryAccess {
                 }
             }
         }
+    }
+
+    /**
+     * Rewrites all trees concurrently.
+     */
+    protected void rewriteTreesConcurrently(final Context c) {
+        final ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        try (final RevWalk walk = prepareRevisionWalk(c)) {
+            for (final RevCommit commit : walk) {
+                pool.execute(() -> {
+                    try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
+                        final Context uc = c.with(Key.rev, commit, Key.commit, commit, Key.inserter, ins);
+                        rewriteRootTree(commit.getTree().getId(), uc);
+                    }
+                });
+            }
+        }
+        pool.shutdown();
+        // Long.MAX_VALUE means infinity: see
+        // https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/package-summary.html
+        Try.run(() -> pool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS));
     }
 
     /**

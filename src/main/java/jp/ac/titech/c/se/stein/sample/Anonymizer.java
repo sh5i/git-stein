@@ -10,11 +10,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.CLI;
-import jp.ac.titech.c.se.stein.core.ConcurrentRepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
+import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 
-public class Anonymizer extends ConcurrentRepositoryRewriter {
+public class Anonymizer extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Anonymizer.class);
 
     public static class NameMap {
