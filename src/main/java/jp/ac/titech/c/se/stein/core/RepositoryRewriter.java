@@ -186,9 +186,7 @@ public class RepositoryRewriter extends RepositoryAccess {
      * Collects the set of commit Ids used as uninteresting points.
      */
     protected Collection<ObjectId> collectUninterestings(final Context c) {
-        @SuppressWarnings("unchecked")
-        final List<ObjectId> result = Collections.EMPTY_LIST;
-        return result;
+        return Collections.emptyList();
     }
 
     /**
