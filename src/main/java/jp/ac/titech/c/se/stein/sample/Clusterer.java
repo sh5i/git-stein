@@ -75,10 +75,10 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
         if (graphOutput != null) {
             graph.dump(graphOutput);
         }
-        ra.openInserter(ins -> {
+        out.openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
 
-            final RevWalk walk = ra.walk(c);
+            final RevWalk walk = in.walk(c);
             for (final Vertex v : graph) {
                 rewriteCommit(Try.io(() -> walk.parseCommit(v.id)), uc);
             }

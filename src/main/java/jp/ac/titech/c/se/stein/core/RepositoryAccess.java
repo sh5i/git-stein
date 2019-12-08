@@ -38,10 +38,6 @@ public class RepositoryAccess {
 
     protected Repository repo;
 
-    protected Repository writeRepo;
-
-    protected boolean overwrite = true;
-
     protected boolean dryRunning = false;
 
     public void setDryRunning(final boolean dryRunning) {
@@ -49,10 +45,8 @@ public class RepositoryAccess {
         log.debug("Dry running mode: {}", dryRunning);
     }
 
-    public void initialize(final Repository readRepo, final Repository writeRepo) {
-        this.repo = readRepo;
-        this.writeRepo = writeRepo;
-        this.overwrite = readRepo == writeRepo;
+    public void initialize(final Repository repo) {
+        this.repo = repo;
     }
 
     // walk
@@ -228,7 +222,7 @@ public class RepositoryAccess {
             return;
         }
         Try.io(c, () -> {
-            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(entry.name, false);
+            final RefUpdate cmd = repo.getRefDatabase().newUpdate(entry.name, false);
             cmd.setForceUpdate(true);
             if (entry.isSymbolic()) {
                 cmd.link(entry.target);
@@ -247,7 +241,7 @@ public class RepositoryAccess {
             return;
         }
         Try.io(c, () -> {
-            final RefUpdate cmd = writeRepo.getRefDatabase().newUpdate(entry.name, false);
+            final RefUpdate cmd = repo.getRefDatabase().newUpdate(entry.name, false);
             cmd.setForceUpdate(true);
             cmd.delete();
         });
@@ -261,7 +255,7 @@ public class RepositoryAccess {
             return;
         }
         Try.io(c, () -> {
-            final RefRename cmd = writeRepo.getRefDatabase().newRename(name, newName);
+            final RefRename cmd = repo.getRefDatabase().newRename(name, newName);
             cmd.rename();
         });
     }
@@ -272,7 +266,7 @@ public class RepositoryAccess {
      * Opens and provides an object inserter.
      */
     public void openInserter(final Consumer<ObjectInserter> f, final Context c) {
-        try (final ObjectInserter ins = writeRepo.newObjectInserter()) {
+        try (final ObjectInserter ins = repo.newObjectInserter()) {
             f.accept(ins);
         }
     }
@@ -285,7 +279,7 @@ public class RepositoryAccess {
         if (inserterContext != null) {
             return Try.io(f).apply(inserterContext);
         }
-        try (final ObjectInserter inserter = writeRepo.newObjectInserter()) {
+        try (final ObjectInserter inserter = repo.newObjectInserter()) {
             return Try.io(f).apply(inserter);
         }
     }
