@@ -327,7 +327,11 @@ public class RepositoryRewriter implements Configurable {
             final EntrySet rewritten = getEntry(e, uc);
             rewritten.registerTo(entries);
         }
-        return entries.isEmpty() ? ZERO : out.writeTree(entries, uc);
+        final ObjectId newId = entries.isEmpty() ? ZERO : out.writeTree(entries, uc);
+        if (log.isDebugEnabled() && !newId.equals(treeId)) {
+            log.debug("Rewrite tree: {} -> {} ({})", treeId.name(), newId.name(), c);
+        }
+        return newId;
     }
 
     /**
