@@ -37,23 +37,23 @@ public class RepositoryRewriter implements Configurable {
 
     protected Map<RefEntry, RefEntry> refEntryMapping = new HashMap<>();
 
-    protected final RepositoryAccess in = new RepositoryAccess();
+    protected RepositoryAccess in, out;
 
-    protected final RepositoryAccess out = new RepositoryAccess();
+    protected boolean isOverwriting = false;
 
-    protected boolean overwrite = false;
+    protected boolean isDryRunning = false;
 
-    protected boolean pathSensitive = false;
+    protected boolean isPathSensitive = false;
 
-    protected boolean addForwardNotes = false;
+    protected boolean isAddingForwardNotes = false;
 
-    protected boolean addBackwardNotes = false;
+    protected boolean isAddingBackwardNotes = false;
 
-    protected boolean concurrent = false;
+    protected boolean isParallel = false;
 
     @Override
     public void addOptions(final Config conf) {
-        conf.addOption("c", "concurrent", false, "rewrite trees concurrently");
+        conf.addOption("p", "parallel", false, "rewrite trees in parallel");
         conf.addOption("n", "dry-run", false, "don't actually write anything");
         conf.addOption(null, "forward-notes", false, "note rewritten commits to original repo");
         conf.addOption(null, "backward-notes", false, "note original commits to rewritten repo");
@@ -61,31 +61,34 @@ public class RepositoryRewriter implements Configurable {
 
     @Override
     public void configure(final Config conf) {
-        if (conf.hasOption("concurrent")) {
-            setConcurrent(true);
+        if (conf.hasOption("parallel")) {
+            setParallel(true);
         }
         if (conf.hasOption("dry-run")) {
-            in.setDryRunning(true);
-            out.setDryRunning(true);
+            isDryRunning = true;
         }
         if (conf.hasOption("forward-notes")) {
-            addForwardNotes = true;
+            isAddingForwardNotes = true;
         }
         if (conf.hasOption("backward-notes")) {
-            addBackwardNotes = true;
+            isAddingBackwardNotes = true;
         }
     }
 
-    public void setConcurrent(final boolean concurrent) {
-        log.debug("Set concurrent: {}", concurrent);
-        this.concurrent = concurrent;
-        this.entryMapping = concurrent ? new ConcurrentHashMap<>() : new HashMap<>();
+    public void setParallel(final boolean isParallel) {
+        log.debug("Set parallel: {}", isParallel);
+        this.isParallel = isParallel;
+        this.entryMapping = isParallel ? new ConcurrentHashMap<>() : new HashMap<>();
     }
 
     public void initialize(final Repository readRepo, final Repository writeRepo) {
-        in.initialize(readRepo);
-        out.initialize(writeRepo);
-        overwrite = readRepo == writeRepo;
+        in = new RepositoryAccess(readRepo);
+        out = new RepositoryAccess(writeRepo);
+        isOverwriting = readRepo == writeRepo;
+        if (isDryRunning) {
+            in.setDryRunning(true);
+            out.setDryRunning(true);
+        }
     }
 
     public void rewrite() {
@@ -105,7 +108,7 @@ public class RepositoryRewriter implements Configurable {
      * Sets whether entries are path-sensitive.
      */
     protected void setPathSensitive(final boolean value) {
-        this.pathSensitive = value;
+        this.isPathSensitive = value;
     }
 
     /**
@@ -113,7 +116,7 @@ public class RepositoryRewriter implements Configurable {
      * git-notes.
      */
     protected void setNoteOriginalCommit(final boolean value) {
-        this.addBackwardNotes = value;
+        this.isAddingBackwardNotes = value;
     }
 
     /**
@@ -136,7 +139,7 @@ public class RepositoryRewriter implements Configurable {
      * Rewrites all root trees.
      */
     protected void rewriteRootTrees(final Context c) {
-        if (!concurrent) {
+        if (!isParallel) {
             // This will be done in each rewriteCommit() in non-parallel mode.
             return;
         }
@@ -243,14 +246,14 @@ public class RepositoryRewriter implements Configurable {
      * Returns a note for a commit.
      */
     protected String getForwardNote(final ObjectId newCommitId, final Context c) {
-        return addForwardNotes ? newCommitId.name() : null;
+        return isAddingForwardNotes ? newCommitId.name() : null;
     }
 
     /**
      * Returns a note for a commit.
      */
     protected String getBackwardNote(final ObjectId oldCommitId, final Context c) {
-        return addBackwardNotes ? oldCommitId.name() : null;
+        return isAddingBackwardNotes ? oldCommitId.name() : null;
     }
 
     /**
@@ -276,7 +279,7 @@ public class RepositoryRewriter implements Configurable {
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
         // A root tree is represented as a special entry whose name is "/"
-        final Entry root = new Entry(FileMode.TREE, "", treeId, pathSensitive ? "" : null);
+        final Entry root = new Entry(FileMode.TREE, "", treeId, isPathSensitive ? "" : null);
         final EntrySet newRoot = getEntry(root, c);
         final ObjectId newId = newRoot == EntrySet.EMPTY ? out.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
@@ -318,7 +321,7 @@ public class RepositoryRewriter implements Configurable {
         final String path = entry.isRoot() ? "" : c.getPath() + "/" + entry.name;
         final Context uc = c.with(Key.path, path);
 
-        final String dir = pathSensitive ? path : null;
+        final String dir = isPathSensitive ? path : null;
 
         final List<Entry> entries = new ArrayList<>();
         for (final Entry e : in.readTree(treeId, dir, uc)) {
@@ -336,7 +339,7 @@ public class RepositoryRewriter implements Configurable {
      * Rewrites a blob object.
      */
     protected ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
-        if (overwrite) {
+        if (isOverwriting) {
             return blobId;
         }
         final ObjectId newId = out.writeBlob(in.readBlob(blobId, c), c);
@@ -430,7 +433,7 @@ public class RepositoryRewriter implements Configurable {
         final RefEntry newEntry = getRefEntry(oldEntry, uc);
         if (newEntry == RefEntry.EMPTY) {
             // delete
-            if (overwrite) {
+            if (isOverwriting) {
                 log.debug("Delete ref: {} ({})", oldEntry, c);
                 out.applyRefDelete(oldEntry, uc);
             }
@@ -439,7 +442,7 @@ public class RepositoryRewriter implements Configurable {
 
         if (!oldEntry.name.equals(newEntry.name)) {
             // rename
-            if (overwrite) {
+            if (isOverwriting) {
                 log.debug("Rename ref: {} -> {} ({})", oldEntry.name, newEntry.name, c);
                 out.applyRefRename(oldEntry.name, newEntry.name, uc);
             }
@@ -448,7 +451,7 @@ public class RepositoryRewriter implements Configurable {
         final boolean linkEquals = oldEntry.target == null ? newEntry.target == null : oldEntry.target.equals(newEntry.target);
         final boolean idEquals = oldEntry.id == null ? newEntry.id == null : oldEntry.id.name().equals(newEntry.id.name());
 
-        if (!overwrite || !linkEquals || !idEquals) {
+        if (!isOverwriting || !linkEquals || !idEquals) {
             // update
             log.debug("Update ref: {} -> {} ({})", oldEntry, newEntry, c);
             out.applyRefUpdate(newEntry, uc);

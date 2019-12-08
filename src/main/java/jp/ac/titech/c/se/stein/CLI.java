@@ -50,12 +50,12 @@ public class CLI {
         final CommonsConfig conf = new CommonsConfig();
         conf.addOption("o", "output", true, "specify output path");
         conf.addOption("d", "output-dup", true, "specify output path (duplicate-and-overwrite)");
-        conf.addOption("f", "clean", false, "delete the output beforehand if it exists");
-        conf.addOption("b", "bare", false, "treat the repository as a bare repository");
-        conf.addOption(null, "level", true, "set log level (default: INFO)");
-        conf.addOption("v", "verbose", false, "verbose mode (same as --log=debug)");
         conf.addOption("q", "quiet", false, "quiet mode (same as --log=error)");
-        conf.addOption("m", "commit-mapping", true, "specify a file for dumping the commit mapping");
+        conf.addOption("v", "verbose", false, "verbose mode (same as --log=debug)");
+        conf.addOption(null, "bare", false, "treat the repository as a bare repository");
+        conf.addOption(null, "clean", false, "delete the output beforehand if it exists");
+        conf.addOption(null, "commit-mapping", true, "specify a file for dumping the commit mapping");
+        conf.addOption(null, "level", true, "set log level (default: INFO)");
         conf.addOption(null, "help", false, "print this help");
         if (rewriter instanceof Configurable) {
             ((Configurable) rewriter).addOptions(conf);

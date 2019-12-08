@@ -36,18 +36,18 @@ public class RepositoryAccess {
 
     public static final ObjectId[] NO_PARENTS = new ObjectId[0];
 
-    protected Repository repo;
+    protected final Repository repo;
 
     protected final NoteMap defaultNotes = NoteMap.newEmptyMap();
 
-    protected boolean dryRunning = false;
+    protected boolean isDryRunning = false;
 
-    public void setDryRunning(final boolean dryRunning) {
-        this.dryRunning = dryRunning;
-        log.debug("Dry running mode: {}", dryRunning);
+    public void setDryRunning(final boolean isDryRunning) {
+        this.isDryRunning = isDryRunning;
+        log.debug("Set the dry running mode of {} to {}", repo.getDirectory(), isDryRunning);
     }
 
-    public void initialize(final Repository repo) {
+    public RepositoryAccess(final Repository repo) {
         this.repo = repo;
     }
 
@@ -143,7 +143,7 @@ public class RepositoryAccess {
         for (final Entry e : sortEntries(entries, c)) {
             f.append(e.name, e.mode, e.id);
         }
-        return insert(ins -> dryRunning ? ins.idFor(f) : ins.insert(f), c);
+        return insert(ins -> isDryRunning ? ins.idFor(f) : ins.insert(f), c);
     }
 
     /**
@@ -172,7 +172,7 @@ public class RepositoryAccess {
      * Writes data to a blob object.
      */
     public ObjectId writeBlob(final byte[] data, final Context c) {
-        return insert(ins -> dryRunning ? ins.idFor(Constants.OBJ_BLOB, data) : ins.insert(Constants.OBJ_BLOB, data), c);
+        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_BLOB, data) : ins.insert(Constants.OBJ_BLOB, data), c);
     }
 
     /**
@@ -185,7 +185,7 @@ public class RepositoryAccess {
         builder.setAuthor(author);
         builder.setCommitter(committer);
         builder.setMessage(message);
-        return insert(ins -> dryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder), c);
+        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder), c);
     }
 
     /**
@@ -218,7 +218,7 @@ public class RepositoryAccess {
      * Writes notes.
      */
     public void writeNotes(final NoteMap notes, final Context c) {
-        final ObjectId treeId = dryRunning ? ObjectId.zeroId() : insert(ins -> notes.writeTree(ins), c);
+        final ObjectId treeId = isDryRunning ? ObjectId.zeroId() : insert(ins -> notes.writeTree(ins), c);
         // TODO building PersonIdent better.
         final PersonIdent ident = new PersonIdent(repo);
         final String message = "Notes added by 'git notes add'";
@@ -236,7 +236,7 @@ public class RepositoryAccess {
         builder.setTag(tag);
         builder.setTagger(tagger);
         builder.setMessage(message);
-        return insert(ins -> dryRunning ? ins.idFor(Constants.OBJ_TAG, builder.build()) : ins.insert(builder), c);
+        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_TAG, builder.build()) : ins.insert(builder), c);
     }
 
     // Ref manipulation
@@ -245,7 +245,7 @@ public class RepositoryAccess {
      * Applies ref update.
      */
     public void applyRefUpdate(final RefEntry entry, final Context c) {
-        if (dryRunning) {
+        if (isDryRunning) {
             return;
         }
         Try.io(c, () -> {
@@ -264,7 +264,7 @@ public class RepositoryAccess {
      * Applies ref delete.
      */
     public void applyRefDelete(final RefEntry entry, final Context c) {
-        if (dryRunning) {
+        if (isDryRunning) {
             return;
         }
         Try.io(c, () -> {
@@ -278,7 +278,7 @@ public class RepositoryAccess {
      * Applies ref rename.
      */
     public void applyRefRename(final String name, final String newName, final Context c) {
-        if (dryRunning) {
+        if (isDryRunning) {
             return;
         }
         Try.io(c, () -> {
