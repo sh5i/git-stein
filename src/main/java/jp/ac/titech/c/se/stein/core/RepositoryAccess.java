@@ -55,6 +55,8 @@ public class RepositoryAccess {
         this.overwrite = readRepo == writeRepo;
     }
 
+    // walk
+
     /**
      * Returns a RevWalk object.
      */
@@ -63,6 +65,15 @@ public class RepositoryAccess {
         walk.sort(RevSort.TOPO, true);
         walk.sort(RevSort.REVERSE, true);
         return walk;
+    }
+
+    // Retrieving and checking objects
+
+    /**
+     * Retrieves all Ref objects.
+     */
+    public List<Ref> getRefs(final Context c) {
+        return Try.io(c, () -> repo.getRefDatabase().getRefs());
     }
 
     /**
@@ -82,6 +93,34 @@ public class RepositoryAccess {
             return object.getType();
         }
     }
+
+    /**
+     * Extracts a rev object.
+     */
+    public AnyObjectId parseAny(final ObjectId id, final Context c) {
+        try (final RevWalk walk = new RevWalk(repo)) {
+            return Try.io(c, () -> walk.parseAny(id));
+        }
+    }
+
+    /**
+     * Extracts a tag object.
+     */
+    public RevTag parseTag(final ObjectId id, final Context c) {
+        try (final RevWalk walk = new RevWalk(repo)) {
+            return Try.io(c, () -> walk.parseTag(id));
+        }
+    }
+
+    /**
+     * Tests whether the given ref indicates a tag.
+     */
+    public boolean isTag(final Ref ref, final Context c) {
+        final Ref peeled = Try.io(c, () -> repo.getRefDatabase().peel(ref));
+        return peeled.getPeeledObjectId() != null;
+    }
+
+    // Reading and writing objects
 
     /**
      * Reads a tree object.
@@ -179,12 +218,7 @@ public class RepositoryAccess {
         return insert(ins -> dryRunning ? ins.idFor(Constants.OBJ_TAG, builder.build()) : ins.insert(builder), c);
     }
 
-    /**
-     * Retrieves all Ref objects.
-     */
-    public List<Ref> getRefs(final Context c) {
-        return Try.io(c, () -> repo.getRefDatabase().getRefs());
-    }
+    // Ref manipulation
 
     /**
      * Applies ref update.
@@ -203,32 +237,6 @@ public class RepositoryAccess {
                 cmd.update();
             }
         });
-    }
-
-    /**
-     * Tests whether the given ref indicates a tag.
-     */
-    public boolean isTag(final Ref ref, final Context c) {
-        final Ref peeled = Try.io(c, () -> repo.getRefDatabase().peel(ref));
-        return peeled.getPeeledObjectId() != null;
-    }
-
-    /**
-     * Extracts a rev object.
-     */
-    public AnyObjectId parseAny(final ObjectId id, final Context c) {
-        try (final RevWalk walk = new RevWalk(repo)) {
-            return Try.io(c, () -> walk.parseAny(id));
-        }
-    }
-
-    /**
-     * Extracts a tag object.
-     */
-    public RevTag parseTag(final ObjectId id, final Context c) {
-        try (final RevWalk walk = new RevWalk(repo)) {
-            return Try.io(c, () -> walk.parseTag(id));
-        }
     }
 
     /**
@@ -257,6 +265,8 @@ public class RepositoryAccess {
             cmd.rename();
         });
     }
+
+    // Handling ObjectInserter
 
     /**
      * Opens and provides an object inserter.
