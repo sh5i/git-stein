@@ -17,7 +17,6 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.notes.NoteMap;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -38,25 +37,26 @@ public class RepositoryRewriter implements Configurable {
 
     protected Map<RefEntry, RefEntry> refEntryMapping = new HashMap<>();
 
-    protected boolean pathSensitive = false;
-
-    protected boolean noteOriginalCommit = false;
-
-    protected NoteMap notes;
-
-    protected boolean concurrent = false;
-
     protected final RepositoryAccess in = new RepositoryAccess();
 
     protected final RepositoryAccess out = new RepositoryAccess();
 
-    protected boolean overwrite;
+    protected boolean overwrite = false;
+
+    protected boolean pathSensitive = false;
+
+    protected boolean addForwardNotes = false;
+
+    protected boolean addBackwardNotes = false;
+
+    protected boolean concurrent = false;
 
     @Override
     public void addOptions(final Config conf) {
         conf.addOption("c", "concurrent", false, "rewrite trees concurrently");
         conf.addOption("n", "dry-run", false, "don't actually write anything");
-        conf.addOption(null, "note", false, "note original commit ID as git-notes");
+        conf.addOption(null, "forward-notes", false, "note rewritten commits to original repo");
+        conf.addOption(null, "backward-notes", false, "note original commits to rewritten repo");
     }
 
     @Override
@@ -68,8 +68,11 @@ public class RepositoryRewriter implements Configurable {
             in.setDryRunning(true);
             out.setDryRunning(true);
         }
-        if (conf.hasOption("note")) {
-            setNoteOriginalCommit(true);
+        if (conf.hasOption("forward-notes")) {
+            addForwardNotes = true;
+        }
+        if (conf.hasOption("backward-notes")) {
+            addBackwardNotes = true;
         }
     }
 
@@ -93,9 +96,8 @@ public class RepositoryRewriter implements Configurable {
     public void rewrite(final Context c) {
         rewriteCommits(c);
         updateRefs(c);
-        if (notes != null) {
-            out.writeNotes(notes, c);
-        }
+        in.writeNotes(c);
+        out.writeNotes(c);
         cleanUp(c);
     }
 
@@ -111,7 +113,7 @@ public class RepositoryRewriter implements Configurable {
      * git-notes.
      */
     protected void setNoteOriginalCommit(final boolean value) {
-        this.noteOriginalCommit = value;
+        this.addBackwardNotes = value;
     }
 
     /**
@@ -139,7 +141,8 @@ public class RepositoryRewriter implements Configurable {
             return;
         }
 
-        final ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        final int nprocs = Runtime.getRuntime().availableProcessors();
+        final ExecutorService pool = Executors.newFixedThreadPool(nprocs);
         try (final RevWalk walk = prepareRevisionWalk(c)) {
             for (final RevCommit commit : walk) {
                 pool.execute(() -> {
@@ -230,29 +233,24 @@ public class RepositoryRewriter implements Configurable {
         commitMapping.put(oldId, newId);
         log.debug("Rewrite commit: {} -> {} ({})", oldId.name(), newId.name(), c);
 
-        addNote(newId, note(commit, c), uc);
+        in.addNote(oldId, getForwardNote(newId, c), uc);
+        out.addNote(newId, getBackwardNote(oldId, c), uc);
+
         return newId;
     }
 
     /**
      * Returns a note for a commit.
      */
-    protected String note(final RevCommit commit, final Context c) {
-        return noteOriginalCommit ? commit.name() : null;
+    protected String getForwardNote(final ObjectId newCommitId, final Context c) {
+        return addForwardNotes ? newCommitId.name() : null;
     }
 
     /**
-     * Add a note for a commit.
+     * Returns a note for a commit.
      */
-    protected void addNote(final ObjectId newId, final String note, final Context c) {
-        if (note == null) {
-            return;
-        }
-        if (notes == null) {
-            notes = NoteMap.newEmptyMap();
-        }
-        final ObjectId blob = out.writeBlob(note.getBytes(), c);
-        Try.io(() -> notes.set(newId, blob));
+    protected String getBackwardNote(final ObjectId oldCommitId, final Context c) {
+        return addBackwardNotes ? oldCommitId.name() : null;
     }
 
     /**

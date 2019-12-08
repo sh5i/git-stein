@@ -38,6 +38,8 @@ public class RepositoryAccess {
 
     protected Repository repo;
 
+    protected final NoteMap defaultNotes = NoteMap.newEmptyMap();
+
     protected boolean dryRunning = false;
 
     public void setDryRunning(final boolean dryRunning) {
@@ -187,11 +189,36 @@ public class RepositoryAccess {
     }
 
     /**
+     * Add a note to the default notes.
+     */
+    public void addNote(final ObjectId commitId, final String note, final Context c) {
+        addNote(defaultNotes, commitId, note, c);
+    }
+
+    /**
+     * Add a note to notes.
+     */
+    public void addNote(final NoteMap notes, final ObjectId commitId, final String note, final Context c) {
+        if (note != null) {
+            final ObjectId blob = writeBlob(note.getBytes(), c);
+            Try.io(() -> notes.set(commitId, blob));
+        }
+    }
+
+    /**
+     * Writes default notes if at least one exists.
+     */
+    public void writeNotes(final Context c) {
+        if (defaultNotes.iterator().hasNext()) {
+            writeNotes(defaultNotes, c);
+        }
+    }
+
+    /**
      * Writes notes.
      */
-    public void writeNotes(final NoteMap map, final Context c) {
-        // TODO dry-running of map tree writing.
-        final ObjectId treeId = insert(ins -> map.writeTree(ins), c);
+    public void writeNotes(final NoteMap notes, final Context c) {
+        final ObjectId treeId = dryRunning ? ObjectId.zeroId() : insert(ins -> notes.writeTree(ins), c);
         // TODO building PersonIdent better.
         final PersonIdent ident = new PersonIdent(repo);
         final String message = "Notes added by 'git notes add'";
