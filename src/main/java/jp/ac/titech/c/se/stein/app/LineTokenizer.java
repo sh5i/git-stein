@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein.sample;
+package jp.ac.titech.c.se.stein.app;
 
 import java.io.UnsupportedEncodingException;
 
