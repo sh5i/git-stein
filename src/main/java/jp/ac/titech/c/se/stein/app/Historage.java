@@ -86,8 +86,8 @@ public class Historage extends RepositoryRewriter {
         if (entry.isTree()) {
             return super.rewriteEntry(entry, c);
         }
-        if (!entry.name.toLowerCase().endsWith(".java") && requiresOriginals) {
-            return super.rewriteEntry(entry, c);
+        if (!entry.name.toLowerCase().endsWith(".java")) {
+            return requiresNonCode ? super.rewriteEntry(entry, c) : EntrySet.EMPTY;
         }
 
         final EntryList result = new EntryList();
