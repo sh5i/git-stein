@@ -92,8 +92,10 @@ public class Context implements Map<Context.Key, Object> {
             return ((RevCommit) value).name();
         case ref:
             return ((Ref) value).getName();
+        case path:
+            return (String) value;
         default:
-            return value instanceof String ? (String) value : null;
+            return null;
         }
     }
 
@@ -154,7 +156,7 @@ public class Context implements Map<Context.Key, Object> {
 
     @Override
     public Set<Entry<Key, Object>> entrySet() {
-        return Stream.of(Key.ALL).map(k -> toEntry(k)).filter(e -> e != null).collect(Collectors.toSet());
+        return Stream.of(Key.ALL).map(k -> toEntry(k)).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     private Map.Entry<Key, Object> toEntry(final Key k) {
