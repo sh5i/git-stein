@@ -69,22 +69,37 @@ public class CLI {
         return conf;
     }
 
-    public static Class<? extends RepositoryRewriter> loadClass(final String className) {
+    protected static Class<? extends RepositoryRewriter> tryLoadClass(final String name) {
         try {
             @SuppressWarnings("unchecked")
-            final Class<? extends RepositoryRewriter> result = (Class<? extends RepositoryRewriter>) Class.forName(className);
+            final Class<? extends RepositoryRewriter> result = (Class<? extends RepositoryRewriter>) Class.forName(name);
+            log.debug("Try loading class {}... succeeded.", name);
             return result;
         } catch (final ClassNotFoundException e) {
-            log.error("Failed to load: {}", className);
-            throw new RuntimeException(e);
+            log.debug("Try loading class {}... not found.", name);
+            return null;
+        } catch (final ClassCastException e) {
+            log.debug("Try loading class {}... succeeded but was not a proper class.", name);
+            return null;
         }
+    }
+
+    public static Class<? extends RepositoryRewriter> loadClass(final String key) {
+        Class<? extends RepositoryRewriter> result = tryLoadClass(key);
+        if (result == null) {
+            result = tryLoadClass(CLI.class.getPackage().getName() + ".app." + key);
+        }
+        if (result == null) {
+            result = tryLoadClass(CLI.class.getPackage().getName() + "." + key);
+        }
+        return result;
     }
 
     public static RepositoryRewriter newInstance(final Class<? extends RepositoryRewriter> klass) {
         try {
             return klass.newInstance();
         } catch (final InstantiationException | IllegalAccessException e) {
-            log.error("Failed to load: {}", klass);
+            log.error("Failed to load instance from class {}", klass);
             throw new RuntimeException(e);
         }
     }
