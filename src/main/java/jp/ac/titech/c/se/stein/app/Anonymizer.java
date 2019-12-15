@@ -9,7 +9,7 @@ import org.eclipse.jgit.util.sha1.SHA1;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jp.ac.titech.c.se.stein.CLI;
+import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
@@ -110,6 +110,6 @@ public class Anonymizer extends RepositoryRewriter {
     }
 
     public static void main(final String[] args) {
-        CLI.execute(new Anonymizer(), args);
+        Application.execute(new Anonymizer(), args);
     }
 }

@@ -34,7 +34,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jp.ac.titech.c.se.stein.CLI;
+import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet;
@@ -440,6 +440,6 @@ public class Historage extends RepositoryRewriter {
     }
 
     public static void main(final String[] args) {
-        CLI.execute(new Historage(), args);
+        Application.execute(new Historage(), args);
     }
 }

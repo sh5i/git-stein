@@ -12,7 +12,7 @@ import org.mozilla.universalchardet.UniversalDetector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jp.ac.titech.c.se.stein.CLI;
+import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
@@ -97,6 +97,6 @@ public class LineTokenizer extends RepositoryRewriter {
     }
 
     public static void main(final String[] args) {
-        CLI.execute(new LineTokenizer(), args);
+        Application.execute(new LineTokenizer(), args);
     }
 }

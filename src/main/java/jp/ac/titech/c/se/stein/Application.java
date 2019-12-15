@@ -24,8 +24,8 @@ import ch.qos.logback.classic.Level;
 import jp.ac.titech.c.se.stein.core.Configurable;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 
-public class CLI {
-    private static final Logger log = LoggerFactory.getLogger(CLI.class);
+public class Application {
+    private static final Logger log = LoggerFactory.getLogger(Application.class);
 
     private final RepositoryRewriter rewriter;
 
@@ -61,7 +61,7 @@ public class CLI {
     }
 
 
-    public CLI(final RepositoryRewriter rewriter, final String[] args) {
+    public Application(final RepositoryRewriter rewriter, final String[] args) {
         this.rewriter = rewriter;
         this.conf = parseOptions(args, this.rewriter);
     }
@@ -237,7 +237,7 @@ public class CLI {
     }
 
     public static void execute(final RepositoryRewriter rewriter, final String[] args) {
-        final CLI app = new CLI(rewriter, args);
+        final Application app = new Application(rewriter, args);
         app.run();
     }
 }

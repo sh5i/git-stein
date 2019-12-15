@@ -15,7 +15,7 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jp.ac.titech.c.se.stein.CLI;
+import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
@@ -87,6 +87,6 @@ public class SvnMetadataAnnotator extends RepositoryRewriter {
     }
 
     public static void main(final String[] args) {
-        CLI.execute(new SvnMetadataAnnotator(), args);
+        Application.execute(new SvnMetadataAnnotator(), args);
     }
 }

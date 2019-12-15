@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-import jp.ac.titech.c.se.stein.CLI;
+import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.CommitGraph;
 import jp.ac.titech.c.se.stein.core.CommitGraph.Vertex;
 import jp.ac.titech.c.se.stein.core.Config;
@@ -182,6 +182,6 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
     }
 
     public static void main(final String[] args) {
-        CLI.execute(new Clusterer(), args);
+        Application.execute(new Clusterer(), args);
     }
 }

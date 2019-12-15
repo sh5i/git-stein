@@ -44,6 +44,6 @@ public class Loader {
     public static void main(final String[] args) {
         final String className = args[0];
         final String[] realArgs = Arrays.copyOfRange(args, 1, args.length);
-        new CLI(new Loader().load(className), realArgs).run();
+        new Application(new Loader().load(className), realArgs).run();
     }
 }
