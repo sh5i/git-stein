@@ -5,11 +5,17 @@ import java.util.Arrays;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 
 public class Loader {
+    /**
+     * Loads a rewriter class from the given name and instantiates it.
+     */
     public RepositoryRewriter load(final String name) {
         final Class<? extends RepositoryRewriter> klass = loadClass(name);
         return klass == null ? null : newInstance(klass);
     }
 
+    /**
+     * Instantiates the given class.
+     */
     protected static RepositoryRewriter newInstance(final Class<? extends RepositoryRewriter> klass) {
         try {
             return klass.newInstance();
@@ -18,6 +24,9 @@ public class Loader {
         }
     }
 
+    /**
+     * Loads a rewriter class from the given name.
+     */
     protected Class<? extends RepositoryRewriter> loadClass(final String name) {
         Class<? extends RepositoryRewriter> result = tryLoadClass(name);
         if (result == null) {
@@ -29,6 +38,9 @@ public class Loader {
         return result;
     }
 
+    /**
+     * Loads a rewriter class from the given class name.
+     */
     protected static Class<? extends RepositoryRewriter> tryLoadClass(final String name) {
         try {
             @SuppressWarnings("unchecked")
@@ -43,7 +55,8 @@ public class Loader {
 
     public static void main(final String[] args) {
         final String className = args[0];
+        final RepositoryRewriter rewriter = new Loader().load(className);
         final String[] realArgs = Arrays.copyOfRange(args, 1, args.length);
-        new Application(new Loader().load(className), realArgs).run();
+        Application.execute(rewriter, realArgs);
     }
 }
