@@ -13,27 +13,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application;
-import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
+@Command(name = "like-tokenizer", description = "Encode/decode Java source files to/from linetoken format")
 public class LineTokenizer extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(LineTokenizer.class);
 
-    protected boolean decode = false;
-
-    @Override
-    public void addOptions(final Config conf) {
-        super.addOptions(conf);
-        conf.addOption("d", "decode", true, "decode tokenlines");
-    }
-
-    @Override
-    public void configure(final Config conf) {
-        super.configure(conf);
-        this.decode = conf.hasOption("decode");
-    }
+    @Option(names = "--decode", description = "decode tokenlines")
+    protected boolean isDecoding = false;
 
     /**
      * Encodes the given source.
@@ -71,7 +62,7 @@ public class LineTokenizer extends RepositoryRewriter {
             return super.rewriteBlob(blobId, c);
         }
         final String source = load(blobId, c);
-        final String converted = decode ? decode(source) : encode(source);
+        final String converted = isDecoding ? decode(source) : encode(source);
         final ObjectId newId = out.writeBlob(converted.getBytes(), c);
         log.debug("Rewrite blob: {} -> {} ({})", blobId.name(), newId.name(), c);
         return newId;

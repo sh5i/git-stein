@@ -3,7 +3,6 @@ package jp.ac.titech.c.se.stein.app;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -16,28 +15,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application;
-import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Try;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
+@Command(name = "svn-metadata-annotator", description = "Attach metadata obtained from svn2git")
 public class SvnMetadataAnnotator extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(SvnMetadataAnnotator.class);
 
-    private Map<ObjectId, Integer> mapping;
+    @Option(names = "--svn-mapping", required = true, paramLabel = "<log-git-repository>", description = "svn mapping")
+    protected Path svnMappingFile;
+
+    @Option(names = "--object-mapping", required = true, paramLabel = "<marks-git-repository>", description = "object mapping")
+    protected Path objectMappingFile;
+
+    protected Map<ObjectId, Integer> mapping;
 
     @Override
-    public void addOptions(final Config conf) {
-        super.addOptions(conf);
-        conf.addOption(null, "svn-mapping", true, "specify svn mapping (log-git-repository)");
-        conf.addOption(null, "object-mapping", true, "specify object mapping (marks-git-repository)");
-    }
-
-    @Override
-    public void configure(final Config conf) {
-        super.configure(conf);
-        final Path svnMappingFile = Paths.get(conf.getOptionValue("svn-mapping"));
-        final Path objectMappingFile = Paths.get(conf.getOptionValue("object-mapping"));
+    protected void setUp(final Context c) {
         mapping = Try.io(() -> collectCommitMapping(svnMappingFile, objectMappingFile));
     }
 

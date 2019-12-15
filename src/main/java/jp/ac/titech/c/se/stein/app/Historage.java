@@ -35,12 +35,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application;
-import jp.ac.titech.c.se.stein.core.Config;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.EntrySet.EntryList;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 /**
  * A simple Historage generator with FinerGit-compatible naming convention.
@@ -48,38 +49,24 @@ import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
  * @see https://github.com/hideakihata/git2historage
  * @see https://github.com/kusumotolab/FinerGit
  */
+@Command(name = "historage", description = "Generate finer-grained modules")
 public class Historage extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Historage.class);
 
+    @Option(names = "--fields", negatable = true, description = "include/exclude field files")
     protected boolean requiresFields = true;
 
+    @Option(names = "--classes", negatable = true, description = "include/exclude class files")
     protected boolean requiresClasses = true;
 
+    @Option(names = "--docs", negatable = true, description = "include/exclude documentation files")
     protected boolean requiresDocs = true;
 
+    @Option(names = "--original", negatable = true, description = "include/exclude original files")
     protected boolean requiresOriginals = true;
 
+    @Option(names = "--noncode", negatable = true, description = "include/exclude non-code files")
     protected boolean requiresNonCode = true;
-
-    @Override
-    public void addOptions(final Config conf) {
-        super.addOptions(conf);
-        conf.addOption(null, "no-fields", false, "exclude field files");
-        conf.addOption(null, "no-classes", false, "exclude class files");
-        conf.addOption(null, "no-docs", false, "exclude documentation files");
-        conf.addOption(null, "no-original", false, "exclude original files");
-        conf.addOption(null, "no-noncode", false, "exclude non-code files");
-    }
-
-    @Override
-    public void configure(final Config conf) {
-        super.configure(conf);
-        this.requiresFields = !conf.hasOption("no-fields");
-        this.requiresClasses = !conf.hasOption("no-classes");
-        this.requiresDocs = !conf.hasOption("no-docs");
-        this.requiresOriginals = !conf.hasOption("no-original");
-        this.requiresNonCode = !conf.hasOption("no-noncode");
-    }
 
     @Override
     public EntrySet rewriteEntry(final Entry entry, final Context c) {

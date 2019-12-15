@@ -5,13 +5,12 @@ import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.Callable;
 
-import org.apache.commons.cli.HelpFormatter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
@@ -21,15 +20,68 @@ import org.slf4j.LoggerFactory;
 import com.google.gson.Gson;
 
 import ch.qos.logback.classic.Level;
-import jp.ac.titech.c.se.stein.core.Configurable;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.core.Try;
+import picocli.CommandLine;
+import picocli.CommandLine.Mixin;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
-public class Application {
+public class Application implements Callable<Integer> {
     private static final Logger log = LoggerFactory.getLogger(Application.class);
 
-    private final RepositoryRewriter rewriter;
+    class Config {
+        @Parameters(index = "0", paramLabel = "<repo>", description = "source repo")
+        File input;
 
-    private final CommonsConfig conf;
+        @Option(names = { "-o", "--output" }, paramLabel = "<path>", description = "destination repo")
+        File output;
+
+        @Option(names = { "-d", "--output-dup" }, paramLabel = "<path>", description = "output path (duplicate-and-overwrite)")
+        File duplicatedOutput;
+
+        @Option(names = "--bare", description = "treat that repos are bare")
+        boolean isBare;
+
+        @Option(names = "--clean", description = "delete destination repo beforehand if exists")
+        boolean isCleanEnabled;
+
+        @Option(names = "--commit-mapping", paramLabel = "<file>", description = "store the commit mapping")
+        File commitMappingFile;
+
+        Level logLevel = Level.INFO;
+
+        @Option(names = "--log", description = "log level (default: INFO)")
+        void setLevel(final String level) {
+            logLevel = Level.valueOf(level);
+        }
+
+        @Option(names = { "-q", "--quiet" }, description = "quiet mode (same as --log=ERROR)")
+        void setQuiet(final boolean isQuiet) {
+            if (isQuiet) {
+                logLevel = Level.ERROR;
+            }
+        }
+
+        @Option(names = { "-v", "--verbose" }, description = "verbose mode (same as --log=DEBUG)")
+        void setVerbose(final boolean isVerbose) {
+            if (isVerbose) {
+                logLevel = Level.DEBUG;
+            }
+        }
+
+        @Option(names = "--help", description = "show this help message and exit", usageHelp = true)
+        boolean helpRequested;
+
+        @Option(names = "--version", description = "print version information and exit", versionHelp = true)
+        boolean versionInfoRequested;
+    }
+
+    @Mixin
+    final Config conf = new Config();
+
+    @Mixin
+    private final RepositoryRewriter rewriter;
 
     public static void setLoggerLevel(final String name, final Level level) {
         final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(name);
@@ -37,48 +89,19 @@ public class Application {
         log.debug("Set log level of {} to {}", name, level);
     }
 
-    public static CommonsConfig parseOptions(final String[] args, final RepositoryRewriter rewriter) {
-        final CommonsConfig conf = new CommonsConfig();
-        conf.addOption("o", "output", true, "specify output path");
-        conf.addOption("d", "output-dup", true, "specify output path (duplicate-and-overwrite)");
-        conf.addOption("q", "quiet", false, "quiet mode (same as --log=error)");
-        conf.addOption("v", "verbose", false, "verbose mode (same as --log=debug)");
-        conf.addOption(null, "bare", false, "treat the repository as a bare repository");
-        conf.addOption(null, "clean", false, "delete the output beforehand if it exists");
-        conf.addOption(null, "commit-mapping", true, "specify a file for dumping the commit mapping");
-        conf.addOption(null, "level", true, "set log level (default: INFO)");
-        conf.addOption(null, "help", false, "print this help");
-        if (rewriter instanceof Configurable) {
-            ((Configurable) rewriter).addOptions(conf);
-        }
-
-        conf.run(args);
-        if (conf.hasOption("help") || args.length == 0) {
-            new HelpFormatter().printHelp("[options] path/to/repo", conf.getOptions());
-            System.exit(conf.hasOption("help") ? 0 : 1);
-        }
-        return conf;
-    }
-
-
-    public Application(final RepositoryRewriter rewriter, final String[] args) {
+    public Application(final RepositoryRewriter rewriter) {
         this.rewriter = rewriter;
-        this.conf = parseOptions(args, this.rewriter);
     }
 
-    public void run() {
-        final Level level = getLoggerLevel();
-        setLoggerLevel(Logger.ROOT_LOGGER_NAME, getLoggerLevel());
-        if (level == Level.DEBUG) {
+    @Override
+    public Integer call() throws Exception {
+        setLoggerLevel(Logger.ROOT_LOGGER_NAME, conf.logLevel);
+        if (conf.logLevel == Level.DEBUG) {
             // suppress jgit's log
             setLoggerLevel("org.eclipse.jgit", Level.INFO);
         }
 
         log.debug("Rewriter: {}", rewriter.getClass().getName());
-
-        if (rewriter instanceof Configurable) {
-            ((Configurable) rewriter).configure(conf);
-        }
 
         try (final Repository readRepo = getInputRepository()) {
             log.debug("Input repository: {}", readRepo.getDirectory());
@@ -102,27 +125,11 @@ public class Application {
             e.printStackTrace();
         }
 
-        if (conf.hasOption("commit-mapping")) {
-            final String filename = conf.getOptionValue("commit-mapping");
-            try {
-                exportObject(rewriter.exportCommitMapping(), filename);
-            } catch (final IOException e) {
-                e.printStackTrace();
-            }
+        if (conf.commitMappingFile != null) {
+            Try.io(() -> exportObject(rewriter.exportCommitMapping(), conf.commitMappingFile));
         }
 
-    }
-
-    protected Level getLoggerLevel() {
-        if (conf.hasOption("level")) {
-            return Level.valueOf(conf.getOptionValue("level"));
-        } else if (conf.hasOption("verbose")) {
-            return Level.DEBUG;
-        } else if (conf.hasOption("quiet")) {
-            return Level.ERROR;
-        } else {
-            return Level.INFO;
-        }
+        return 0;
     }
 
     /**
@@ -130,24 +137,23 @@ public class Application {
      */
     protected Repository getInputRepository() throws IOException {
         final File inputDir;
-        if (conf.hasOption("output-dup")) {
+        if (conf.duplicatedOutput != null) {
             // duplicate mode
-            final String output = conf.getOptionValue("output-dup");
-            final Path outputPath = Paths.get(output);
+            final Path outputPath = conf.duplicatedOutput.toPath();
 
             // cleaning
-            if (conf.hasOption("clean") && Files.exists(outputPath)) {
+            if (conf.isCleanEnabled && Files.exists(outputPath)) {
                 deleteDirectory(outputPath);
             }
 
-            copyDirectory(Paths.get(conf.getArgs()[0]), outputPath);
-            inputDir = new File(output);
+            copyDirectory(conf.input.toPath(), outputPath);
+            inputDir = conf.duplicatedOutput;
         } else {
-            inputDir = new File(conf.getArgs()[0]);
+            inputDir = conf.input;
         }
 
         final FileRepositoryBuilder builder = new FileRepositoryBuilder();
-        if (conf.hasOption("bare")) {
+        if (conf.isBare) {
             builder.setGitDir(inputDir).readEnvironment();
         } else {
             builder.findGitDir(inputDir);
@@ -159,25 +165,25 @@ public class Application {
      * Returns the output repository object. Returns null in overwrite mode.
      */
     protected Repository getOutputRepository() throws IOException {
-        if (conf.hasOption("output-dup")) {
+        if (conf.duplicatedOutput != null) {
             // duplicate mode
             return null;
         }
 
-        if (!conf.hasOption("output")) {
+        if (conf.output == null) {
             return null;
         }
 
-        final File outputDir = new File(conf.getOptionValue("output"));
+        final File outputDir = conf.output;
 
         // cleaning
-        final Path outputPath = Paths.get(outputDir.toString());
-        if (conf.hasOption("clean") && Files.exists(outputPath)) {
+        final Path outputPath = outputDir.toPath();
+        if (conf.isCleanEnabled && Files.exists(outputPath)) {
             deleteDirectory(outputPath);
         }
 
         final FileRepositoryBuilder builder = new FileRepositoryBuilder();
-        if (conf.hasOption("bare")) {
+        if (conf.isBare) {
             builder.setGitDir(outputDir);
         } else {
             final File gitdbDir = new File(outputDir, Constants.DOT_GIT);
@@ -189,9 +195,9 @@ public class Application {
     /**
      * Dump an object to a file as JSON format.
      */
-    protected void exportObject(final Object object, final String filename) throws IOException {
+    protected void exportObject(final Object object, final File file) throws IOException {
         final Gson gson = new Gson();
-        Files.write(Paths.get(filename), gson.toJson(object).getBytes());
+        Files.write(file.toPath(), gson.toJson(object).getBytes());
     }
 
     /**
@@ -236,8 +242,9 @@ public class Application {
         });
     }
 
-    public static void execute(final RepositoryRewriter rewriter, final String[] args) {
-        final Application app = new Application(rewriter, args);
-        app.run();
+    public static void execute(final RepositoryRewriter rewriter, String[] args) {
+        final Application app = new Application(rewriter);
+        final int status = new CommandLine(app).execute(args);
+        System.exit(status);
     }
 }

@@ -13,7 +13,9 @@ import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
+import picocli.CommandLine.Command;
 
+@Command(name = "anonymizer", description = "Anonymizes filenames and contents")
 public class Anonymizer extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Anonymizer.class);
 

@@ -25,8 +25,9 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
+import picocli.CommandLine.Option;
 
-public class RepositoryRewriter implements Configurable {
+public class RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
 
     private static final ObjectId ZERO = ObjectId.zeroId();
@@ -41,42 +42,21 @@ public class RepositoryRewriter implements Configurable {
 
     protected boolean isOverwriting = false;
 
-    protected boolean isDryRunning = false;
-
     protected boolean isPathSensitive = false;
 
+    @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo")
+    protected boolean isDryRunning = false;
+
+    @Option(names = "--notes-forward", negatable = true, description = "notes rewritten commits to source repo")
     protected boolean isAddingForwardNotes = false;
 
-    protected boolean isAddingBackwardNotes = false;
+    @Option(names = "--notes-backward", negatable = true, description = "notes original commits to destination repo")
+    protected boolean isAddingBackwardNotes = true;
 
     protected boolean isParallel = false;
 
-    @Override
-    public void addOptions(final Config conf) {
-        conf.addOption("p", "parallel", false, "rewrite trees in parallel");
-        conf.addOption("n", "dry-run", false, "don't actually write anything");
-        conf.addOption(null, "forward-notes", false, "note rewritten commits to original repo");
-        conf.addOption(null, "backward-notes", false, "note original commits to rewritten repo");
-    }
-
-    @Override
-    public void configure(final Config conf) {
-        if (conf.hasOption("parallel")) {
-            setParallel(true);
-        }
-        if (conf.hasOption("dry-run")) {
-            isDryRunning = true;
-        }
-        if (conf.hasOption("forward-notes")) {
-            isAddingForwardNotes = true;
-        }
-        if (conf.hasOption("backward-notes")) {
-            isAddingBackwardNotes = true;
-        }
-    }
-
-    public void setParallel(final boolean isParallel) {
-        log.debug("Set parallel: {}", isParallel);
+    @Option(names = { "-p", "--parallel" }, description = "rewrite trees in parallel")
+    protected void setParallel(final boolean isParallel) {
         this.isParallel = isParallel;
         this.entryMapping = isParallel ? new ConcurrentHashMap<>() : new HashMap<>();
     }
@@ -97,11 +77,15 @@ public class RepositoryRewriter implements Configurable {
     }
 
     public void rewrite(final Context c) {
+        setUp(c);
         rewriteCommits(c);
         updateRefs(c);
         in.writeNotes(c);
         out.writeNotes(c);
         cleanUp(c);
+    }
+
+    protected void setUp(final Context c) {
     }
 
     /**

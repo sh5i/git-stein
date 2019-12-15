@@ -20,40 +20,33 @@ import com.google.gson.reflect.TypeToken;
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.CommitGraph;
 import jp.ac.titech.c.se.stein.core.CommitGraph.Vertex;
-import jp.ac.titech.c.se.stein.core.Config;
-import jp.ac.titech.c.se.stein.core.Configurable;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Try;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
-public class Clusterer extends RepositoryRewriter implements Configurable {
+@Command(name = "clusterer", description = "Cluster and merge commits")
+public class Clusterer extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Clusterer.class);
+
+    @Option(names = "--recipe", required = true, paramLabel = "<file>", description = "recipe JSON")
+    protected File recipeFile;
+
+    @Option(names = "--dump-graph", paramLabel = "<file>", description = "dump graph as GML")
+    protected File graphFile;
 
     private Map<String, List<List<String>>> recipe;
 
     protected final Map<ObjectId, ObjectId> alternateMapping = new HashMap<>();
 
-    protected File graphOutput;
 
     private final CommitGraph graph = new CommitGraph();
 
     @Override
-    public void addOptions(final Config conf) {
-        super.addOptions(conf);
-        conf.addOption(null, "recipe", true, "set recipe JSON file");
-        conf.addOption(null, "dump-graph", true, "dump graph as GML");
-    }
-
-    @Override
-    public void configure(final Config conf) {
-        super.configure(conf);
-        if (conf.hasOption("recipe")) {
-            recipe = loadRecipe(new File(conf.getOptionValue("recipe")));
-        }
-        if (conf.hasOption("dump-graph")) {
-            graphOutput = new File(conf.getOptionValue("dump-graph"));
-        }
+    public void setUp(final Context c) {
+        recipe = loadRecipe(recipeFile);
     }
 
     /**
@@ -72,8 +65,8 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
 
         rewriteGraph();
 
-        if (graphOutput != null) {
-            graph.dump(graphOutput);
+        if (graphFile != null) {
+            graph.dump(graphFile);
         }
         out.openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
