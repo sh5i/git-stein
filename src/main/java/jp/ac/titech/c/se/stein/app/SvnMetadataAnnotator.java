@@ -87,6 +87,6 @@ public class SvnMetadataAnnotator extends RepositoryRewriter {
     }
 
     public static void main(final String[] args) {
-        new CLI(SvnMetadataAnnotator.class, args).run();
+        CLI.execute(new SvnMetadataAnnotator(), args);
     }
 }

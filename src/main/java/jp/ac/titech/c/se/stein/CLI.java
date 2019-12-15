@@ -10,7 +10,6 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
 
 import org.apache.commons.cli.HelpFormatter;
 import org.eclipse.jgit.lib.Constants;
@@ -28,17 +27,9 @@ import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 public class CLI {
     private static final Logger log = LoggerFactory.getLogger(CLI.class);
 
-    private final Class<? extends RepositoryRewriter> rewriterClass;
-
     private final RepositoryRewriter rewriter;
 
     private final CommonsConfig conf;
-
-    public static void main(final String[] args) {
-        final String className = args[0];
-        final String[] realArgs = Arrays.copyOfRange(args, 1, args.length);
-        new CLI(className, realArgs).run();
-    }
 
     public static void setLoggerLevel(final String name, final Level level) {
         final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(name);
@@ -69,49 +60,10 @@ public class CLI {
         return conf;
     }
 
-    protected static Class<? extends RepositoryRewriter> tryLoadClass(final String name) {
-        try {
-            @SuppressWarnings("unchecked")
-            final Class<? extends RepositoryRewriter> result = (Class<? extends RepositoryRewriter>) Class.forName(name);
-            log.debug("Try loading class {}... succeeded.", name);
-            return result;
-        } catch (final ClassNotFoundException e) {
-            log.debug("Try loading class {}... not found.", name);
-            return null;
-        } catch (final ClassCastException e) {
-            log.debug("Try loading class {}... succeeded but was not a proper class.", name);
-            return null;
-        }
-    }
 
-    public static Class<? extends RepositoryRewriter> loadClass(final String key) {
-        Class<? extends RepositoryRewriter> result = tryLoadClass(key);
-        if (result == null) {
-            result = tryLoadClass(CLI.class.getPackage().getName() + ".app." + key);
-        }
-        if (result == null) {
-            result = tryLoadClass(CLI.class.getPackage().getName() + "." + key);
-        }
-        return result;
-    }
-
-    public static RepositoryRewriter newInstance(final Class<? extends RepositoryRewriter> klass) {
-        try {
-            return klass.newInstance();
-        } catch (final InstantiationException | IllegalAccessException e) {
-            log.error("Failed to load instance from class {}", klass);
-            throw new RuntimeException(e);
-        }
-    }
-
-    public CLI(final Class<? extends RepositoryRewriter> rewriterClass, final String[] args) {
-        this.rewriterClass = rewriterClass;
-        this.rewriter = newInstance(rewriterClass);
+    public CLI(final RepositoryRewriter rewriter, final String[] args) {
+        this.rewriter = rewriter;
         this.conf = parseOptions(args, this.rewriter);
-    }
-
-    public CLI(final String className, final String[] args) {
-        this(loadClass(className), args);
     }
 
     public void run() {
@@ -122,7 +74,7 @@ public class CLI {
             setLoggerLevel("org.eclipse.jgit", Level.INFO);
         }
 
-        log.debug("Rewriter: {}", rewriterClass.getName());
+        log.debug("Rewriter: {}", rewriter.getClass().getName());
 
         if (rewriter instanceof Configurable) {
             ((Configurable) rewriter).configure(conf);
@@ -284,4 +236,8 @@ public class CLI {
         });
     }
 
+    public static void execute(final RepositoryRewriter rewriter, final String[] args) {
+        final CLI app = new CLI(rewriter, args);
+        app.run();
+    }
 }

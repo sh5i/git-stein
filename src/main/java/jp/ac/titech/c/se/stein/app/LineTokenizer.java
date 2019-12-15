@@ -97,6 +97,6 @@ public class LineTokenizer extends RepositoryRewriter {
     }
 
     public static void main(final String[] args) {
-        new CLI(LineTokenizer.class, args).run();
+        CLI.execute(new LineTokenizer(), args);
     }
 }

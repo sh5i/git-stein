@@ -182,6 +182,6 @@ public class Clusterer extends RepositoryRewriter implements Configurable {
     }
 
     public static void main(final String[] args) {
-        new CLI(Clusterer.class, args).run();
+        CLI.execute(new Clusterer(), args);
     }
 }

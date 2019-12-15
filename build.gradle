@@ -15,7 +15,7 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.8.6'
     implementation 'commons-cli:commons-cli:1.4'
     testImplementation 'junit:junit:4.12'
-
+    
     // dependencies for sample code: available only if the property is defined
     if (project.findProperty("stein.runsample") == "yes") {
         implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.19.0'
@@ -34,6 +34,6 @@ repositories {
 
 jar {
     manifest {
-        attributes "Main-Class": "jp.ac.titech.c.se.stein.CLI"
+        attributes "Main-Class": "jp.ac.titech.c.se.stein.Loader"
     }
 }

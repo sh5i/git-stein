@@ -440,6 +440,6 @@ public class Historage extends RepositoryRewriter {
     }
 
     public static void main(final String[] args) {
-        new CLI(Historage.class, args).run();
+        CLI.execute(new Historage(), args);
     }
 }

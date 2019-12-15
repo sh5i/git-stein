@@ -110,6 +110,6 @@ public class Anonymizer extends RepositoryRewriter {
     }
 
     public static void main(final String[] args) {
-        new CLI(Anonymizer.class, args).run();
+        CLI.execute(new Anonymizer(), args);
     }
 }
