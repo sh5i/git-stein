@@ -24,6 +24,7 @@ import ch.qos.logback.classic.Level;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Try;
 import picocli.CommandLine;
+import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
@@ -31,48 +32,55 @@ import picocli.CommandLine.Parameters;
 
 @Command(version = "git-stein", sortOptions = false)
 public class Application implements Callable<Integer> {
+    public static final int LOW = 10000;
+
     private static final Logger log = LoggerFactory.getLogger(Application.class);
 
     static class Config {
         @Parameters(index = "0", paramLabel = "<repo>", description = "source repo")
         File source;
 
-        @Option(names = { "-o", "--output" }, required = true, paramLabel = "<path>", description = "destination repo")
-        File destination;
+        @ArgGroup(exclusive = false, multiplicity = "0..1")
+        OutputOptions output;
 
-        @Option(names = { "-d", "--duplicate" }, required = false, description = "duplicate source repo to destination and overwrite it")
-        boolean isDuplicating;
+        static class OutputOptions {
+            @Option(names = { "-o", "--output" }, required = true, paramLabel = "<path>", description = "destination repo")
+            File destination;
 
-        @Option(names = "--clean", required = false, description = "delete destination repo beforehand if exists")
-        boolean isCleanEnabled;
+            @Option(names = { "-d", "--duplicate" }, required = false, description = "duplicate source repo and overwrite it")
+            boolean isDuplicating;
+
+            @Option(names = "--clean", required = false, description = "delete destination repo beforehand if exists")
+            boolean isCleaningEnabled;
+        }
 
         @Option(names = "--bare", description = "treat that repos are bare")
         boolean isBare;
 
-        @Option(names = "--mapping", paramLabel = "<file>", description = "store the commit mapping")
+        @Option(names = "--mapping", paramLabel = "<file>", description = "store the commit mapping", order = LOW)
         File commitMappingFile;
 
-        @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})")
+        @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})", order = LOW)
         Level logLevel = Level.INFO;
 
-        @Option(names = { "-q", "--quiet" }, description = "quiet mode (same as --log=ERROR)")
+        @Option(names = { "-q", "--quiet" }, description = "quiet mode (same as --log=ERROR)", order = LOW)
         void setQuiet(final boolean isQuiet) {
             if (isQuiet) {
                 logLevel = Level.ERROR;
             }
         }
 
-        @Option(names = { "-v", "--verbose" }, description = "verbose mode (same as --log=DEBUG)")
+        @Option(names = { "-v", "--verbose" }, description = "verbose mode (same as --log=DEBUG)", order = LOW)
         void setVerbose(final boolean isVerbose) {
             if (isVerbose) {
                 logLevel = Level.DEBUG;
             }
         }
 
-        @Option(names = "--help", description = "show this help message and exit", usageHelp = true, order = 10000)
+        @Option(names = "--help", description = "show this help message and exit", usageHelp = true, order = LOW)
         boolean helpRequested;
 
-        @Option(names = "--version", description = "print version information and exit", versionHelp = true, order = 10001)
+        @Option(names = "--version", description = "print version information and exit", versionHelp = true, order = LOW)
         boolean versionInfoRequested;
     }
 
@@ -127,25 +135,25 @@ public class Application implements Callable<Integer> {
      * Returns the source and destination repository objects.
      */
     protected void openRepositories(final BiConsumer<Repository, Repository> f) throws IOException {
-        if (conf.destination == null) {
+        if (conf.output == null) {
             // source -> source
             final Repository repo = openRepository(conf.source, false);
             tryOpenRepositories(repo, repo, f);
         } else {
             // cleaning
-            if (conf.isCleanEnabled && conf.destination.exists()) {
-                deleteDirectory(conf.destination.toPath());
+            if (conf.output.isCleaningEnabled && conf.output.destination.exists()) {
+                deleteDirectory(conf.output.destination.toPath());
             }
 
-            if (conf.isDuplicating) {
+            if (conf.output.isDuplicating) {
                 // destination -> destination (duplicate mode)
-                copyDirectory(conf.source.toPath(), conf.destination.toPath());
-                final Repository repo = openRepository(conf.destination, false);
+                copyDirectory(conf.source.toPath(), conf.output.destination.toPath());
+                final Repository repo = openRepository(conf.output.destination, false);
                 tryOpenRepositories(repo, repo, f);
             } else {
                 // source -> destination
                 final Repository src = openRepository(conf.source, false);
-                final Repository dst = openRepository(conf.destination, true);
+                final Repository dst = openRepository(conf.output.destination, true);
                 tryOpenRepositories(src, dst, f);
             }
         }
