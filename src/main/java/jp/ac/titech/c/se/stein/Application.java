@@ -47,7 +47,7 @@ public class Application implements Callable<Integer> {
 
         static class OutputOptions {
             @Option(names = { "-o", "--output" }, required = true, paramLabel = "<path>", description = "destination repo")
-            File destination;
+            File target;
 
             @Option(names = { "-d", "--duplicate" }, required = false, description = "duplicate source repo and overwrite it")
             boolean isDuplicating;
@@ -112,10 +112,10 @@ public class Application implements Callable<Integer> {
 
         log.debug("Rewriter: {}", rewriter.getClass().getName());
 
-        openRepositories((src, dst) -> {
-            log.debug("Source repository: {}", src.getDirectory());
-            log.debug("Destination repository: {}", dst.getDirectory());
-            rewriter.initialize(src, dst);
+        openRepositories((source, target) -> {
+            log.debug("Source repository: {}", source.getDirectory());
+            log.debug("Target repository: {}", target.getDirectory());
+            rewriter.initialize(source, target);
 
             final Instant start = Instant.now();
             log.info("Starting rewriting...");
@@ -143,32 +143,32 @@ public class Application implements Callable<Integer> {
             tryOpenRepositories(repo, repo, f);
         } else {
             // cleaning
-            if (conf.output.isCleaningEnabled && conf.output.destination.exists()) {
-                deleteDirectory(conf.output.destination.toPath());
+            if (conf.output.isCleaningEnabled && conf.output.target.exists()) {
+                deleteDirectory(conf.output.target.toPath());
             }
 
             if (conf.output.isDuplicating) {
                 // destination -> destination (duplicate mode)
-                copyDirectory(conf.source.toPath(), conf.output.destination.toPath());
-                final Repository repo = createRepository(conf.output.destination, false);
+                copyDirectory(conf.source.toPath(), conf.output.target.toPath());
+                final Repository repo = createRepository(conf.output.target, false);
                 tryOpenRepositories(repo, repo, f);
             } else {
                 // source -> destination
                 final Repository src = createRepository(conf.source, false);
-                final Repository dst = createRepository(conf.output.destination, true);
+                final Repository dst = createRepository(conf.output.target, true);
                 tryOpenRepositories(src, dst, f);
             }
         }
     }
 
-    protected void tryOpenRepositories(final Repository src, final Repository dst, final BiConsumer<Repository, Repository> f) throws IOException {
-        try (final Repository readRepo = src) {
-            if (src != dst) {
-                try (final Repository writeRepo = dst) {
-                    f.accept(src, dst);
+    protected void tryOpenRepositories(final Repository sourceRepo, final Repository targetRepo, final BiConsumer<Repository, Repository> f) throws IOException {
+        try (final Repository readRepo = sourceRepo) {
+            if (sourceRepo != targetRepo) {
+                try (final Repository writeRepo = targetRepo) {
+                    f.accept(sourceRepo, targetRepo);
                 }
             } else {
-                f.accept(src, src);
+                f.accept(sourceRepo, sourceRepo);
             }
         }
     }

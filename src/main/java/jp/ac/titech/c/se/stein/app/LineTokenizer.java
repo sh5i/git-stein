@@ -63,13 +63,13 @@ public class LineTokenizer extends RepositoryRewriter {
         }
         final String source = load(blobId, c);
         final String converted = isDecoding ? decode(source) : encode(source);
-        final ObjectId newId = out.writeBlob(converted.getBytes(), c);
+        final ObjectId newId = target.writeBlob(converted.getBytes(), c);
         log.debug("Rewrite blob: {} -> {} ({})", blobId.name(), newId.name(), c);
         return newId;
     }
 
     protected String load(final ObjectId blobId, final Context c) {
-        final byte[] data = in.readBlob(blobId, c);
+        final byte[] data = source.readBlob(blobId, c);
         final String charset = guessCharset(data);
         if (charset != null) {
             try {

@@ -74,7 +74,7 @@ public class Anonymizer extends RepositoryRewriter {
 
     @Override
     public ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
-        return out.writeBlob(blobId.name().getBytes(), c);
+        return target.writeBlob(blobId.name().getBytes(), c);
     }
 
     @Override

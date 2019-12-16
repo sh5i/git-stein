@@ -39,7 +39,7 @@ public class RepositoryRewriter {
 
     protected Map<RefEntry, RefEntry> refEntryMapping = new HashMap<>();
 
-    protected RepositoryAccess in, out;
+    protected RepositoryAccess source, target;
 
     protected boolean isOverwriting = false;
 
@@ -51,28 +51,28 @@ public class RepositoryRewriter {
     @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = Application.MIDDLE)
     protected boolean isDryRunning = false;
 
-    @Option(names = "--notes-forward", negatable = true, description = "notes rewritten commits to source repo", order = Application.MIDDLE)
+    @Option(names = "--notes-forward", negatable = true, description = "note rewritten commits to source repo", order = Application.MIDDLE)
     protected boolean isAddingForwardNotes = false;
 
-    @Option(names = "--notes-backward", negatable = true, description = "notes original commits to destination repo", order = Application.MIDDLE)
+    @Option(names = "--notes-backward", negatable = true, description = "note original commits to destination repo", order = Application.MIDDLE)
     protected boolean isAddingBackwardNotes = true;
 
 
-    public void initialize(final Repository readRepo, final Repository writeRepo) {
-        in = new RepositoryAccess(readRepo);
-        out = new RepositoryAccess(writeRepo);
-        isOverwriting = readRepo == writeRepo;
+    public void initialize(final Repository sourceRepo, final Repository targetRepo) {
+        source = new RepositoryAccess(sourceRepo);
+        target = new RepositoryAccess(targetRepo);
+        isOverwriting = sourceRepo == targetRepo;
         if (isParallel) {
             this.entryMapping = new ConcurrentHashMap<>();
         }
         if (isDryRunning) {
-            in.setDryRunning(true);
-            out.setDryRunning(true);
+            source.setDryRunning(true);
+            target.setDryRunning(true);
         }
     }
 
     public void rewrite() {
-        final Context c = Context.init().with(Key.repo, in.repo);
+        final Context c = Context.init().with(Key.repo, source.repo);
         rewrite(c);
     }
 
@@ -80,8 +80,8 @@ public class RepositoryRewriter {
         setUp(c);
         rewriteCommits(c);
         updateRefs(c);
-        in.writeNotes(c);
-        out.writeNotes(c);
+        source.writeNotes(c);
+        target.writeNotes(c);
         cleanUp(c);
     }
 
@@ -96,20 +96,12 @@ public class RepositoryRewriter {
     }
 
     /**
-     * Sets whether the information of the original commit is noted as
-     * git-notes.
-     */
-    protected void setNoteOriginalCommit(final boolean value) {
-        this.isAddingBackwardNotes = value;
-    }
-
-    /**
      * Rewrites all commits.
      */
     protected void rewriteCommits(final Context c) {
         rewriteRootTrees(c);
 
-        out.openInserter(ins -> {
+        target.openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
             try (final RevWalk walk = prepareRevisionWalk(uc)) {
                 for (final RevCommit commit : walk) {
@@ -133,7 +125,7 @@ public class RepositoryRewriter {
         try (final RevWalk walk = prepareRevisionWalk(c)) {
             for (final RevCommit commit : walk) {
                 pool.execute(() -> {
-                    out.openInserter(ins -> {
+                    target.openInserter(ins -> {
                         final Context uc = c.with(Key.rev, commit, Key.commit, commit, Key.inserter, ins);
                         rewriteRootTree(commit.getTree().getId(), uc);
                     }, c);
@@ -154,7 +146,7 @@ public class RepositoryRewriter {
         final Collection<ObjectId> starts = collectStarts(c);
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
 
-        final RevWalk walk = in.walk(c);
+        final RevWalk walk = source.walk(c);
         Try.io(c, () -> {
             for (final ObjectId id : starts) {
                 walk.markStart(walk.parseCommit(id));
@@ -171,10 +163,10 @@ public class RepositoryRewriter {
      */
     protected Collection<ObjectId> collectStarts(final Context c) {
         final List<ObjectId> result = new ArrayList<>();
-        for (final Ref ref : in.getRefs(c)) {
+        for (final Ref ref : source.getRefs(c)) {
             if (confirmStartRef(ref, c)) {
-                final ObjectId commitId = in.getRefTarget(ref, c);
-                if (in.getObjectType(commitId, c) == Constants.OBJ_COMMIT) {
+                final ObjectId commitId = source.getRefTarget(ref, c);
+                if (source.getObjectType(commitId, c) == Constants.OBJ_COMMIT) {
                     log.debug("Ref {}: added as a start point (commit: {})", ref.getName(), commitId.name());
                     result.add(commitId);
                 } else {
@@ -214,14 +206,14 @@ public class RepositoryRewriter {
         final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), uc);
         final PersonIdent committer = rewriteCommitter(commit.getCommitterIdent(), uc);
         final String message = rewriteCommitMessage(commit.getFullMessage(), uc);
-        final ObjectId newId = out.writeCommit(parentIds, treeId, author, committer, message, uc);
+        final ObjectId newId = target.writeCommit(parentIds, treeId, author, committer, message, uc);
 
         final ObjectId oldId = commit.getId();
         commitMapping.put(oldId, newId);
         log.debug("Rewrite commit: {} -> {} ({})", oldId.name(), newId.name(), c);
 
-        in.addNote(oldId, getForwardNote(newId, c), uc);
-        out.addNote(newId, getBackwardNote(oldId, c), uc);
+        source.addNote(oldId, getForwardNote(newId, c), uc);
+        target.addNote(newId, getBackwardNote(oldId, c), uc);
 
         return newId;
     }
@@ -265,7 +257,7 @@ public class RepositoryRewriter {
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = new Entry(FileMode.TREE, "", treeId, isPathSensitive ? "" : null);
         final EntrySet newRoot = getEntry(root, c);
-        final ObjectId newId = newRoot == EntrySet.EMPTY ? out.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
+        final ObjectId newId = newRoot == EntrySet.EMPTY ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
         log.debug("Rewrite tree: {} -> {} ({})", treeId.name(), newId.name(), c);
         return newId;
@@ -308,11 +300,11 @@ public class RepositoryRewriter {
         final String dir = isPathSensitive ? path : null;
 
         final List<Entry> entries = new ArrayList<>();
-        for (final Entry e : in.readTree(treeId, dir, uc)) {
+        for (final Entry e : source.readTree(treeId, dir, uc)) {
             final EntrySet rewritten = getEntry(e, uc);
             rewritten.registerTo(entries);
         }
-        final ObjectId newId = entries.isEmpty() ? ZERO : out.writeTree(entries, uc);
+        final ObjectId newId = entries.isEmpty() ? ZERO : target.writeTree(entries, uc);
         if (log.isDebugEnabled() && !newId.equals(treeId)) {
             log.debug("Rewrite tree: {} -> {} ({})", treeId.name(), newId.name(), c);
         }
@@ -326,7 +318,7 @@ public class RepositoryRewriter {
         if (isOverwriting) {
             return blobId;
         }
-        final ObjectId newId = out.writeBlob(in.readBlob(blobId, c), c);
+        final ObjectId newId = target.writeBlob(source.readBlob(blobId, c), c);
         if (log.isDebugEnabled() && !newId.equals(blobId)) {
             log.debug("Rewrite blob: {} -> {} ({})", blobId.name(), newId.name(), c);
         }
@@ -379,7 +371,7 @@ public class RepositoryRewriter {
      * Updates ref objects.
      */
     protected void updateRefs(final Context c) {
-        for (final Ref ref : in.getRefs(c)) {
+        for (final Ref ref : source.getRefs(c)) {
             if (confirmUpdateRef(ref, c)) {
                 updateRef(ref, c);
             }
@@ -419,7 +411,7 @@ public class RepositoryRewriter {
             // delete
             if (isOverwriting) {
                 log.debug("Delete ref: {} ({})", oldEntry, c);
-                out.applyRefDelete(oldEntry, uc);
+                target.applyRefDelete(oldEntry, uc);
             }
             return;
         }
@@ -428,7 +420,7 @@ public class RepositoryRewriter {
             // rename
             if (isOverwriting) {
                 log.debug("Rename ref: {} -> {} ({})", oldEntry.name, newEntry.name, c);
-                out.applyRefRename(oldEntry.name, newEntry.name, uc);
+                target.applyRefRename(oldEntry.name, newEntry.name, uc);
             }
         }
 
@@ -438,7 +430,7 @@ public class RepositoryRewriter {
         if (!isOverwriting || !linkEquals || !idEquals) {
             // update
             log.debug("Update ref: {} -> {} ({})", oldEntry, newEntry, c);
-            out.applyRefUpdate(newEntry, uc);
+            target.applyRefUpdate(newEntry, uc);
         }
     }
 
@@ -464,8 +456,8 @@ public class RepositoryRewriter {
      * Rewrites the referred object by a ref.
      */
     protected ObjectId rewriteRefObject(final ObjectId id, final Context c) {
-        if (in.isTag(c.getRef(), c)) {
-            return rewriteTag(in.parseTag(id, c), c);
+        if (source.isTag(c.getRef(), c)) {
+            return rewriteTag(source.parseTag(id, c), c);
         } else {
             return rewriteReferredCommit(id, c);
         }
@@ -475,7 +467,7 @@ public class RepositoryRewriter {
      * Rewrites the referred commit object by a ref.
      */
     protected ObjectId rewriteReferredCommit(final ObjectId id, final Context c) {
-        if (in.getObjectType(id, c) != Constants.OBJ_COMMIT) {
+        if (source.getObjectType(id, c) != Constants.OBJ_COMMIT) {
             // referring non-commit; ignore it
             log.debug("Ignore non-commit: {} ({})", id.name(), c);
             return id;
@@ -503,7 +495,7 @@ public class RepositoryRewriter {
         final String tagName = tag.getTagName();
         final PersonIdent tagger = rewriteTagger(tag.getTaggerIdent(), tag, uc);
         final String message = rewriteTagMessage(tag.getFullMessage(), uc);
-        final ObjectId newId = out.writeTag(newObjectId, tagName, tagger, message, uc);
+        final ObjectId newId = target.writeTag(newObjectId, tagName, tagger, message, uc);
         log.debug("Rewrite tag: {} -> {} ({})", tag.name(), newId.name(), c);
         return newId;
     }
