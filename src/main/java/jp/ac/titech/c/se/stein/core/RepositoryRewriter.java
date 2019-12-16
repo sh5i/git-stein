@@ -23,6 +23,7 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import picocli.CommandLine.Option;
@@ -44,27 +45,26 @@ public class RepositoryRewriter {
 
     protected boolean isPathSensitive = false;
 
-    @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo")
-    protected boolean isDryRunning = false;
-
-    @Option(names = "--notes-forward", negatable = true, description = "notes rewritten commits to source repo")
-    protected boolean isAddingForwardNotes = false;
-
-    @Option(names = "--notes-backward", negatable = true, description = "notes original commits to destination repo")
-    protected boolean isAddingBackwardNotes = true;
-
+    @Option(names = { "-p", "--parallel" }, description = "rewrite trees in parallel", order = Application.MIDDLE)
     protected boolean isParallel = false;
 
-    @Option(names = { "-p", "--parallel" }, description = "rewrite trees in parallel")
-    protected void setParallel(final boolean isParallel) {
-        this.isParallel = isParallel;
-        this.entryMapping = isParallel ? new ConcurrentHashMap<>() : new HashMap<>();
-    }
+    @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = Application.MIDDLE)
+    protected boolean isDryRunning = false;
+
+    @Option(names = "--notes-forward", negatable = true, description = "notes rewritten commits to source repo", order = Application.MIDDLE)
+    protected boolean isAddingForwardNotes = false;
+
+    @Option(names = "--notes-backward", negatable = true, description = "notes original commits to destination repo", order = Application.MIDDLE)
+    protected boolean isAddingBackwardNotes = true;
+
 
     public void initialize(final Repository readRepo, final Repository writeRepo) {
         in = new RepositoryAccess(readRepo);
         out = new RepositoryAccess(writeRepo);
         isOverwriting = readRepo == writeRepo;
+        if (isParallel) {
+            this.entryMapping = new ConcurrentHashMap<>();
+        }
         if (isDryRunning) {
             in.setDryRunning(true);
             out.setDryRunning(true);

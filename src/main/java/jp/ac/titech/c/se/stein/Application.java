@@ -32,9 +32,11 @@ import picocli.CommandLine.Parameters;
 
 @Command(version = "git-stein", sortOptions = false)
 public class Application implements Callable<Integer> {
-    public static final int LOW = 10000;
-
     private static final Logger log = LoggerFactory.getLogger(Application.class);
+
+    public static final int MIDDLE = 5000;
+    public static final int LOW = 8000;
+    public static final int LAST = 10000;
 
     static class Config {
         @Parameters(index = "0", paramLabel = "<repo>", description = "source repo")
@@ -77,10 +79,10 @@ public class Application implements Callable<Integer> {
             }
         }
 
-        @Option(names = "--help", description = "show this help message and exit", usageHelp = true, order = LOW)
+        @Option(names = "--help", description = "show this help message and exit", usageHelp = true, order = LAST)
         boolean helpRequested;
 
-        @Option(names = "--version", description = "print version information and exit", versionHelp = true, order = LOW)
+        @Option(names = "--version", description = "print version information and exit", versionHelp = true, order = LAST)
         boolean versionInfoRequested;
     }
 
@@ -137,7 +139,7 @@ public class Application implements Callable<Integer> {
     protected void openRepositories(final BiConsumer<Repository, Repository> f) throws IOException {
         if (conf.output == null) {
             // source -> source
-            final Repository repo = openRepository(conf.source, false);
+            final Repository repo = createRepository(conf.source, false);
             tryOpenRepositories(repo, repo, f);
         } else {
             // cleaning
@@ -148,12 +150,12 @@ public class Application implements Callable<Integer> {
             if (conf.output.isDuplicating) {
                 // destination -> destination (duplicate mode)
                 copyDirectory(conf.source.toPath(), conf.output.destination.toPath());
-                final Repository repo = openRepository(conf.output.destination, false);
+                final Repository repo = createRepository(conf.output.destination, false);
                 tryOpenRepositories(repo, repo, f);
             } else {
                 // source -> destination
-                final Repository src = openRepository(conf.source, false);
-                final Repository dst = openRepository(conf.output.destination, true);
+                final Repository src = createRepository(conf.source, false);
+                final Repository dst = createRepository(conf.output.destination, true);
                 tryOpenRepositories(src, dst, f);
             }
         }
@@ -171,7 +173,10 @@ public class Application implements Callable<Integer> {
         }
     }
 
-    protected Repository openRepository(final File dir, final boolean create) throws IOException {
+    /**
+     * Creates a repository object.
+     */
+    protected Repository createRepository(final File dir, final boolean createIfAbsent) throws IOException {
         final FileRepositoryBuilder builder = new FileRepositoryBuilder();
         if (conf.isBare) {
             builder.setGitDir(dir).setBare();
@@ -181,15 +186,11 @@ public class Application implements Callable<Integer> {
         }
 
         final Repository result = builder.readEnvironment().build();
-        if (!dir.exists() && create) {
+        if (!dir.exists() && createIfAbsent) {
             result.create(conf.isBare);
         }
         return result;
     }
-
-    /**
-     * Returns the input repository object.
-     */
 
     /**
      * Dump an object to a file as JSON format.
