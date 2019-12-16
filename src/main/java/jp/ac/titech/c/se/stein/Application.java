@@ -10,6 +10,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.Callable;
+import java.util.function.BiConsumer;
 
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
@@ -23,38 +24,36 @@ import ch.qos.logback.classic.Level;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Try;
 import picocli.CommandLine;
+import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+@Command(version = "git-stein", sortOptions = false)
 public class Application implements Callable<Integer> {
     private static final Logger log = LoggerFactory.getLogger(Application.class);
 
-    class Config {
+    static class Config {
         @Parameters(index = "0", paramLabel = "<repo>", description = "source repo")
-        File input;
+        File source;
 
-        @Option(names = { "-o", "--output" }, paramLabel = "<path>", description = "destination repo")
-        File output;
+        @Option(names = { "-o", "--output" }, required = true, paramLabel = "<path>", description = "destination repo")
+        File destination;
 
-        @Option(names = { "-d", "--output-dup" }, paramLabel = "<path>", description = "output path (duplicate-and-overwrite)")
-        File duplicatedOutput;
+        @Option(names = { "-d", "--duplicate" }, required = false, description = "duplicate source repo to destination and overwrite it")
+        boolean isDuplicating;
+
+        @Option(names = "--clean", required = false, description = "delete destination repo beforehand if exists")
+        boolean isCleanEnabled;
 
         @Option(names = "--bare", description = "treat that repos are bare")
         boolean isBare;
 
-        @Option(names = "--clean", description = "delete destination repo beforehand if exists")
-        boolean isCleanEnabled;
-
-        @Option(names = "--commit-mapping", paramLabel = "<file>", description = "store the commit mapping")
+        @Option(names = "--mapping", paramLabel = "<file>", description = "store the commit mapping")
         File commitMappingFile;
 
+        @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})")
         Level logLevel = Level.INFO;
-
-        @Option(names = "--log", description = "log level (default: INFO)")
-        void setLevel(final String level) {
-            logLevel = Level.valueOf(level);
-        }
 
         @Option(names = { "-q", "--quiet" }, description = "quiet mode (same as --log=ERROR)")
         void setQuiet(final boolean isQuiet) {
@@ -70,18 +69,18 @@ public class Application implements Callable<Integer> {
             }
         }
 
-        @Option(names = "--help", description = "show this help message and exit", usageHelp = true)
+        @Option(names = "--help", description = "show this help message and exit", usageHelp = true, order = 10000)
         boolean helpRequested;
 
-        @Option(names = "--version", description = "print version information and exit", versionHelp = true)
+        @Option(names = "--version", description = "print version information and exit", versionHelp = true, order = 10001)
         boolean versionInfoRequested;
     }
 
     @Mixin
-    final Config conf = new Config();
+    Config conf = new Config();
 
     @Mixin
-    private final RepositoryRewriter rewriter;
+    final RepositoryRewriter rewriter;
 
     public static void setLoggerLevel(final String name, final Level level) {
         final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(name);
@@ -103,27 +102,19 @@ public class Application implements Callable<Integer> {
 
         log.debug("Rewriter: {}", rewriter.getClass().getName());
 
-        try (final Repository readRepo = getInputRepository()) {
-            log.debug("Input repository: {}", readRepo.getDirectory());
-            try (final Repository writeRepo = getOutputRepository()) {
-                if (writeRepo == null) {
-                    rewriter.initialize(readRepo, readRepo);
-                } else {
-                    log.debug("Output repository: {}", writeRepo.getDirectory());
-                    rewriter.initialize(readRepo, writeRepo);
-                }
+        openRepositories((src, dst) -> {
+            log.debug("Source repository: {}", src.getDirectory());
+            log.debug("Destination repository: {}", dst.getDirectory());
+            rewriter.initialize(src, dst);
 
-                final Instant start = Instant.now();
-                log.info("Starting rewriting...");
+            final Instant start = Instant.now();
+            log.info("Starting rewriting...");
 
-                rewriter.rewrite();
+            rewriter.rewrite();
 
-                final Instant finish = Instant.now();
-                log.info("Finished rewriting. Runtime: {} ms", Duration.between(start, finish).toMillis());
-            }
-        } catch (final IOException e) {
-            e.printStackTrace();
-        }
+            final Instant finish = Instant.now();
+            log.info("Finished rewriting. Runtime: {} ms", Duration.between(start, finish).toMillis());
+        });
 
         if (conf.commitMappingFile != null) {
             Try.io(() -> exportObject(rewriter.exportCommitMapping(), conf.commitMappingFile));
@@ -133,64 +124,64 @@ public class Application implements Callable<Integer> {
     }
 
     /**
-     * Returns the input repository object.
+     * Returns the source and destination repository objects.
      */
-    protected Repository getInputRepository() throws IOException {
-        final File inputDir;
-        if (conf.duplicatedOutput != null) {
-            // duplicate mode
-            final Path outputPath = conf.duplicatedOutput.toPath();
-
+    protected void openRepositories(final BiConsumer<Repository, Repository> f) throws IOException {
+        if (conf.destination == null) {
+            // source -> source
+            final Repository repo = openRepository(conf.source, false);
+            tryOpenRepositories(repo, repo, f);
+        } else {
             // cleaning
-            if (conf.isCleanEnabled && Files.exists(outputPath)) {
-                deleteDirectory(outputPath);
+            if (conf.isCleanEnabled && conf.destination.exists()) {
+                deleteDirectory(conf.destination.toPath());
             }
 
-            copyDirectory(conf.input.toPath(), outputPath);
-            inputDir = conf.duplicatedOutput;
-        } else {
-            inputDir = conf.input;
+            if (conf.isDuplicating) {
+                // destination -> destination (duplicate mode)
+                copyDirectory(conf.source.toPath(), conf.destination.toPath());
+                final Repository repo = openRepository(conf.destination, false);
+                tryOpenRepositories(repo, repo, f);
+            } else {
+                // source -> destination
+                final Repository src = openRepository(conf.source, false);
+                final Repository dst = openRepository(conf.destination, true);
+                tryOpenRepositories(src, dst, f);
+            }
         }
+    }
 
+    protected void tryOpenRepositories(final Repository src, final Repository dst, final BiConsumer<Repository, Repository> f) throws IOException {
+        try (final Repository readRepo = src) {
+            if (src != dst) {
+                try (final Repository writeRepo = dst) {
+                    f.accept(src, dst);
+                }
+            } else {
+                f.accept(src, src);
+            }
+        }
+    }
+
+    protected Repository openRepository(final File dir, final boolean create) throws IOException {
         final FileRepositoryBuilder builder = new FileRepositoryBuilder();
         if (conf.isBare) {
-            builder.setGitDir(inputDir).readEnvironment();
+            builder.setGitDir(dir).setBare();
         } else {
-            builder.findGitDir(inputDir);
+            final File dotgit = new File(dir, Constants.DOT_GIT);
+            builder.setWorkTree(dir).setGitDir(dotgit);
         }
-        return builder.build();
+
+        final Repository result = builder.readEnvironment().build();
+        if (!dir.exists() && create) {
+            result.create(conf.isBare);
+        }
+        return result;
     }
 
     /**
-     * Returns the output repository object. Returns null in overwrite mode.
+     * Returns the input repository object.
      */
-    protected Repository getOutputRepository() throws IOException {
-        if (conf.duplicatedOutput != null) {
-            // duplicate mode
-            return null;
-        }
-
-        if (conf.output == null) {
-            return null;
-        }
-
-        final File outputDir = conf.output;
-
-        // cleaning
-        final Path outputPath = outputDir.toPath();
-        if (conf.isCleanEnabled && Files.exists(outputPath)) {
-            deleteDirectory(outputPath);
-        }
-
-        final FileRepositoryBuilder builder = new FileRepositoryBuilder();
-        if (conf.isBare) {
-            builder.setGitDir(outputDir);
-        } else {
-            final File gitdbDir = new File(outputDir, Constants.DOT_GIT);
-            builder.setGitDir(gitdbDir);
-        }
-        return builder.build();
-    }
 
     /**
      * Dump an object to a file as JSON format.
@@ -244,7 +235,11 @@ public class Application implements Callable<Integer> {
 
     public static void execute(final RepositoryRewriter rewriter, String[] args) {
         final Application app = new Application(rewriter);
-        final int status = new CommandLine(app).execute(args);
+        final CommandLine cmdline = new CommandLine(app);
+        cmdline.setExpandAtFiles(false);
+        cmdline.registerConverter(Level.class, s -> Level.valueOf(s));
+
+        final int status = cmdline.execute(args);
         System.exit(status);
     }
 }
