@@ -2,16 +2,12 @@ package jp.ac.titech.c.se.stein;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 
+import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
@@ -22,7 +18,6 @@ import com.google.gson.Gson;
 
 import ch.qos.logback.classic.Level;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
-import jp.ac.titech.c.se.stein.core.Try;
 import picocli.CommandLine;
 import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
@@ -127,7 +122,9 @@ public class Application implements Callable<Integer> {
         });
 
         if (conf.commitMappingFile != null) {
-            Try.io(() -> exportObject(rewriter.exportCommitMapping(), conf.commitMappingFile));
+            log.debug("Save commit mapping to {}", conf.commitMappingFile);
+            final byte[] content = new Gson().toJson(rewriter.exportCommitMapping()).getBytes();
+            FileUtils.writeByteArrayToFile(conf.commitMappingFile, content);
         }
 
         return 0;
@@ -144,12 +141,14 @@ public class Application implements Callable<Integer> {
         } else {
             // cleaning
             if (conf.output.isCleaningEnabled && conf.output.target.exists()) {
-                deleteDirectory(conf.output.target.toPath());
+                log.debug("Delete directory: {}", conf.output.target);
+                FileUtils.deleteDirectory(conf.output.target);
             }
 
             if (conf.output.isDuplicating) {
                 // destination -> destination (duplicate mode)
-                copyDirectory(conf.source.toPath(), conf.output.target.toPath());
+                log.debug("Duplicate repository: {} -> {}", conf.source, conf.output.target);
+                FileUtils.copyDirectory(conf.source, conf.output.target);
                 final Repository repo = createRepository(conf.output.target, false);
                 tryOpenRepositories(repo, repo, f);
             } else {
@@ -190,56 +189,6 @@ public class Application implements Callable<Integer> {
             result.create(conf.isBare);
         }
         return result;
-    }
-
-    /**
-     * Dump an object to a file as JSON format.
-     */
-    protected void exportObject(final Object object, final File file) throws IOException {
-        final Gson gson = new Gson();
-        Files.write(file.toPath(), gson.toJson(object).getBytes());
-    }
-
-    /**
-     * Copy a directory recursively.
-     */
-    protected void copyDirectory(final Path source, final Path target) throws IOException {
-        log.debug("Duplicate repository: {} to {}", source, target);
-        Files.walkFileTree(source, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult preVisitDirectory(final Path dir, final BasicFileAttributes attrs) throws IOException {
-                Files.createDirectories(target.resolve(source.relativize(dir)));
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, target.resolve(source.relativize(file)));
-                return FileVisitResult.CONTINUE;
-            }
-        });
-    }
-
-    /**
-     * Delete a directory recursively.
-     */
-    protected void deleteDirectory(final Path target) throws IOException {
-        log.debug("Delete directory: {}", target);
-        Files.walkFileTree(target, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
-                Files.delete(file);
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult postVisitDirectory(final Path dir, IOException exc) throws IOException {
-                if (exc == null) {
-                    Files.delete(dir);
-                }
-                return FileVisitResult.CONTINUE;
-            }
-        });
     }
 
     public static void execute(final RepositoryRewriter rewriter, String[] args) {
