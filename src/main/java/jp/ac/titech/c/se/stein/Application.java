@@ -131,43 +131,37 @@ public class Application implements Callable<Integer> {
     }
 
     /**
-     * Returns the source and destination repository objects.
+     * Opens the source and target repositories and run the given block.
      */
     protected void openRepositories(final BiConsumer<Repository, Repository> f) throws IOException {
         if (conf.output == null) {
             // source -> source
-            final Repository repo = createRepository(conf.source, false);
-            tryOpenRepositories(repo, repo, f);
-        } else {
-            // cleaning
-            if (conf.output.isCleaningEnabled && conf.output.target.exists()) {
-                log.debug("Delete directory: {}", conf.output.target);
-                FileUtils.deleteDirectory(conf.output.target);
+            try (final Repository repo = createRepository(conf.source, false)) {
+                f.accept(repo, repo);
             }
-
-            if (conf.output.isDuplicating) {
-                // destination -> destination (duplicate mode)
-                log.debug("Duplicate repository: {} -> {}", conf.source, conf.output.target);
-                FileUtils.copyDirectory(conf.source, conf.output.target);
-                final Repository repo = createRepository(conf.output.target, false);
-                tryOpenRepositories(repo, repo, f);
-            } else {
-                // source -> destination
-                final Repository src = createRepository(conf.source, false);
-                final Repository dst = createRepository(conf.output.target, true);
-                tryOpenRepositories(src, dst, f);
-            }
+            return;
         }
-    }
 
-    protected void tryOpenRepositories(final Repository sourceRepo, final Repository targetRepo, final BiConsumer<Repository, Repository> f) throws IOException {
-        try (final Repository readRepo = sourceRepo) {
-            if (sourceRepo != targetRepo) {
-                try (final Repository writeRepo = targetRepo) {
-                    f.accept(sourceRepo, targetRepo);
-                }
-            } else {
-                f.accept(sourceRepo, sourceRepo);
+        // cleaning
+        if (conf.output.isCleaningEnabled && conf.output.target.exists()) {
+            log.debug("Delete directory: {}", conf.output.target);
+            FileUtils.deleteDirectory(conf.output.target);
+        }
+
+        if (conf.output.isDuplicating) {
+            // target -> target (duplicate mode)
+            log.debug("Duplicate repository: {} -> {}", conf.source, conf.output.target);
+            FileUtils.copyDirectory(conf.source, conf.output.target);
+            try (final Repository repo = createRepository(conf.output.target, false)) {
+                f.accept(repo, repo);
+            }
+            return;
+        }
+
+        // source -> target
+        try (final Repository source = createRepository(conf.source, false)) {
+            try (final Repository target = createRepository(conf.output.target, true)) {
+                f.accept(source, target);
             }
         }
     }
