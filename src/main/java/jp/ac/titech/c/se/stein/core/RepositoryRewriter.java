@@ -31,7 +31,7 @@ import picocli.CommandLine.Option;
 public class RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
 
-    private static final ObjectId ZERO = ObjectId.zeroId();
+    protected static final ObjectId ZERO = ObjectId.zeroId();
 
     protected final Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
 
