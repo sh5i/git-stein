@@ -341,10 +341,10 @@ public class Historage extends RepositoryRewriter {
 
         @Override
         public boolean visit(final MethodDeclaration node) {
-            final String name = new MethodNameGenerator(node).generate();
-            final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSource(node);
-            final Module method = new Module.Method(name, stack.peek(), source);
             if (requiresMethods) {
+                final String name = new MethodNameGenerator(node).generate();
+                final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSource(node);
+                final Module method = new Module.Method(name, stack.peek(), source);
                 modules.add(method);
                 if (requiresDocs && node.getJavadoc() != null) {
                     modules.add(new Module.Javadoc(method, getSource(node.getJavadoc())));
@@ -355,11 +355,11 @@ public class Historage extends RepositoryRewriter {
 
         @Override
         public boolean visit(final FieldDeclaration node) {
-            for (final Object f : node.fragments()) {
-                final String name = ((VariableDeclarationFragment) f).getName().toString();
-                final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSource(node);
-                final Module field = new Module.Field(name, stack.peek(), source);
-                if (requiresFields) {
+            if (requiresFields) {
+                for (final Object f : node.fragments()) {
+                    final String name = ((VariableDeclarationFragment) f).getName().toString();
+                    final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSource(node);
+                    final Module field = new Module.Field(name, stack.peek(), source);
                     modules.add(field);
                     if (requiresDocs && node.getJavadoc() != null) {
                         modules.add(new Module.Javadoc(field, getSource(node.getJavadoc())));
