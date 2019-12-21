@@ -53,11 +53,14 @@ import picocli.CommandLine.Option;
 public class Historage extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Historage.class);
 
+    @Option(names = "--classes", negatable = true, description = "include/exclude class files")
+    protected boolean requiresClasses = true;
+
     @Option(names = "--fields", negatable = true, description = "include/exclude field files")
     protected boolean requiresFields = true;
 
-    @Option(names = "--classes", negatable = true, description = "include/exclude class files")
-    protected boolean requiresClasses = true;
+    @Option(names = "--methods", negatable = true, description = "include/exclude method files")
+    protected boolean requiresMethods = true;
 
     @Option(names = "--docs", negatable = true, description = "include/exclude documentation files")
     protected boolean requiresDocs = true;
@@ -341,9 +344,11 @@ public class Historage extends RepositoryRewriter {
             final String name = new MethodNameGenerator(node).generate();
             final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSource(node);
             final Module method = new Module.Method(name, stack.peek(), source);
-            modules.add(method);
-            if (requiresDocs && node.getJavadoc() != null) {
-                modules.add(new Module.Javadoc(method, getSource(node.getJavadoc())));
+            if (requiresMethods) {
+                modules.add(method);
+                if (requiresDocs && node.getJavadoc() != null) {
+                    modules.add(new Module.Javadoc(method, getSource(node.getJavadoc())));
+                }
             }
             return false;
         }
