@@ -85,7 +85,7 @@ public class Historage extends RepositoryRewriter {
 
         final EntryList result = new EntryList();
         if (requiresOriginals) {
-            result.add(entry);
+            result.add((Entry) super.rewriteEntry(entry, c));
         }
         final String content = new String(source.readBlob(entry.id, c), StandardCharsets.UTF_8);
         for (final Module m : new ModuleGenerator(entry.name, content).generate()) {
