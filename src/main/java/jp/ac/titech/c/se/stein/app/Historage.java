@@ -68,6 +68,9 @@ public class Historage extends RepositoryRewriter {
     @Option(names = "--noncode", negatable = true, description = "include/exclude non-code files")
     protected boolean requiresNonCode = true;
 
+    @Option(names = "--drop-doc", description = "drop doc from modules")
+    protected boolean dropsDoc = false;
+
     @Override
     public EntrySet rewriteEntry(final Entry entry, final Context c) {
         if (entry.isTree()) {
@@ -312,7 +315,8 @@ public class Historage extends RepositoryRewriter {
 
         protected boolean visitType(final AbstractTypeDeclaration node) {
             final String name = node.getName().getIdentifier();
-            final Module klass = new Module.Class(name, stack.peek(), getSourceWithoutJavadoc(node));
+            final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSource(node);
+            final Module klass = new Module.Class(name, stack.peek(), source);
             if (requiresClasses) {
                 modules.add(klass);
                 if (requiresDocs && node.getJavadoc() != null) {
@@ -335,7 +339,8 @@ public class Historage extends RepositoryRewriter {
         @Override
         public boolean visit(final MethodDeclaration node) {
             final String name = new MethodNameGenerator(node).generate();
-            final Module method = new Module.Method(name, stack.peek(), getSourceWithoutJavadoc(node));
+            final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSource(node);
+            final Module method = new Module.Method(name, stack.peek(), source);
             modules.add(method);
             if (requiresDocs && node.getJavadoc() != null) {
                 modules.add(new Module.Javadoc(method, getSource(node.getJavadoc())));
@@ -347,7 +352,8 @@ public class Historage extends RepositoryRewriter {
         public boolean visit(final FieldDeclaration node) {
             for (final Object f : node.fragments()) {
                 final String name = ((VariableDeclarationFragment) f).getName().toString();
-                final Module field = new Module.Field(name, stack.peek(), getSourceWithoutJavadoc(node));
+                final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSource(node);
+                final Module field = new Module.Field(name, stack.peek(), source);
                 if (requiresFields) {
                     modules.add(field);
                     if (requiresDocs && node.getJavadoc() != null) {
