@@ -53,22 +53,22 @@ import picocli.CommandLine.Option;
 public class Historage extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Historage.class);
 
-    @Option(names = "--classes", negatable = true, description = "include/exclude class files")
+    @Option(names = "--no-classes", negatable = true, description = "include/exclude class files")
     protected boolean requiresClasses = true;
 
-    @Option(names = "--fields", negatable = true, description = "include/exclude field files")
+    @Option(names = "--no-fields", negatable = true, description = "include/exclude field files")
     protected boolean requiresFields = true;
 
-    @Option(names = "--methods", negatable = true, description = "include/exclude method files")
+    @Option(names = "--no-methods", negatable = true, description = "include/exclude method files")
     protected boolean requiresMethods = true;
 
-    @Option(names = "--docs", negatable = true, description = "include/exclude documentation files")
+    @Option(names = "--no-docs", negatable = true, description = "include/exclude documentation files")
     protected boolean requiresDocs = true;
 
-    @Option(names = "--original", negatable = true, description = "include/exclude original files")
+    @Option(names = "--no-original", negatable = true, description = "include/exclude original files")
     protected boolean requiresOriginals = true;
 
-    @Option(names = "--noncode", negatable = true, description = "include/exclude non-code files")
+    @Option(names = "--no-noncode", negatable = true, description = "include/exclude non-code files")
     protected boolean requiresNonCode = true;
 
     @Option(names = "--drop-doc", description = "drop doc from modules")

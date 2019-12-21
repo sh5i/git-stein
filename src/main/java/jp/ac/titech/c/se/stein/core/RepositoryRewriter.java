@@ -54,7 +54,7 @@ public class RepositoryRewriter {
     @Option(names = "--notes-forward", negatable = true, description = "note rewritten commits to source repo", order = Application.MIDDLE)
     protected boolean isAddingForwardNotes = false;
 
-    @Option(names = "--notes-backward", negatable = true, description = "note original commits to destination repo", order = Application.MIDDLE)
+    @Option(names = "--no-notes-backward", negatable = true, description = "note original commits to destination repo", order = Application.MIDDLE)
     protected boolean isAddingBackwardNotes = true;
 
 
