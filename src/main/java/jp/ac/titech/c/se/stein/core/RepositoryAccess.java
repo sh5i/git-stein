@@ -243,9 +243,9 @@ public class RepositoryAccess {
     /**
      * Writes a tag object.
      */
-    public ObjectId writeTag(final ObjectId objectId, final String tag, final PersonIdent tagger, final String message, final Context c) {
+    public ObjectId writeTag(final ObjectId objectId, final int type, final String tag, final PersonIdent tagger, final String message, final Context c) {
         final TagBuilder builder = new TagBuilder();
-        builder.setObjectId(objectId, Constants.OBJ_COMMIT);
+        builder.setObjectId(objectId, type);
         builder.setTag(tag);
         builder.setTagger(tagger);
         builder.setMessage(message);

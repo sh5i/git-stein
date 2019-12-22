@@ -37,11 +37,25 @@ public class RepositoryRewriter {
 
     protected static final ObjectId ZERO = ObjectId.zeroId();
 
-    protected final Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
-
+    /**
+     * Entry-to-entries mapping.
+     */
     protected Map<Entry, EntrySet> entryMapping = new HashMap<>();
 
-    protected Map<RefEntry, RefEntry> refEntryMapping = new HashMap<>();
+    /**
+     * Commit-to-commit mapping.
+     */
+    protected final Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
+
+    /**
+     * Tag-to-tag mapping.
+     */
+    protected final Map<ObjectId, ObjectId> tagMapping = new HashMap<>();
+
+    /**
+     * Ref-to-ref mapping.
+     */
+    protected final Map<RefEntry, RefEntry> refEntryMapping = new HashMap<>();
 
     protected RepositoryAccess source, target;
 
@@ -483,37 +497,34 @@ public class RepositoryRewriter {
             return new RefEntry(newName, newTarget);
         } else {
             final String newName = rewriteRefName(entry.name, c);
-            final ObjectId newObjectId = rewriteRefObject(entry.id, c);
+            final int type = source.getObjectType(entry.id, c);
+            final ObjectId newObjectId = rewriteRefObject(entry.id, type, c);
             return newObjectId == ZERO ? RefEntry.EMPTY : new RefEntry(newName, newObjectId);
         }
     }
 
     /**
-     * Rewrites the referred object by a ref.
+     * Rewrites the referred object by a ref or a tag.
      */
-    protected ObjectId rewriteRefObject(final ObjectId id, final Context c) {
-        if (source.isTag(c.getRef(), c)) {
-            return rewriteTag(source.parseTag(id, c), c);
-        } else {
-            return rewriteReferredCommit(id, c);
-        }
-    }
+    protected ObjectId rewriteRefObject(final ObjectId id, final int type, final Context c) {
+        switch (type) {
+        case Constants.OBJ_TAG:
+            final ObjectId newTagId = tagMapping.get(id);
+            return newTagId != null ? newTagId : rewriteTag(source.parseTag(id, c), c);
 
-    /**
-     * Rewrites the referred commit object by a ref.
-     */
-    protected ObjectId rewriteReferredCommit(final ObjectId id, final Context c) {
-        if (source.getObjectType(id, c) != Constants.OBJ_COMMIT) {
-            // referring non-commit; ignore it
-            log.debug("Ignore non-commit: {} ({})", id.name(), c);
+        case Constants.OBJ_COMMIT:
+            final ObjectId newCommitId = commitMapping.get(id);
+            if (newCommitId == null) {
+                log.warn("Rewritten commit not found: {} ({})", id.name(), c);
+                return id;
+            }
+            return newCommitId;
+
+        default:
+            // referring non-commit and non-tag; ignore it
+            log.warn("Ignore unknown type: {}, type = {} ({})", id.name(), type, c);
             return id;
         }
-        final ObjectId result = commitMapping.get(id);
-        if (result == null) {
-            log.warn("Rewritten commit not found: {} ({})", id.name(), c);
-            return id;
-        }
-        return result;
     }
 
     /**
@@ -521,18 +532,24 @@ public class RepositoryRewriter {
      */
     protected ObjectId rewriteTag(final RevTag tag, final Context c) {
         final Context uc = c.with(Key.rev, tag, Key.tag, tag);
+        final ObjectId oldId = tag.getId();
 
-        final ObjectId newObjectId = rewriteReferredCommit(tag.getObject(), uc);
+        final ObjectId oldObjectId = tag.getObject().getId();
+        final int type = source.getObjectType(oldObjectId, c);
+        final ObjectId newObjectId = rewriteRefObject(oldObjectId, type, uc);
         if (newObjectId == ZERO) {
+            log.debug("Delete tag {} due to its object to be deleted ({})", oldId, c);
             return ZERO;
         }
-        log.debug("Rewrite tag target: {} -> {} ({})", tag.getObject().name(), newObjectId.name(), c);
+        log.debug("Rewrite tag object: {} -> {} ({})", oldObjectId.name(), newObjectId.name(), c);
 
         final String tagName = tag.getTagName();
         final PersonIdent tagger = rewriteTagger(tag.getTaggerIdent(), tag, uc);
         final String message = rewriteTagMessage(tag.getFullMessage(), uc);
-        final ObjectId newId = target.writeTag(newObjectId, tagName, tagger, message, uc);
-        log.debug("Rewrite tag: {} -> {} ({})", tag.name(), newId.name(), c);
+        final ObjectId newId = target.writeTag(newObjectId, type, tagName, tagger, message, uc);
+        log.debug("Rewrite tag: {} -> {} ({})", oldId.name(), newId.name(), c);
+
+        tagMapping.put(oldId, newId);
         return newId;
     }
 
