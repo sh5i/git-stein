@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.core;
 
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.function.Consumer;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.GpgSignature;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -178,14 +180,25 @@ public class RepositoryAccess {
     /**
      * Writes a commit object.
      */
-    public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer, final String message, final Context c) {
+    public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer,
+            final Charset encoding, final GpgSignature signature, final String message, final Context c) {
         final CommitBuilder builder = new CommitBuilder();
         builder.setParentIds(parentIds);
         builder.setTreeId(treeId);
         builder.setAuthor(author);
         builder.setCommitter(committer);
+        if (encoding != null) {
+            builder.setEncoding(encoding);
+        }
+        if (signature != null) {
+            builder.setGpgSignature(signature);
+        }
         builder.setMessage(message);
         return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder), c);
+    }
+
+    public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer, final String message, final Context c) {
+        return writeCommit(parentIds, treeId, author, committer, null, null, message, c);
     }
 
     /**

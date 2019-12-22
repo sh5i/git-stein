@@ -1,5 +1,8 @@
 package jp.ac.titech.c.se.stein.core;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
+
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -13,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
+import org.eclipse.jgit.lib.GpgSignature;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
@@ -58,6 +62,8 @@ public class RepositoryRewriter {
     @Option(names = "--no-notes-backward", negatable = true, description = "note original commits to destination repo", order = Application.MIDDLE)
     protected boolean isAddingBackwardNotes = true;
 
+    @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = Application.MIDDLE)
+    protected boolean isRewritingExtraAttributes = false;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
@@ -208,8 +214,15 @@ public class RepositoryRewriter {
         final ObjectId treeId = rewriteRootTree(commit.getTree().getId(), uc);
         final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), uc);
         final PersonIdent committer = rewriteCommitter(commit.getCommitterIdent(), uc);
-        final String message = rewriteCommitMessage(commit.getFullMessage(), uc);
-        final ObjectId newId = target.writeCommit(parentIds, treeId, author, committer, message, uc);
+        final String msg = rewriteCommitMessage(commit.getFullMessage(), uc);
+        ObjectId newId;
+        if (isRewritingExtraAttributes) {
+            final Charset enc = rewriteEncoding(commit.getEncoding(), uc);
+            final GpgSignature sig = rewriteSignature(commit.getRawGpgSignature(), uc);
+            newId = target.writeCommit(parentIds, treeId, author, committer, enc, sig, msg, uc);
+        } else {
+            newId = target.writeCommit(parentIds, treeId, author, committer, msg, uc);
+        }
 
         final ObjectId oldId = commit.getId();
         commitMapping.put(oldId, newId);
@@ -368,6 +381,26 @@ public class RepositoryRewriter {
      */
     protected String rewriteMessage(final String message, final Context c) {
         return message;
+    }
+
+    /**
+     * Rewrites an encoding.
+     */
+    protected Charset rewriteEncoding(final Charset encoding, final Context c) {
+        return encoding;
+    }
+
+    /**
+     * Rewrites a GPG signature.
+     */
+    protected GpgSignature rewriteSignature(final byte[] rawSignature, final Context c) {
+        if (rawSignature != null) {
+            // fix to remove the prefix spaces
+            final byte[] fixed = new String(rawSignature, US_ASCII).replaceAll("\n ", "\n").getBytes();
+            return new GpgSignature(fixed);
+        } else {
+            return null;
+        }
     }
 
     /**
