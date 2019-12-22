@@ -25,10 +25,12 @@ import picocli.CommandLine.Option;
 public class SvnMetadataAnnotator extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(SvnMetadataAnnotator.class);
 
-    @Option(names = "--svn-mapping", required = true, paramLabel = "<log-git-repository>", description = "svn mapping")
+    @Option(names = "--svn-mapping", paramLabel = "<log-git-repository>", description = "svn mapping",
+            required = true)
     protected Path svnMappingFile;
 
-    @Option(names = "--object-mapping", required = true, paramLabel = "<marks-git-repository>", description = "object mapping")
+    @Option(names = "--object-mapping", paramLabel = "<marks-git-repository>", description = "object mapping",
+            required = true)
     protected Path objectMappingFile;
 
     protected Map<ObjectId, Integer> mapping;

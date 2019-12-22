@@ -23,7 +23,7 @@ import picocli.CommandLine.Option;
 public class Converter extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Converter.class);
 
-    @Option(names = "--endpoint", description = "HTTP Web API endpoint")
+    @Option(names = "--endpoint", paramLabel = "<url>", description = "HTTP Web API endpoint")
     protected URL endpoint;
 
     protected FileFilter filter;

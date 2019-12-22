@@ -31,7 +31,8 @@ import picocli.CommandLine.Option;
 public class Clusterer extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Clusterer.class);
 
-    @Option(names = "--recipe", required = true, paramLabel = "<file>", description = "recipe JSON")
+    @Option(names = "--recipe", paramLabel = "<file>", description = "recipe JSON",
+            required = true)
     protected File recipeFile;
 
     @Option(names = "--dump-graph", paramLabel = "<file>", description = "dump graph as GML")

@@ -21,6 +21,7 @@ import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine;
 import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.ITypeConverter;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -41,13 +42,14 @@ public class Application implements Callable<Integer> {
         OutputOptions output;
 
         static class OutputOptions {
-            @Option(names = { "-o", "--output" }, required = true, paramLabel = "<path>", description = "destination repo")
+            @Option(names = { "-o", "--output" }, paramLabel = "<path>", description = "destination repo",
+                    required = true)
             File target;
 
-            @Option(names = { "-d", "--duplicate" }, required = false, description = "duplicate source repo and overwrite it")
+            @Option(names = { "-d", "--duplicate" }, description = "duplicate source repo and overwrite it")
             boolean isDuplicating;
 
-            @Option(names = "--clean", required = false, description = "delete destination repo beforehand if exists")
+            @Option(names = "--clean", description = "delete destination repo beforehand if exists")
             boolean isCleaningEnabled;
         }
 
@@ -57,7 +59,8 @@ public class Application implements Callable<Integer> {
         @Option(names = "--mapping", paramLabel = "<file>", description = "store the commit mapping", order = LOW)
         File commitMappingFile;
 
-        @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})", order = LOW)
+        @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})", order = LOW,
+                converter = LevelConverter.class)
         Level logLevel = Level.INFO;
 
         @Option(names = { "-q", "--quiet" }, description = "quiet mode (same as --log=ERROR)", order = LOW)
@@ -74,10 +77,12 @@ public class Application implements Callable<Integer> {
             }
         }
 
-        @Option(names = "--help", description = "show this help message and exit", usageHelp = true, order = LAST)
+        @Option(names = "--help", description = "show this help message and exit", order = LAST,
+                usageHelp = true)
         boolean helpRequested;
 
-        @Option(names = "--version", description = "print version information and exit", versionHelp = true, order = LAST)
+        @Option(names = "--version", description = "print version information and exit", order = LAST,
+                versionHelp = true)
         boolean versionInfoRequested;
     }
 
@@ -185,11 +190,17 @@ public class Application implements Callable<Integer> {
         return result;
     }
 
+    public static class LevelConverter implements ITypeConverter<Level> {
+        @Override
+        public Level convert(final String value) throws Exception {
+            return Level.valueOf(value);
+        }
+    }
+
     public static void execute(final RepositoryRewriter rewriter, String[] args) {
         final Application app = new Application(rewriter);
         final CommandLine cmdline = new CommandLine(app);
         cmdline.setExpandAtFiles(false);
-        cmdline.registerConverter(Level.class, s -> Level.valueOf(s));
 
         final int status = cmdline.execute(args);
         System.exit(status);
