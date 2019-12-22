@@ -45,8 +45,9 @@ public class RepositoryRewriter {
 
     protected boolean isPathSensitive = false;
 
-    @Option(names = { "-p", "--parallel" }, description = "rewrite trees in parallel", order = Application.MIDDLE)
-    protected boolean isParallel = false;
+    @Option(names = { "-p", "--parallel" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = Application.MIDDLE,
+            fallbackValue = "0")
+    protected int nthreads = 1;
 
     @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = Application.MIDDLE)
     protected boolean isDryRunning = false;
@@ -62,7 +63,10 @@ public class RepositoryRewriter {
         source = new RepositoryAccess(sourceRepo);
         target = new RepositoryAccess(targetRepo);
         isOverwriting = sourceRepo == targetRepo;
-        if (isParallel) {
+        if (nthreads == 0) {
+            nthreads = Runtime.getRuntime().availableProcessors();
+        }
+        if (nthreads > 1) {
             this.entryMapping = new ConcurrentHashMap<>();
         }
         if (isDryRunning) {
@@ -115,13 +119,12 @@ public class RepositoryRewriter {
      * Rewrites all root trees.
      */
     protected void rewriteRootTrees(final Context c) {
-        if (!isParallel) {
+        if (nthreads <= 1) {
             // This will be done in each rewriteCommit() in non-parallel mode.
             return;
         }
 
-        final int nprocs = Runtime.getRuntime().availableProcessors();
-        final ExecutorService pool = Executors.newFixedThreadPool(nprocs);
+        final ExecutorService pool = Executors.newFixedThreadPool(nthreads);
         try (final RevWalk walk = prepareRevisionWalk(c)) {
             for (final RevCommit commit : walk) {
                 pool.execute(() -> {
