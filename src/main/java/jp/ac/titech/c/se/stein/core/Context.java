@@ -10,41 +10,60 @@ import java.util.stream.Stream;
 
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevTag;
 
 /**
- * An associative list for keeping the calling context.
+ * An array for preserving the rewriting context.
  */
 public class Context implements Map<Context.Key, Object> {
-
+    /**
+     * The keys of the values in a context.
+     */
     public enum Key {
-        commit, path, entry, rev, tag, ref, repo, inserter;
+        commit, path, entry, rev, tag, ref, conf, inserter;
 
         public static final Key[] ALL = Key.values();
         public static final int SIZE = ALL.length;
     }
 
+    /**
+     * A cache of toString() result.
+     */
     private transient String cache;
 
+    /**
+     * All values in this context.
+     */
     private final Object[] values;
 
+    /**
+     * The constructor.
+     */
     private Context(final Object[] values) {
         this.values = values;
     }
 
+    /**
+     * Returns an empty context.
+     */
     public static Context init() {
         return new Context(new Object[Key.SIZE]);
     }
 
+    /**
+     * Returns an updated context by the given key-value pair.
+     */
     public Context with(final Key k, final Object v) {
         final Object[] newValues = values.clone();
         newValues[k.ordinal()] = v;
         return new Context(newValues);
     }
 
+    /**
+     * Returns an updated context by the given key-value pairs.
+     */
     public Context with(final Key k1, final Object v1, final Key k2, final Object v2) {
         final Object[] newValues = values.clone();
         newValues[k1.ordinal()] = v1;
@@ -52,6 +71,9 @@ public class Context implements Map<Context.Key, Object> {
         return new Context(newValues);
     }
 
+    /**
+     * Returns an updated context by the given key-value pairs.
+     */
     public Context with(final Key k1, final Object v1, final Key k2, final Object v2, final Key k3, final Object v3) {
         final Object[] newValues = values.clone();
         newValues[k1.ordinal()] = v1;
@@ -84,16 +106,16 @@ public class Context implements Map<Context.Key, Object> {
 
     protected static String getStringValue(final Key key, final Object value) {
         switch (key) {
-        case repo:
-            return ((Repository) value).getDirectory().toString();
-        case tag:
-            return ((RevTag) value).name();
         case commit:
             return ((RevCommit) value).name();
-        case ref:
-            return ((Ref) value).getName();
         case path:
             return (String) value;
+        case entry:
+            return value.toString();
+        case tag:
+            return ((RevTag) value).name();
+        case ref:
+            return ((Ref) value).getName();
         default:
             return null;
         }
@@ -106,7 +128,7 @@ public class Context implements Map<Context.Key, Object> {
 
     @Override
     public boolean isEmpty() {
-        return false;
+        return size() == 0;
     }
 
     @Override
@@ -166,34 +188,58 @@ public class Context implements Map<Context.Key, Object> {
 
     // Utility methods
 
+    /**
+     * Returns the commit Id in the context.
+     */
     public String getCommitId() {
         return getCommit().name();
     }
 
+    /**
+     * Returns the revision object in the context.
+     */
     public RevObject getRev() {
         return (RevObject) get(Key.rev);
     }
 
+    /**
+     * Returns the commit object in the context.
+     */
     public RevCommit getCommit() {
         return (RevCommit) get(Key.commit);
     }
 
+    /**
+     * Returns the commit object in the context.
+     */
     public RevTag getTag() {
         return (RevTag) get(Key.tag);
     }
 
+    /**
+     * Returns the path in the context.
+     */
     public String getPath() {
         return (String) get(Key.path);
     }
 
+    /**
+     * Returns the entry object in the context.
+     */
     public EntrySet.Entry getEntry() {
         return (EntrySet.Entry) get(Key.entry);
     }
 
+    /**
+     * Returns the ref object in the context.
+     */
     public Ref getRef() {
         return (Ref) get(Key.ref);
     }
 
+    /**
+     * Returns the inserter in the context.
+     */
     public ObjectInserter getInserter() {
         return (ObjectInserter) get(Key.inserter);
     }

@@ -27,7 +27,7 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jp.ac.titech.c.se.stein.Application;
+import jp.ac.titech.c.se.stein.Application.Config;
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import picocli.CommandLine.Option;
@@ -63,20 +63,20 @@ public class RepositoryRewriter {
 
     protected boolean isPathSensitive = false;
 
-    @Option(names = { "-p", "--parallel" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = Application.MIDDLE,
+    @Option(names = { "-p", "--parallel" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = Config.MIDDLE,
             fallbackValue = "0")
     protected int nthreads = 1;
 
-    @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = Application.MIDDLE)
+    @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = Config.MIDDLE)
     protected boolean isDryRunning = false;
 
-    @Option(names = "--notes-forward", negatable = true, description = "note rewritten commits to source repo", order = Application.MIDDLE)
+    @Option(names = "--notes-forward", negatable = true, description = "note rewritten commits to source repo", order = Config.MIDDLE)
     protected boolean isAddingForwardNotes = false;
 
-    @Option(names = "--no-notes-backward", negatable = true, description = "note original commits to destination repo", order = Application.MIDDLE)
+    @Option(names = "--no-notes-backward", negatable = true, description = "note original commits to destination repo", order = Config.MIDDLE)
     protected boolean isAddingBackwardNotes = true;
 
-    @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = Application.MIDDLE)
+    @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = Config.MIDDLE)
     protected boolean isRewritingExtraAttributes = false;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
@@ -95,11 +95,6 @@ public class RepositoryRewriter {
         }
     }
 
-    public void rewrite() {
-        final Context c = Context.init().with(Key.repo, source.repo);
-        rewrite(c);
-    }
-
     public void rewrite(final Context c) {
         setUp(c);
         rewriteCommits(c);
@@ -109,8 +104,7 @@ public class RepositoryRewriter {
         cleanUp(c);
     }
 
-    protected void setUp(final Context c) {
-    }
+    protected void setUp(final Context c) {}
 
     /**
      * Sets whether entries are path-sensitive.
@@ -599,8 +593,7 @@ public class RepositoryRewriter {
     /**
      * A hook method for cleaning up.
      */
-    protected void cleanUp(final Context c) {
-    }
+    protected void cleanUp(final Context c) {}
 
     /**
      * Exports source-to-destination mapping of commits.

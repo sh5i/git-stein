@@ -17,6 +17,8 @@ import org.slf4j.LoggerFactory;
 import com.google.gson.Gson;
 
 import ch.qos.logback.classic.Level;
+import jp.ac.titech.c.se.stein.core.Context;
+import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine;
 import picocli.CommandLine.ArgGroup;
@@ -30,11 +32,11 @@ import picocli.CommandLine.Parameters;
 public class Application implements Callable<Integer> {
     private static final Logger log = LoggerFactory.getLogger(Application.class);
 
-    public static final int MIDDLE = 5000;
-    public static final int LOW = 8000;
-    public static final int LAST = 10000;
+    public static class Config {
+        public static final int MIDDLE = 5;
+        public static final int LOW = 8;
+        public static final int LAST = 10;
 
-    static class Config {
         @Parameters(index = "0", paramLabel = "<repo>", description = "source repo")
         File source;
 
@@ -113,15 +115,11 @@ public class Application implements Callable<Integer> {
         log.debug("Rewriter: {}", rewriter.getClass().getName());
 
         openRepositories((source, target) -> {
-            log.debug("Source repository: {}", source.getDirectory());
-            log.debug("Target repository: {}", target.getDirectory());
             rewriter.initialize(source, target);
-
+            log.info("Starting rewriting: {} -> {}", source.getDirectory(), target.getDirectory());
+            final Context c = Context.init().with(Key.conf, conf);
             final Instant start = Instant.now();
-            log.info("Starting rewriting...");
-
-            rewriter.rewrite();
-
+            rewriter.rewrite(c);
             final Instant finish = Instant.now();
             log.info("Finished rewriting. Runtime: {} ms", Duration.between(start, finish).toMillis());
         });
@@ -149,13 +147,13 @@ public class Application implements Callable<Integer> {
 
         // cleaning
         if (conf.output.isCleaningEnabled && conf.output.target.exists()) {
-            log.debug("Delete directory: {}", conf.output.target);
+            log.info("Delete directory: {}", conf.output.target);
             FileUtils.deleteDirectory(conf.output.target);
         }
 
         if (conf.output.isDuplicating) {
             // target -> target (duplicate mode)
-            log.debug("Duplicate repository: {} -> {}", conf.source, conf.output.target);
+            log.info("Duplicate repository: {} -> {}", conf.source, conf.output.target);
             FileUtils.copyDirectory(conf.source, conf.output.target);
             try (final Repository repo = createRepository(conf.output.target, false)) {
                 f.accept(repo, repo);
