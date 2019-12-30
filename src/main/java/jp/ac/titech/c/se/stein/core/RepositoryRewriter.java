@@ -140,15 +140,16 @@ public class RepositoryRewriter {
             return;
         }
 
+        final Map<Long, Context> cxts = new ConcurrentHashMap<>();
         final ExecutorService pool = Executors.newFixedThreadPool(nthreads);
         try (final RevWalk walk = prepareRevisionWalk(c)) {
             for (final RevCommit commit : walk) {
                 pool.execute(() -> {
-                    target.openInserter(ins -> {
-                        final Context uc = c.with(Key.rev, commit, Key.commit, commit, Key.inserter, ins);
-                        rewriteRootTree(commit.getTree().getId(), uc);
-                        commit.disposeBody();
-                    }, c);
+                    final long id = Thread.currentThread().getId();
+                    final Context uc = cxts.computeIfAbsent(id, k -> c.with(Key.inserter, target.getInserter(c)));
+                    final Context uuc = uc.with(Key.rev, commit, Key.commit, commit);
+                    rewriteRootTree(commit.getTree().getId(), uuc);
+                    commit.disposeBody();
                 });
             }
         }
@@ -157,6 +158,11 @@ public class RepositoryRewriter {
         // Long.MAX_VALUE means infinity.
         // @see java.util.concurrent
         Try.run(() -> pool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS));
+
+        // finalize
+        for (final Context uc : cxts.values()) {
+            uc.getInserter().close();
+        }
     }
 
     /**

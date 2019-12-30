@@ -312,6 +312,13 @@ public class RepositoryAccess {
     }
 
     /**
+     * Generates an object inserter.
+     */
+    public ObjectInserter getInserter(final Context c) {
+        return repo.newObjectInserter();
+    }
+
+    /**
      * Inserts objects using a prepared object inserter.
      */
     public <R> R insert(final IOThrowableFunction<ObjectInserter, R> f, final Context c) {
