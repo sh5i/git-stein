@@ -46,6 +46,9 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
      */
     public CommitGraph build(final RevWalk walk) {
         try (final RevWalk w = walk) {
+            // This process does not require body info
+            w.setRetainBody(false);
+
             for (final RevCommit commit : w) {
                 final Vertex v = Vertex.of(commit);
                 addVertex(v);

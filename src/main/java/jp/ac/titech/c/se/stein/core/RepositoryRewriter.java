@@ -125,6 +125,7 @@ public class RepositoryRewriter {
             try (final RevWalk walk = prepareRevisionWalk(uc)) {
                 for (final RevCommit commit : walk) {
                     rewriteCommit(commit, uc);
+                    commit.disposeBody();
                 }
             }
         }, c);
@@ -146,6 +147,7 @@ public class RepositoryRewriter {
                     target.openInserter(ins -> {
                         final Context uc = c.with(Key.rev, commit, Key.commit, commit, Key.inserter, ins);
                         rewriteRootTree(commit.getTree().getId(), uc);
+                        commit.disposeBody();
                     }, c);
                 });
             }
