@@ -84,7 +84,8 @@ public class RepositoryRewriter {
         target = new RepositoryAccess(targetRepo);
         isOverwriting = sourceRepo == targetRepo;
         if (nthreads == 0) {
-            nthreads = Runtime.getRuntime().availableProcessors();
+            final int nprocs = Runtime.getRuntime().availableProcessors();
+            nthreads = nprocs > 1 ? nprocs - 1 : 1;
         }
         if (nthreads > 1) {
             this.entryMapping = new ConcurrentHashMap<>();
