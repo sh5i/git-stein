@@ -96,19 +96,6 @@ public class Historage extends RepositoryRewriter {
         return result;
     }
 
-    protected ASTParser createParser() {
-        final ASTParser parser = ASTParser.newParser(AST.JLS11);
-        @SuppressWarnings("unchecked")
-        final Map<String, String> options = DefaultCodeFormatterConstants.getEclipseDefaultSettings();
-        options.put(JavaCore.COMPILER_COMPLIANCE, JavaCore.VERSION_1_8);
-        options.put(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, JavaCore.VERSION_1_8);
-        options.put(JavaCore.COMPILER_SOURCE, JavaCore.VERSION_1_8);
-        options.put(JavaCore.COMPILER_DOC_COMMENT_SUPPORT, JavaCore.ENABLED);
-        parser.setCompilerOptions(options);
-        parser.setEnvironment(null, null, null, true);
-        return parser;
-    }
-
     public static abstract class Module {
         protected final String name;
         protected final String extension;
