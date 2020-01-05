@@ -1,10 +1,12 @@
 package jp.ac.titech.c.se.stein.core;
 
+import java.util.Objects;
+
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 
 /**
- * Abstract tree entry.
+ * A ref entry.
  */
 public class RefEntry {
     public final String name;
@@ -30,7 +32,9 @@ public class RefEntry {
     }
 
     public RefEntry(final Ref ref) {
-        this(ref.getName(), ref.isSymbolic() ? null : ref.getObjectId(), ref.isSymbolic() ? ref.getTarget().getName() : null);
+        this(ref.getName(),
+             ref.isSymbolic() ? null : ref.getObjectId(),
+             ref.isSymbolic() ? ref.getTarget().getName() : null);
     }
 
     public boolean isSymbolic() {
@@ -44,47 +48,17 @@ public class RefEntry {
 
     @Override
     public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + (id == null ? 0 : id.hashCode());
-        result = prime * result + (name == null ? 0 : name.hashCode());
-        result = prime * result + (target == null ? 0 : target.hashCode());
-        return result;
+        return Objects.hash(id, name, target);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
+        if (!(obj instanceof RefEntry)) {
             return false;
         }
         final RefEntry other = (RefEntry) obj;
-        if (id == null) {
-            if (other.id != null) {
-                return false;
-            }
-        } else if (!id.equals(other.id)) {
-            return false;
-        }
-        if (name == null) {
-            if (other.name != null) {
-                return false;
-            }
-        } else if (!name.equals(other.name)) {
-            return false;
-        }
-        if (target == null) {
-            if (other.target != null) {
-                return false;
-            }
-        } else if (!target.equals(other.target)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(id, other.id) &&
+               Objects.equals(name, other.name) &&
+               Objects.equals(target, other.target);
     }
 }
