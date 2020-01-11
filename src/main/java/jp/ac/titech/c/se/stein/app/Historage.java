@@ -53,25 +53,25 @@ import picocli.CommandLine.Option;
 public class Historage extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Historage.class);
 
-    @Option(names = "--no-classes", negatable = true, description = "include/exclude class files")
+    @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
 
-    @Option(names = "--no-fields", negatable = true, description = "include/exclude field files")
+    @Option(names = "--no-fields", negatable = true, description = "[ex]/include field files")
     protected boolean requiresFields = true;
 
-    @Option(names = "--no-methods", negatable = true, description = "include/exclude method files")
+    @Option(names = "--no-methods", negatable = true, description = "[ex]/include method files")
     protected boolean requiresMethods = true;
 
-    @Option(names = "--no-docs", negatable = true, description = "include/exclude documentation files")
+    @Option(names = "--no-docs", negatable = true, description = "[ex]/include documentation files")
     protected boolean requiresDocs = true;
 
-    @Option(names = "--no-original", negatable = true, description = "include/exclude original files")
+    @Option(names = "--no-original", negatable = true, description = "[ex]/include original files")
     protected boolean requiresOriginals = true;
 
-    @Option(names = "--no-noncode", negatable = true, description = "include/exclude non-code files")
+    @Option(names = "--no-noncode", negatable = true, description = "[ex]/include non-code files")
     protected boolean requiresNonCode = true;
 
-    @Option(names = "--drop-doc", description = "drop doc from modules")
+    @Option(names = "--drop-doc", description = "drop surrounding comments from modules")
     protected boolean dropsDoc = false;
 
     @Override
