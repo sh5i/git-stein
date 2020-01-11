@@ -20,6 +20,7 @@ import org.eclipse.jdt.core.dom.AbstractTypeDeclaration;
 import org.eclipse.jdt.core.dom.AnnotationTypeDeclaration;
 import org.eclipse.jdt.core.dom.AnonymousClassDeclaration;
 import org.eclipse.jdt.core.dom.BodyDeclaration;
+import org.eclipse.jdt.core.dom.Comment;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.EnumDeclaration;
 import org.eclipse.jdt.core.dom.FieldDeclaration;
@@ -174,6 +175,7 @@ public class Historage extends RepositoryRewriter {
 
     public class ModuleGenerator extends ASTVisitor {
         private final String source;
+        private CompilationUnit unit;
         private final Stack<Module> stack = new Stack<>();
         private final List<Module> modules = new ArrayList<>();
 
@@ -183,8 +185,11 @@ public class Historage extends RepositoryRewriter {
             stack.push(new Module.File(basename));
         }
 
+        /**
+         * Generates a list of Historage modules.
+         */
         public List<Module> generate() {
-            final CompilationUnit unit = parse();
+            unit = parse();
             if (unit == null) {
                 return Collections.emptyList();
             } else {
@@ -193,6 +198,9 @@ public class Historage extends RepositoryRewriter {
             }
         }
 
+        /**
+         * Parses the given source string.
+         */
         protected CompilationUnit parse() {
             final ASTParser parser = createParser();
             parser.setSource(source.toCharArray());
@@ -205,6 +213,9 @@ public class Historage extends RepositoryRewriter {
             }
         }
 
+        /**
+         * Creates a JDT ASTParser.
+         */
         protected ASTParser createParser() {
             final ASTParser parser = ASTParser.newParser(AST.JLS11);
             @SuppressWarnings("unchecked")
@@ -218,6 +229,10 @@ public class Historage extends RepositoryRewriter {
             return parser;
         }
 
+        /**
+         * Gets a source string using the given character range with regard to
+         * surround spaces.
+         */
         protected String getSource(final int start, final int end) {
             // include the prefix indent
             int prefix = 0;
@@ -240,10 +255,31 @@ public class Historage extends RepositoryRewriter {
             return source.charAt(end - 1) == '\n' ? content : content + "\n";
         }
 
+        /**
+         * Gets a source string of the given node.
+         */
         protected String getSource(final ASTNode node) {
             return getSource(node.getStartPosition(), node.getStartPosition() + node.getLength());
         }
 
+        /**
+         * Gets a source string of the given node with including surrounding comments.
+         */
+        protected String getSourceWithComments(final BodyDeclaration node) {
+            final int leading = unit.firstLeadingCommentIndex(node);
+            final int trailing = unit.lastTrailingCommentIndex(node);
+            if (leading == -1 && trailing == -1) {
+                return getSource(node);
+            }
+            final List<?> comments = unit.getCommentList();
+            final ASTNode beg = leading != -1 ? (Comment) comments.get(leading) : node;
+            final ASTNode end = trailing != -1 ? (Comment) comments.get(trailing) : node;
+            return getSource(beg.getStartPosition(), end.getStartPosition() + end.getLength());
+        }
+
+        /**
+         * Gets a source string of the given node with excluding its Javadoc comment.
+         */
         protected String getSourceWithoutJavadoc(final BodyDeclaration node) {
             final Optional<Integer> start = findChildNodes(node).stream()
                     .filter(n -> !(n instanceof Javadoc))
@@ -305,7 +341,7 @@ public class Historage extends RepositoryRewriter {
 
         protected boolean visitType(final AbstractTypeDeclaration node) {
             final String name = node.getName().getIdentifier();
-            final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSource(node);
+            final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSourceWithComments(node);
             final Module klass = new Module.Class(name, stack.peek(), source);
             if (requiresClasses) {
                 modules.add(klass);
@@ -330,7 +366,7 @@ public class Historage extends RepositoryRewriter {
         public boolean visit(final MethodDeclaration node) {
             if (requiresMethods) {
                 final String name = new MethodNameGenerator(node).generate();
-                final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSource(node);
+                final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSourceWithComments(node);
                 final Module method = new Module.Method(name, stack.peek(), source);
                 modules.add(method);
                 if (requiresDocs && node.getJavadoc() != null) {
@@ -345,7 +381,7 @@ public class Historage extends RepositoryRewriter {
             if (requiresFields) {
                 for (final Object f : node.fragments()) {
                     final String name = ((VariableDeclarationFragment) f).getName().toString();
-                    final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSource(node);
+                    final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSourceWithComments(node);
                     final Module field = new Module.Field(name, stack.peek(), source);
                     modules.add(field);
                     if (requiresDocs && node.getJavadoc() != null) {
