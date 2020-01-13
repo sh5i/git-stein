@@ -165,7 +165,7 @@ public class Historage extends RepositoryRewriter {
 
         public static class Comment extends Module {
             public Comment(final Module parent, final String content) {
-                super(null, ".doc", parent, content);
+                super(null, "com", parent, content);
             }
             @Override
             public String getBasename() {
