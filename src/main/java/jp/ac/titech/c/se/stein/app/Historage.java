@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -70,11 +71,11 @@ public class Historage extends RepositoryRewriter {
     @Option(names = "--no-noncode", negatable = true, description = "[ex]/include non-code files")
     protected boolean requiresNonCode = true;
 
-    @Option(names = "--comments", negatable = true, description = "[ex]/include comment files")
+    @Option(names = "--comments", description = "extract comment files")
     protected boolean requiresComments = false;
 
-    @Option(names = "--exclude-comments", description = "exclude comments from modules")
-    protected boolean excludesComments = false;
+    @Option(names = "--separate-comments", description = "exclude comments from modules")
+    protected boolean separatesComments = false;
 
     @Override
     public EntrySet rewriteEntry(final Entry entry, final Context c) {
@@ -174,32 +175,35 @@ public class Historage extends RepositoryRewriter {
         }
     }
 
-    public class CommentSet {
+    public static class CommentSet {
         private final CompilationUnit unit;
-        private final List<Comment> comments = new ArrayList<>();
-        private final List<Integer> offsets = new ArrayList<>();
+        private final List<Comment> comments;
+        private final List<Integer> offsets;
+        private final Map<ASTNode, List<Comment>> cache = new HashMap<>();
 
         public CommentSet(final CompilationUnit unit) {
             this.unit = unit;
-            if (unit != null) {
-                @SuppressWarnings("unchecked")
-                final List<Comment> comments = unit.getCommentList();
-                this.comments.addAll(comments);
-                offsets.addAll(comments.stream().map(c -> c.getStartPosition()).collect(Collectors.toList()));
-            }
-        }
-
-        protected int lookup(final int offset) {
-            final int index = Collections.binarySearch(offsets, offset);
-            return index >= 0 ? index : ~index;
+            @SuppressWarnings("unchecked")
+            final List<Comment> comments = unit != null ? unit.getCommentList() : Collections.emptyList();
+            this.comments = comments;
+            this.offsets = comments.stream().map(c -> c.getStartPosition()).collect(Collectors.toList());
         }
 
         public List<Comment> getComments(final ASTNode node) {
+            return cache.computeIfAbsent(node, n -> extractComments(n));
+        }
+
+        protected List<Comment> extractComments(final ASTNode node) {
             final int leading = unit.firstLeadingCommentIndex(node);
             final int start = leading != -1 ? leading : lookup(node.getStartPosition());
             final int trailing = unit.lastTrailingCommentIndex(node);
             final int end = trailing != -1 ? trailing + 1 : lookup(node.getStartPosition() + node.getLength());
             return comments.subList(start, end); // [start, end)
+        }
+
+        protected int lookup(final int offset) {
+            final int index = Collections.binarySearch(offsets, offset);
+            return index >= 0 ? index : ~index;
         }
     }
 
@@ -384,6 +388,24 @@ public class Historage extends RepositoryRewriter {
             }
         }
 
+        protected List<ASTNode> findChildNodes(final ASTNode node) {
+            final List<ASTNode> result = new ArrayList<>();
+            node.accept(new ASTVisitor() {
+                boolean isRoot = true;
+
+                @Override
+                public boolean preVisit2(final ASTNode node) {
+                    if (isRoot) {
+                        isRoot = false;
+                        return true;
+                    }
+                    result.add(node);
+                    return false;
+                }
+            });
+            return result;
+        }
+
         /**
          * Gets the source string of a comment.
          */
@@ -406,17 +428,6 @@ public class Historage extends RepositoryRewriter {
         }
 
         /**
-         * Gets a source string of all the comments in the given node.
-         */
-        protected String getSourceComments(final BodyDeclaration node) {
-            final StringBuilder sb = new StringBuilder();
-            for (final Comment c : commentSet.getComments(node)) {
-                sb.append(getCommentBody(c)).append("\n");
-            }
-            return sb.toString();
-        }
-
-        /**
          * Gets a source of the given node with excluding its all comments.
          */
         protected String getSourceWithoutComments(final BodyDeclaration node) {
@@ -432,21 +443,22 @@ public class Historage extends RepositoryRewriter {
             return source;
         }
 
-        protected List<ASTNode> findChildNodes(final ASTNode node) {
-            final List<ASTNode> result = new ArrayList<>();
-            node.accept(new ASTVisitor() {
-                boolean isRoot = true;
-                @Override
-                public boolean preVisit2(final ASTNode node) {
-                    if (isRoot) {
-                        isRoot = false;
-                        return true;
-                    }
-                    result.add(node);
-                    return false;
-                }
-            });
-            return result;
+        /**
+         * Gets the comment content of the given node.
+         */
+        protected String getCommentContent(final BodyDeclaration node) {
+            final StringBuilder sb = new StringBuilder();
+            for (final Comment c : commentSet.getComments(node)) {
+                sb.append(getCommentBody(c)).append("\n");
+            }
+            return sb.toString();
+        }
+
+        /**
+         * Gets the content of the given node.
+         */
+        protected String getContent(final BodyDeclaration node) {
+            return separatesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).toString();
         }
 
         @Override
@@ -481,12 +493,11 @@ public class Historage extends RepositoryRewriter {
 
         protected boolean visitType(final AbstractTypeDeclaration node) {
             final String name = node.getName().getIdentifier();
-            final String source = excludesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).toString();
-            final Module klass = new Module.Class(name, stack.peek(), source);
+            final Module klass = new Module.Class(name, stack.peek(), getContent(node));
             if (requiresClasses) {
                 modules.add(klass);
                 if (requiresComments) {
-                    modules.add(new Module.Comment(klass, getSourceComments(node)));
+                    modules.add(new Module.Comment(klass, getCommentContent(node)));
                 }
             }
             stack.push(klass);
@@ -506,11 +517,10 @@ public class Historage extends RepositoryRewriter {
         public boolean visit(final MethodDeclaration node) {
             if (requiresMethods) {
                 final String name = new MethodNameGenerator(node).generate();
-                final String source = excludesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).toString();
-                final Module method = new Module.Method(name, stack.peek(), source);
+                final Module method = new Module.Method(name, stack.peek(), getContent(node));
                 modules.add(method);
                 if (requiresComments) {
-                    modules.add(new Module.Comment(method, getSourceComments(node)));
+                    modules.add(new Module.Comment(method, getCommentContent(node)));
                 }
             }
             return false;
@@ -521,11 +531,10 @@ public class Historage extends RepositoryRewriter {
             if (requiresFields) {
                 for (final Object f : node.fragments()) {
                     final String name = ((VariableDeclarationFragment) f).getName().toString();
-                    final String source = excludesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).toString();
-                    final Module field = new Module.Field(name, stack.peek(), source);
+                    final Module field = new Module.Field(name, stack.peek(), getContent(node));
                     modules.add(field);
                     if (requiresComments) {
-                        modules.add(new Module.Comment(field, getSourceComments(node)));
+                        modules.add(new Module.Comment(field, getCommentContent(node)));
                     }
                 }
             }
