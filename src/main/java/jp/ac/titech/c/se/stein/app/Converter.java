@@ -28,12 +28,12 @@ public class Converter extends RepositoryRewriter {
 
     protected FileFilter filter;
 
-    @Option(names = "--pattern", paramLabel = "<glob>", description = "Filter target files")
+    @Option(names = "--pattern", paramLabel = "<glob>", description = "filter target files")
     protected void setFilter(final String glob) {
         filter = new WildcardFileFilter(glob);
     }
 
-    @Option(names = "--exclude", description = "Exclude filtered files")
+    @Option(names = "--exclude", description = "remove files that filtered out")
     protected boolean isExcluding;
 
     @Override
