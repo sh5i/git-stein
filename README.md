@@ -46,10 +46,10 @@ Options:
 - `--[no-]classes`: Include class files (`*.cjava`). _Default: yes_.
 - `--[no-]fields`: Include field files (`*.fjava`). _Default: yes_.
 - `--[no-]methods`: Include method files (`*.mjava`). _Default: yes_.
-- `--[no-]docs`: Include Javadoc files (`*.?java.doc`). _Default: yes_.
 - `--[no-]original`: Include original Java files. _Default: yes_.
 - `--[no-]noncode`: Include non-Java files. _Default: yes_.
-- `--drop-doc`: Exclude Javadoc part from module files.
+- `--comments`: Include comment files (`*.?javacom`).
+- `--separate-comments`: Exclude comments from module files.
 
 ### LineTokenizer
 
