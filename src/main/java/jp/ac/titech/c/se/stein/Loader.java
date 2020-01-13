@@ -18,8 +18,8 @@ public class Loader {
      */
     protected static RepositoryRewriter newInstance(final Class<? extends RepositoryRewriter> klass) {
         try {
-            return klass.newInstance();
-        } catch (final InstantiationException | IllegalAccessException e) {
+            return klass.getDeclaredConstructor().newInstance();
+        } catch (final ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
     }
@@ -46,9 +46,7 @@ public class Loader {
             @SuppressWarnings("unchecked")
             final Class<? extends RepositoryRewriter> result = (Class<? extends RepositoryRewriter>) Class.forName(name);
             return result;
-        } catch (final ClassNotFoundException e) {
-            return null;
-        } catch (final ClassCastException e) {
+        } catch (final ClassNotFoundException | ClassCastException e) {
             return null;
         }
     }
