@@ -108,13 +108,6 @@ public class RepositoryRewriter {
     protected void setUp(final Context c) {}
 
     /**
-     * Sets whether entries are path-sensitive.
-     */
-    protected void setPathSensitive(final boolean value) {
-        this.isPathSensitive = value;
-    }
-
-    /**
      * Rewrites all commits.
      */
     protected void rewriteCommits(final Context c) {
@@ -437,6 +430,7 @@ public class RepositoryRewriter {
     protected boolean confirmUpdateRef(final Ref ref, final Context c) {
         return confirmStartRef(ref, c);
     }
+
 
     /**
      * Updates a ref object.
