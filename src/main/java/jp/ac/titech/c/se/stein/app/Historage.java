@@ -63,17 +63,17 @@ public class Historage extends RepositoryRewriter {
     @Option(names = "--no-methods", negatable = true, description = "[ex]/include method files")
     protected boolean requiresMethods = true;
 
-    @Option(names = "--no-docs", negatable = true, description = "[ex]/include documentation files")
-    protected boolean requiresDocs = true;
-
     @Option(names = "--no-original", negatable = true, description = "[ex]/include original files")
     protected boolean requiresOriginals = true;
 
     @Option(names = "--no-noncode", negatable = true, description = "[ex]/include non-code files")
     protected boolean requiresNonCode = true;
 
-    @Option(names = "--drop-doc", description = "drop surrounding comments from modules")
-    protected boolean dropsDoc = false;
+    @Option(names = "--comments", negatable = true, description = "[ex]/include comment files")
+    protected boolean requiresComments = false;
+
+    @Option(names = "--exclude-comments", description = "exclude comments from modules")
+    protected boolean excludesComments = false;
 
     @Override
     public EntrySet rewriteEntry(final Entry entry, final Context c) {
@@ -162,8 +162,8 @@ public class Historage extends RepositoryRewriter {
             }
         }
 
-        public static class Javadoc extends Module {
-            public Javadoc(final Module parent, final String content) {
+        public static class Comment extends Module {
+            public Comment(final Module parent, final String content) {
                 super(null, ".doc", parent, content);
             }
             @Override
@@ -173,29 +173,128 @@ public class Historage extends RepositoryRewriter {
         }
     }
 
+    public class CommentSet {
+        private final CompilationUnit unit;
+        private final List<Comment> comments = new ArrayList<>();
+        private final List<Integer> offsets = new ArrayList<>();
+
+        public CommentSet(final CompilationUnit unit) {
+            this.unit = unit;
+            if (unit != null) {
+                @SuppressWarnings("unchecked")
+                final List<Comment> comments = unit.getCommentList();
+                this.comments.addAll(comments);
+                offsets.addAll(comments.stream().map(c -> c.getStartPosition()).collect(Collectors.toList()));
+            }
+        }
+
+        protected int lookup(final int offset) {
+            final int index = Collections.binarySearch(offsets, offset);
+            return index >= 0 ? index : ~index;
+        }
+
+        public List<Comment> getComments(final ASTNode node) {
+            final int leading = unit.firstLeadingCommentIndex(node);
+            final int start = leading != -1 ? leading : lookup(node.getStartPosition());
+            final int trailing = unit.lastTrailingCommentIndex(node);
+            final int end = trailing != -1 ? trailing + 1 : lookup(node.getStartPosition() + node.getLength());
+            return comments.subList(start, end); // [start, end)
+        }
+    }
+
+    /**
+     * Represents a source fragment of a range with regard to surrounding
+     * spaces.
+     */
+    public static class Fragment {
+        final String source;
+        final int start;
+        final int end;
+        final int widerStart;
+        final int widerEnd;
+
+        public Fragment(final String source, final int start, final int end) {
+            this.source = source;
+            this.start = start;
+            this.end = end;
+            this.widerStart = start - computeLeadingSpaces();
+            this.widerEnd = end + computeTrailingSpaces();
+        }
+
+        /**
+         * Computes the length of the leading spaces.
+         */
+        protected int computeLeadingSpaces() {
+            int result = 0;
+            LOOP: while (start > result) {
+                switch (source.charAt(start - result - 1)) {
+                case ' ':
+                case '\t':
+                    result++;
+                    continue;
+                case '\r':
+                case '\n':
+                    break LOOP;
+                default:
+                    return 0;
+                }
+            }
+            return result;
+        }
+
+        /**
+         * Computes the length of the trailing spaces.
+         */
+        protected int computeTrailingSpaces() {
+            int result = 0;
+            LOOP: while (end + result < source.length()) {
+                switch (source.charAt(end + result)) {
+                case ' ':
+                case '\t':
+                case '\r':
+                    result++;
+                    continue;
+                case '\n':
+                    result++;
+                    break LOOP;
+                default:
+                    return 0;
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            final String content = source.substring(widerStart, widerEnd);
+            return source.charAt(end - 1) == '\n' ? content : content + "\n";
+        }
+    }
+
     public class ModuleGenerator extends ASTVisitor {
         private final String source;
-        private CompilationUnit unit;
+        private final CompilationUnit unit;
         private final Stack<Module> stack = new Stack<>();
         private final List<Module> modules = new ArrayList<>();
+        private final CommentSet commentSet;
 
         public ModuleGenerator(final String filename, final String source) {
             this.source = source;
             final String basename = filename.substring(0, filename.lastIndexOf('.'));
             stack.push(new Module.File(basename));
+            this.unit = parse();
+            this.commentSet = new CommentSet(this.unit);
         }
 
         /**
          * Generates a list of Historage modules.
          */
         public List<Module> generate() {
-            unit = parse();
             if (unit == null) {
                 return Collections.emptyList();
-            } else {
-                unit.accept(this);
-                return modules;
             }
+            unit.accept(this);
+            return modules;
         }
 
         /**
@@ -230,66 +329,81 @@ public class Historage extends RepositoryRewriter {
         }
 
         /**
-         * Gets a source string using the given character range with regard to
-         * surround spaces.
+         * Gets a fragment of the given range.
          */
-        protected String getSource(final int start, final int end) {
-            // include the prefix indent
-            int prefix = 0;
-            LOOP: while (start > prefix) {
-                switch (source.charAt(start - prefix - 1)) {
-                case ' ':
-                case '\t':
-                    prefix++;
-                    continue;
-                case '\r':
-                case '\n':
-                    break LOOP;
-                default:
-                    prefix = 0;
-                    break LOOP;
-                }
-            }
-
-            final String content = source.substring(start - prefix, end);
-            return source.charAt(end - 1) == '\n' ? content : content + "\n";
+        protected Fragment getFragment(final int start, final int end) {
+            return new Fragment(source, start, end);
         }
 
         /**
-         * Gets a source string of the given node.
+         * Gets a node fragment.
          */
-        protected String getSource(final ASTNode node) {
-            return getSource(node.getStartPosition(), node.getStartPosition() + node.getLength());
+        protected Fragment getFragment(final ASTNode node) {
+            return getFragment(node.getStartPosition(), node.getStartPosition() + node.getLength());
         }
 
         /**
-         * Gets a source string of the given node with including surrounding comments.
+         * Gets a fragment of two nodes.
          */
-        protected String getSourceWithComments(final BodyDeclaration node) {
+        protected Fragment getFragment(final ASTNode startNode, final ASTNode endNode) {
+            return getFragment(startNode.getStartPosition(), endNode.getStartPosition() + endNode.getLength());
+        }
+
+        /**
+         * Gets a node fragment with including surrounding comments.
+         */
+        protected Fragment getFragmentWithSurroundingComments(final BodyDeclaration node) {
             final int leading = unit.firstLeadingCommentIndex(node);
             final int trailing = unit.lastTrailingCommentIndex(node);
             if (leading == -1 && trailing == -1) {
-                return getSource(node);
+                return getFragment(node);
             }
             final List<?> comments = unit.getCommentList();
-            final ASTNode beg = leading != -1 ? (Comment) comments.get(leading) : node;
-            final ASTNode end = trailing != -1 ? (Comment) comments.get(trailing) : node;
-            return getSource(beg.getStartPosition(), end.getStartPosition() + end.getLength());
+            final ASTNode startNode = leading != -1 ? (Comment) comments.get(leading) : node;
+            final ASTNode endNode = trailing != -1 ? (Comment) comments.get(trailing) : node;
+            return getFragment(startNode, endNode);
         }
 
         /**
-         * Gets a source string of the given node with excluding its Javadoc comment.
+         * Gets a node fragment with excluding its Javadoc comment.
          */
-        protected String getSourceWithoutJavadoc(final BodyDeclaration node) {
+        protected Fragment getFragmentWithoutJavadoc(final BodyDeclaration node) {
             final Optional<Integer> start = findChildNodes(node).stream()
                     .filter(n -> !(n instanceof Javadoc))
                     .map(n -> n.getStartPosition())
                     .min(Comparator.naturalOrder());
             if (start.isPresent() && start.get() > node.getStartPosition()) {
-                return getSource(start.get(), node.getStartPosition() + node.getLength());
+                return getFragment(start.get(), node.getStartPosition() + node.getLength());
             } else {
-                return getSource(node);
+                return getFragment(node);
             }
+        }
+
+        /**
+         * Gets a source string of all the comments in the given node.
+         */
+        protected String getSourceComments(final BodyDeclaration node) {
+            final StringBuilder sb = new StringBuilder();
+            for (final Comment c : commentSet.getComments(node)) {
+                sb.append(getFragment(c));
+            }
+            return sb.toString();
+        }
+
+        /**
+         * Gets a source of the given node with excluding its all comments.
+         */
+        protected String getSourceWithoutComments(final BodyDeclaration node) {
+            final Fragment fragment = getFragmentWithSurroundingComments(node);
+            String source = fragment.toString();
+            final List<Comment> comments = commentSet.getComments(node);
+            for (int i = comments.size() - 1; i >= 0; i--) {
+                final Fragment c = getFragment(comments.get(i));
+                final int localStart = c.widerStart - fragment.widerStart;
+                final int localEnd = c.widerEnd - fragment.widerStart;
+                source = source.substring(0, localStart) + source.substring(localEnd);
+            }
+            return source;
         }
 
         protected List<ASTNode> findChildNodes(final ASTNode node) {
@@ -341,12 +455,12 @@ public class Historage extends RepositoryRewriter {
 
         protected boolean visitType(final AbstractTypeDeclaration node) {
             final String name = node.getName().getIdentifier();
-            final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSourceWithComments(node);
+            final String source = excludesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).toString();
             final Module klass = new Module.Class(name, stack.peek(), source);
             if (requiresClasses) {
                 modules.add(klass);
-                if (requiresDocs && node.getJavadoc() != null) {
-                    modules.add(new Module.Javadoc(klass, getSource(node.getJavadoc())));
+                if (requiresComments) {
+                    modules.add(new Module.Comment(klass, getSourceComments(node)));
                 }
             }
             stack.push(klass);
@@ -366,11 +480,11 @@ public class Historage extends RepositoryRewriter {
         public boolean visit(final MethodDeclaration node) {
             if (requiresMethods) {
                 final String name = new MethodNameGenerator(node).generate();
-                final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSourceWithComments(node);
+                final String source = excludesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).toString();
                 final Module method = new Module.Method(name, stack.peek(), source);
                 modules.add(method);
-                if (requiresDocs && node.getJavadoc() != null) {
-                    modules.add(new Module.Javadoc(method, getSource(node.getJavadoc())));
+                if (requiresComments) {
+                    modules.add(new Module.Comment(method, getSourceComments(node)));
                 }
             }
             return false;
@@ -381,11 +495,11 @@ public class Historage extends RepositoryRewriter {
             if (requiresFields) {
                 for (final Object f : node.fragments()) {
                     final String name = ((VariableDeclarationFragment) f).getName().toString();
-                    final String source = dropsDoc ? getSourceWithoutJavadoc(node) : getSourceWithComments(node);
+                    final String source = excludesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).toString();
                     final Module field = new Module.Field(name, stack.peek(), source);
                     modules.add(field);
-                    if (requiresDocs && node.getJavadoc() != null) {
-                        modules.add(new Module.Javadoc(field, getSource(node.getJavadoc())));
+                    if (requiresComments) {
+                        modules.add(new Module.Comment(field, getSourceComments(node)));
                     }
                 }
             }
