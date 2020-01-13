@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Stack;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.compiler.IProblem;
 import org.eclipse.jdt.core.dom.AST;
@@ -269,6 +270,10 @@ public class Historage extends RepositoryRewriter {
             final String content = source.substring(widerStart, widerEnd);
             return source.charAt(end - 1) == '\n' ? content : content + "\n";
         }
+
+        public String toExactString() {
+            return source.substring(start, end);
+        }
     }
 
     public class ModuleGenerator extends ASTVisitor {
@@ -380,12 +385,33 @@ public class Historage extends RepositoryRewriter {
         }
 
         /**
+         * Gets the source string of a comment.
+         */
+        protected String getCommentBody(final Comment c) {
+            final Fragment f = getFragment(c);
+            final String body = f.toExactString();
+            if (c.isLineComment()) {
+                return body;
+            }
+            final int breaks = StringUtils.countMatches(body, "\n");
+            if (breaks == 0) {
+                return body; // single line
+            }
+            final String indent = source.substring(f.widerStart, f.start);
+            if (!indent.isEmpty() && StringUtils.countMatches(body, "\n" + indent) == breaks) {
+                // if all lines have the same indents, then remove it.
+                return body.replace("\n" + indent, "\n");
+            }
+            return body;
+        }
+
+        /**
          * Gets a source string of all the comments in the given node.
          */
         protected String getSourceComments(final BodyDeclaration node) {
             final StringBuilder sb = new StringBuilder();
             for (final Comment c : commentSet.getComments(node)) {
-                sb.append(getFragment(c));
+                sb.append(getCommentBody(c)).append("\n");
             }
             return sb.toString();
         }
