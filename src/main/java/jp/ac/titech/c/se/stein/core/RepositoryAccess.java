@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import org.eclipse.jgit.lib.AnyObjectId;
@@ -21,6 +22,7 @@ import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.TagBuilder;
 import org.eclipse.jgit.lib.TreeFormatter;
+import org.eclipse.jgit.notes.Note;
 import org.eclipse.jgit.notes.NoteMap;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevSort;
@@ -178,6 +180,13 @@ public class RepositoryAccess {
     }
 
     /**
+     * Computes the size of a blob object.
+     */
+    public long getBlobSize(final ObjectId blobId, final Context c) {
+        return Try.io(c, () -> repo.getObjectDatabase().open(blobId, Constants.OBJ_BLOB).getSize());
+    }
+
+    /**
      * Writes a commit object.
      */
     public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer,
@@ -200,6 +209,8 @@ public class RepositoryAccess {
     public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer, final String message, final Context c) {
         return writeCommit(parentIds, treeId, author, committer, null, null, message, c);
     }
+
+    // Notes
 
     /**
      * Add a note to the default notes.
@@ -238,6 +249,18 @@ public class RepositoryAccess {
         final ObjectId commit = writeCommit(NO_PARENTS, treeId, ident, ident, message, c);
 
         applyRefUpdate(new RefEntry(Constants.R_NOTES_COMMITS, commit), c);
+    }
+
+    public void eachNote(final NoteMap notes, final BiConsumer<ObjectId, byte[]> f, final Context c) {
+        for (final Note note : notes) {
+            final ObjectId id = ObjectId.fromString(note.getName());
+            final byte[] body = readBlob(note.getData(), c);
+            f.accept(id, body);
+        }
+    }
+
+    public void eachNote(final BiConsumer<ObjectId, byte[]> f, final Context c) {
+        eachNote(defaultNotes, f, c);
     }
 
     /**
