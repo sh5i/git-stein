@@ -325,7 +325,7 @@ public class Historage extends RepositoryRewriter {
          * Creates a JDT ASTParser.
          */
         protected ASTParser createParser() {
-            final ASTParser parser = ASTParser.newParser(AST.JLS11);
+            final ASTParser parser = ASTParser.newParser(AST.JLS13);
             @SuppressWarnings("unchecked")
             final Map<String, String> options = DefaultCodeFormatterConstants.getEclipseDefaultSettings();
             options.put(JavaCore.COMPILER_COMPLIANCE, JavaCore.VERSION_1_8);
