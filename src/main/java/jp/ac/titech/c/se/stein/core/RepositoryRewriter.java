@@ -236,7 +236,7 @@ public class RepositoryRewriter {
 
         final ObjectId oldId = commit.getId();
         commitMapping.put(oldId, newId);
-        log.debug("Rewrite commit: {} -> {} ({})", oldId.name(), newId.name(), c);
+        log.debug("Rewrite commit: {} -> {} {}", oldId.name(), newId.name(), c);
 
         source.addNote(oldId, getForwardNote(newId, c), uc);
         target.addNote(newId, getBackwardNote(oldId, c), uc);
@@ -267,7 +267,7 @@ public class RepositoryRewriter {
             final ObjectId parent = parents[i];
             final ObjectId newParent = commitMapping.get(parent);
             if (newParent == null) {
-                log.warn("Parent commit has not rewritten yet: {} ({})", parent.name(), c);
+                log.warn("Parent commit has not rewritten yet: {} {}", parent.name(), c);
                 result[i] = parent;
             } else {
                 result[i] = newParent;
@@ -285,7 +285,7 @@ public class RepositoryRewriter {
         final EntrySet newRoot = getEntry(root, c);
         final ObjectId newId = newRoot == EntrySet.EMPTY ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
-        log.debug("Rewrite tree: {} -> {} ({})", treeId.name(), newId.name(), c);
+        log.debug("Rewrite tree: {} -> {} {}", treeId.name(), newId.name(), c);
         return newId;
     }
 
@@ -332,7 +332,7 @@ public class RepositoryRewriter {
         }
         final ObjectId newId = entries.isEmpty() ? ZERO : target.writeTree(entries, uc);
         if (log.isDebugEnabled() && !newId.equals(treeId)) {
-            log.debug("Rewrite tree: {} -> {} ({})", treeId.name(), newId.name(), c);
+            log.debug("Rewrite tree: {} -> {} {}", treeId.name(), newId.name(), c);
         }
         return newId;
     }
@@ -346,7 +346,7 @@ public class RepositoryRewriter {
         }
         final ObjectId newId = target.writeBlob(source.readBlob(blobId, c), c);
         if (log.isDebugEnabled() && !newId.equals(blobId)) {
-            log.debug("Rewrite blob: {} -> {} ({})", blobId.name(), newId.name(), c);
+            log.debug("Rewrite blob: {} -> {} {}", blobId.name(), newId.name(), c);
         }
         return newId;
     }
@@ -457,7 +457,7 @@ public class RepositoryRewriter {
         if (newEntry == RefEntry.EMPTY) {
             // delete
             if (isOverwriting) {
-                log.debug("Delete ref: {} ({})", oldEntry, c);
+                log.debug("Delete ref: {} {}", oldEntry, c);
                 target.applyRefDelete(oldEntry, uc);
             }
             return;
@@ -466,7 +466,7 @@ public class RepositoryRewriter {
         if (!oldEntry.name.equals(newEntry.name)) {
             // rename
             if (isOverwriting) {
-                log.debug("Rename ref: {} -> {} ({})", oldEntry.name, newEntry.name, c);
+                log.debug("Rename ref: {} -> {} {}", oldEntry.name, newEntry.name, c);
                 target.applyRefRename(oldEntry.name, newEntry.name, uc);
             }
         }
@@ -476,7 +476,7 @@ public class RepositoryRewriter {
 
         if (!isOverwriting || !linkEquals || !idEquals) {
             // update
-            log.debug("Update ref: {} -> {} ({})", oldEntry, newEntry, c);
+            log.debug("Update ref: {} -> {} {}", oldEntry, newEntry, c);
             target.applyRefUpdate(newEntry, uc);
         }
     }
@@ -512,14 +512,14 @@ public class RepositoryRewriter {
         case Constants.OBJ_COMMIT:
             final ObjectId newCommitId = commitMapping.get(id);
             if (newCommitId == null) {
-                log.warn("Rewritten commit not found: {} ({})", id.name(), c);
+                log.warn("Rewritten commit not found: {} {}", id.name(), c);
                 return id;
             }
             return newCommitId;
 
         default:
             // referring non-commit and non-tag; ignore it
-            log.warn("Ignore unknown type: {}, type = {} ({})", id.name(), type, c);
+            log.warn("Ignore unknown type: {}, type = {} {}", id.name(), type, c);
             return id;
         }
     }
@@ -535,16 +535,16 @@ public class RepositoryRewriter {
         final int type = source.getObjectType(oldObjectId, c);
         final ObjectId newObjectId = rewriteRefObject(oldObjectId, type, uc);
         if (newObjectId == ZERO) {
-            log.debug("Delete tag {} due to its object to be deleted ({})", oldId, c);
+            log.debug("Delete tag {} due to its object to be deleted {}", oldId, c);
             return ZERO;
         }
-        log.debug("Rewrite tag object: {} -> {} ({})", oldObjectId.name(), newObjectId.name(), c);
+        log.debug("Rewrite tag object: {} -> {} {}", oldObjectId.name(), newObjectId.name(), c);
 
         final String tagName = tag.getTagName();
         final PersonIdent tagger = rewriteTagger(tag.getTaggerIdent(), tag, uc);
         final String message = rewriteTagMessage(tag.getFullMessage(), uc);
         final ObjectId newId = target.writeTag(newObjectId, type, tagName, tagger, message, uc);
-        log.debug("Rewrite tag: {} -> {} ({})", oldId.name(), newId.name(), c);
+        log.debug("Rewrite tag: {} -> {} {}", oldId.name(), newId.name(), c);
 
         tagMapping.put(oldId, newId);
         return newId;

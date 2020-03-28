@@ -64,7 +64,7 @@ public class LineTokenizer extends RepositoryRewriter {
         final String source = load(blobId, c);
         final String converted = isDecoding ? decode(source) : encode(source);
         final ObjectId newId = target.writeBlob(converted.getBytes(), c);
-        log.debug("Rewrite blob: {} -> {} ({})", blobId.name(), newId.name(), c);
+        log.debug("Rewrite blob: {} -> {} {}", blobId.name(), newId.name(), c);
         return newId;
     }
 

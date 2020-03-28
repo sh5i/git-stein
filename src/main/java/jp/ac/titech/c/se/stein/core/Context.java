@@ -91,12 +91,13 @@ public class Context implements Map<Context.Key, Object> {
     }
 
     protected String doToString() {
-        return Stream.of(Key.ALL)
+        final String result = Stream.of(Key.ALL)
                 .map(k -> toEntry(k))
                 .filter(Objects::nonNull)
                 .map(e -> entryToString(e))
                 .filter(Objects::nonNull)
                 .collect(Collectors.joining(", "));
+        return result.isEmpty() ? result : "(" + result + ")";
     }
 
     protected String entryToString(final Map.Entry<Key, Object> e) {

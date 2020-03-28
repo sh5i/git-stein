@@ -62,7 +62,7 @@ public class Clusterer extends RepositoryRewriter {
     @Override
     protected void rewriteCommits(final Context c) {
         graph.build(prepareRevisionWalk(c));
-        log.debug("Graph: {} vertices, {} edges ({})", graph.vertexSet().size(), graph.edgeSet().size(), c);
+        log.debug("Graph: {} vertices, {} edges {}", graph.vertexSet().size(), graph.edgeSet().size(), c);
 
         rewriteGraph();
 
@@ -83,9 +83,9 @@ public class Clusterer extends RepositoryRewriter {
             final ObjectId base = e.getValue();
             final ObjectId rewritten = commitMapping.get(base);
             if (rewritten == null) {
-                log.warn("Base commit has not rewritten yet: base: {}, merged: {} ({})", base.name(), merged.name(), c);
+                log.warn("Base commit has not rewritten yet: base: {}, merged: {} {}", base.name(), merged.name(), c);
             } else {
-                log.debug("Add commit mapping: {} (merged into {}) -> {} ({})", merged.name(), base.name(), rewritten.name(), c);
+                log.debug("Add commit mapping: {} (merged into {}) -> {} {}", merged.name(), base.name(), rewritten.name(), c);
                 commitMapping.put(merged, rewritten);
             }
         }
@@ -95,9 +95,9 @@ public class Clusterer extends RepositoryRewriter {
             final ObjectId base = e.getValue();
             final ObjectId rewritten = commitMapping.get(base);
             if (rewritten == null) {
-                log.warn("Base commit has not rewritten yet: base: {}, merged: {} ({})", base.name(), merged.name(), c);
+                log.warn("Base commit has not rewritten yet: base: {}, merged: {} {}", base.name(), merged.name(), c);
             } else {
-                log.debug("Add commit mapping: {} (merged into {}) -> {} ({})", merged.name(), base.name(), rewritten.name(), c);
+                log.debug("Add commit mapping: {} (merged into {}) -> {} {}", merged.name(), base.name(), rewritten.name(), c);
                 commitMapping.put(merged, rewritten);
             }
         }
@@ -167,7 +167,7 @@ public class Clusterer extends RepositoryRewriter {
     protected ObjectId[] rewriteParents(final ObjectId[] parents, final Context c) {
         final ObjectId[] newParents = graph.getParentIds(c.getCommit().getId());
         if (log.isDebugEnabled()) {
-            log.debug("Substitute parents: {} -> {} ({})",
+            log.debug("Substitute parents: {} -> {} {}",
                     Stream.of(parents).map(ObjectId::name).toArray(String[]::new),
                     Stream.of(newParents).map(ObjectId::name).toArray(String[]::new),
                     c);
