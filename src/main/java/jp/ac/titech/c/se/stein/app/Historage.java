@@ -77,6 +77,18 @@ public class Historage extends RepositoryRewriter {
     @Option(names = "--separate-comments", description = "exclude comments from modules")
     protected boolean separatesComments = false;
 
+    @Option(names = "--class-ext", description = "class file extension")
+    protected String classExtension = ".cjava";
+
+    @Option(names = "--method-ext", description = "method file extension")
+    protected String methodExtension = ".mjava";
+
+    @Option(names = "--field-ext", description = "field file extension")
+    protected String fieldExtension = ".fjava";
+
+    @Option(names = "--comment-ext", description = "comment file extension")
+    protected String commentExtension = "com";
+
     @Override
     public EntrySet rewriteEntry(final Entry entry, final Context c) {
         if (entry.isTree()) {
@@ -99,7 +111,7 @@ public class Historage extends RepositoryRewriter {
         return result;
     }
 
-    public static abstract class Module {
+    public abstract class Module {
         protected final String name;
         protected final String extension;
         protected final Module parent;
@@ -123,55 +135,55 @@ public class Historage extends RepositoryRewriter {
         public String getContent() {
             return content;
         }
+    }
 
-        public static class File extends Module {
-            public File(final String name) {
-                super(name, null, null, null);
+    public class FileModule extends Module {
+        public FileModule(final String name) {
+            super(name, null, null, null);
+        }
+    }
+
+    public class ClassModule extends Module {
+        public ClassModule(final String name, final Module parent, final String content) {
+            super(name, classExtension, parent, content);
+        }
+        @Override
+        public String getBasename() {
+            if (parent instanceof ClassModule) {
+                return parent.getBasename() + "." + name;
+            } else {
+                return parent.getBasename().equals(name) ? name : name + "[" + parent.getBasename() + "]";
             }
         }
+    }
 
-        public static class Class extends Module {
-            public Class(final String name, final Module parent, final String content) {
-                super(name, ".cjava", parent, content);
-            }
-            @Override
-            public String getBasename() {
-                if (parent instanceof Class) {
-                    return parent.getBasename() + "." + name;
-                } else {
-                    return parent.getBasename().equals(name) ? name : name + "[" + parent.getBasename() + "]";
-                }
-            }
+    public class MethodModule extends Module {
+        public MethodModule(final String name, final Module parent, final String content) {
+            super(name, methodExtension, parent, content);
         }
-
-        public static class Method extends Module {
-            public Method(final String name, final Module parent, final String content) {
-                super(name, ".mjava", parent, content);
-            }
-            @Override
-            public String getBasename() {
-                return parent.getBasename() + "#" + name;
-            }
+        @Override
+        public String getBasename() {
+            return parent.getBasename() + "#" + name;
         }
+    }
 
-        public static class Field extends Module {
-            public Field(final String name, final Module parent, final String content) {
-                super(name, ".fjava", parent, content);
-            }
-            @Override
-            public String getBasename() {
-                return parent.getBasename() + "#" + name;
-            }
+    public class FieldModule extends Module {
+        public FieldModule(final String name, final Module parent, final String content) {
+            super(name, fieldExtension, parent, content);
         }
+        @Override
+        public String getBasename() {
+            return parent.getBasename() + "#" + name;
+        }
+    }
 
-        public static class Comment extends Module {
-            public Comment(final Module parent, final String content) {
-                super(null, "com", parent, content);
-            }
-            @Override
-            public String getBasename() {
-                return parent.getFilename();
-            }
+    public class CommentModule extends Module {
+        public CommentModule(final Module parent, final String content) {
+            super(null, commentExtension, parent, content);
+        }
+        @Override
+        public String getBasename() {
+            return parent.getFilename();
         }
     }
 
@@ -290,7 +302,7 @@ public class Historage extends RepositoryRewriter {
         public ModuleGenerator(final String filename, final String source) {
             this.source = source;
             final String basename = filename.substring(0, filename.lastIndexOf('.'));
-            stack.push(new Module.File(basename));
+            stack.push(new FileModule(basename));
             this.unit = parse();
             this.commentSet = new CommentSet(this.unit);
         }
@@ -493,11 +505,11 @@ public class Historage extends RepositoryRewriter {
 
         protected boolean visitType(final AbstractTypeDeclaration node) {
             final String name = node.getName().getIdentifier();
-            final Module klass = new Module.Class(name, stack.peek(), getContent(node));
+            final Module klass = new ClassModule(name, stack.peek(), getContent(node));
             if (requiresClasses) {
                 modules.add(klass);
                 if (requiresComments) {
-                    modules.add(new Module.Comment(klass, getCommentContent(node)));
+                    modules.add(new CommentModule(klass, getCommentContent(node)));
                 }
             }
             stack.push(klass);
@@ -517,10 +529,10 @@ public class Historage extends RepositoryRewriter {
         public boolean visit(final MethodDeclaration node) {
             if (requiresMethods) {
                 final String name = new MethodNameGenerator(node).generate();
-                final Module method = new Module.Method(name, stack.peek(), getContent(node));
+                final Module method = new MethodModule(name, stack.peek(), getContent(node));
                 modules.add(method);
                 if (requiresComments) {
-                    modules.add(new Module.Comment(method, getCommentContent(node)));
+                    modules.add(new CommentModule(method, getCommentContent(node)));
                 }
             }
             return false;
@@ -531,10 +543,10 @@ public class Historage extends RepositoryRewriter {
             if (requiresFields) {
                 for (final Object f : node.fragments()) {
                     final String name = ((VariableDeclarationFragment) f).getName().toString();
-                    final Module field = new Module.Field(name, stack.peek(), getContent(node));
+                    final Module field = new FieldModule(name, stack.peek(), getContent(node));
                     modules.add(field);
                     if (requiresComments) {
-                        modules.add(new Module.Comment(field, getCommentContent(node)));
+                        modules.add(new CommentModule(field, getCommentContent(node)));
                     }
                 }
             }
