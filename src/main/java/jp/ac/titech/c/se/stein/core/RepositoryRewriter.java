@@ -21,6 +21,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.notes.NoteMap;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -79,6 +80,11 @@ public class RepositoryRewriter {
     @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = Config.MIDDLE)
     protected boolean isRewritingExtraAttributes = false;
 
+    @Option(names = "--no-cache", negatable = true, description = "use caches for fast conversion", order = Config.MIDDLE)
+    protected boolean useCache = true;
+    protected final String CACHE_REF = Constants.R_NOTES + "stein";
+    protected NoteMap commitCache = NoteMap.newEmptyMap();
+
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
         target = new RepositoryAccess(targetRepo);
@@ -94,6 +100,9 @@ public class RepositoryRewriter {
             source.setDryRunning(true);
             target.setDryRunning(true);
         }
+        if (useCache) {
+            commitCache = target.readNote(CACHE_REF, null);
+        }
     }
 
     public void rewrite(final Context c) {
@@ -102,6 +111,7 @@ public class RepositoryRewriter {
         updateRefs(c);
         source.writeNotes(c);
         target.writeNotes(c);
+        if (useCache) saveCache(c);
         cleanUp(c);
     }
 
@@ -165,6 +175,10 @@ public class RepositoryRewriter {
         final Collection<ObjectId> starts = collectStarts(c);
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
 
+        if (useCache) {
+            uninterestings.addAll(readCache(c));
+        }
+
         final RevWalk walk = source.walk(c);
         Try.io(c, () -> {
             for (final ObjectId id : starts) {
@@ -208,7 +222,7 @@ public class RepositoryRewriter {
      * Collects the set of commit Ids used as uninteresting points.
      */
     protected Collection<ObjectId> collectUninterestings(final Context c) {
-        return Collections.emptyList();
+        return new ArrayList<>();
     }
 
     /**
@@ -621,5 +635,29 @@ public class RepositoryRewriter {
             final ObjectId dst = ObjectId.fromString(e.getValue());
             commitMapping.put(src, dst);
         }
+    }
+
+    public void saveCache(final Context c) {
+        commitMapping.forEach((oldId, newId) -> {
+            target.addNote(commitCache, newId, oldId.getName(), c);
+        });
+        target.writeNotes(commitCache, CACHE_REF, c);
+    }
+
+    public Collection<ObjectId> readCache(final Context c) {
+        final Collection<ObjectId> commitIds = new ArrayList<>();
+        target.eachNote(commitCache, (ObjectId targetCommitId, byte[] sourceCommitIdArray) -> {
+            ObjectId sourceCommitId = ObjectId.fromString(new String(sourceCommitIdArray));
+            log.debug("Ignoring {} -> {} because it has been already converted ({})",
+                    sourceCommitId.getName(), targetCommitId.getName(), c);
+
+            commitIds.add(sourceCommitId);
+
+            commitMapping.put(sourceCommitId, targetCommitId);
+            source.addNote(sourceCommitId, getForwardNote(targetCommitId, c), c);
+            target.addNote(targetCommitId, getBackwardNote(sourceCommitId, c), c);
+        }, c);
+
+        return commitIds;
     }
 }
