@@ -1,37 +1,26 @@
 package jp.ac.titech.c.se.stein.core;
 
-import static java.nio.charset.StandardCharsets.US_ASCII;
-
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-
-import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.FileMode;
-import org.eclipse.jgit.lib.GpgSignature;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.notes.NoteMap;
+import jp.ac.titech.c.se.stein.Application.Config;
+import jp.ac.titech.c.se.stein.core.Context.Key;
+import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import jp.ac.titech.c.se.stein.Application.Config;
-import jp.ac.titech.c.se.stein.core.Context.Key;
-import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import picocli.CommandLine.Option;
+
+import java.nio.charset.Charset;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+import static java.nio.charset.StandardCharsets.US_ASCII;
 
 public class RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
@@ -46,7 +35,7 @@ public class RepositoryRewriter {
     /**
      * Commit-to-commit mapping.
      */
-    protected final Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
+    protected Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
 
     /**
      * Tag-to-tag mapping.
@@ -64,11 +53,11 @@ public class RepositoryRewriter {
 
     protected boolean isPathSensitive = false;
 
-    @Option(names = { "-p", "--parallel" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = Config.MIDDLE,
-            fallbackValue = "0")
+    @Option(names = {"-p", "--parallel"}, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = Config.MIDDLE,
+        fallbackValue = "0")
     protected int nthreads = 1;
 
-    @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = Config.MIDDLE)
+    @Option(names = {"-n", "--dry-run"}, description = "do not actually touch destination repo", order = Config.MIDDLE)
     protected boolean isDryRunning = false;
 
     @Option(names = "--notes-forward", negatable = true, description = "note rewritten commits to source repo", order = Config.MIDDLE)
@@ -80,10 +69,18 @@ public class RepositoryRewriter {
     @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = Config.MIDDLE)
     protected boolean isRewritingExtraAttributes = false;
 
-    @Option(names = "--no-cache", negatable = true, description = "use caches for fast conversion", order = Config.MIDDLE)
-    protected boolean useCache = true;
-    protected final String CACHE_REF = Constants.R_NOTES + "stein";
-    protected NoteMap commitCache = NoteMap.newEmptyMap();
+    enum CacheLevel {
+        None, Blob, Tree, Commit;
+
+        public boolean isSet() { return this != None;}
+    }
+
+    @Option(names = "--cache-level", description = {
+        "granularity of cache used for fast conversion",
+        "Valid values: ${COMPLETION-CANDIDATES}"
+    }, order = Config.MIDDLE)
+    protected CacheLevel cacheLevel = CacheLevel.None;
+    protected CacheProvider cacheProvider;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
@@ -100,18 +97,19 @@ public class RepositoryRewriter {
             source.setDryRunning(true);
             target.setDryRunning(true);
         }
-        if (useCache) {
-            commitCache = target.readNote(CACHE_REF, null);
+        if (cacheLevel.isSet()) {
+            cacheProvider = new CacheProvider.GitNotesCacheProvider(target);
         }
     }
 
     public void rewrite(final Context c) {
         setUp(c);
+        if (cacheLevel.isSet()) loadCache(c);
         rewriteCommits(c);
         updateRefs(c);
         source.writeNotes(c);
         target.writeNotes(c);
-        if (useCache) saveCache(c);
+        if (cacheLevel.isSet()) saveCache(c);
         cleanUp(c);
     }
 
@@ -175,8 +173,18 @@ public class RepositoryRewriter {
         final Collection<ObjectId> starts = collectStarts(c);
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
 
-        if (useCache) {
-            uninterestings.addAll(readCache(c));
+        if (cacheLevel == CacheLevel.Commit) {
+            uninterestings.addAll(cacheProvider
+                .getAllObjects(c)
+                .stream()
+                .map(pair -> {
+                    // 副作用さん……
+                    source.addNote(pair.getLeft(), getForwardNote(pair.getRight(), c), c);
+                    target.addNote(pair.getRight(), getBackwardNote(pair.getLeft(), c), c);
+                    return pair.getLeft();
+                })
+                .collect(Collectors.toList())
+            );
         }
 
         final RevWalk walk = source.walk(c);
@@ -228,8 +236,7 @@ public class RepositoryRewriter {
     /**
      * Rewrites a commit.
      *
-     * @param commit
-     *            target commit.
+     * @param commit target commit.
      * @return the object ID of the rewritten commit
      */
     protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
@@ -250,6 +257,7 @@ public class RepositoryRewriter {
 
         final ObjectId oldId = commit.getId();
         commitMapping.put(oldId, newId);
+
         log.debug("Rewrite commit: {} -> {} {}", oldId.name(), newId.name(), c);
 
         source.addNote(oldId, getForwardNote(newId, c), uc);
@@ -637,27 +645,21 @@ public class RepositoryRewriter {
         }
     }
 
-    public void saveCache(final Context c) {
-        commitMapping.forEach((oldId, newId) -> {
-            target.addNote(commitCache, newId, oldId.getName(), c);
-        });
-        target.writeNotes(commitCache, CACHE_REF, c);
+    public void loadCache(final Context c) {
+        if (cacheLevel == CacheLevel.Commit) {
+            // commitMappingを直接書き変えてもいいかも……
+            commitMapping = Try.io(c, () -> cacheProvider.readToCommitMapping(c));
+        } else if (cacheLevel == CacheLevel.Blob || cacheLevel == CacheLevel.Tree) {
+            entryMapping = Try.io(c, () -> cacheProvider.readToEntryMapping(nthreads > 1, c));
+        }
     }
 
-    public Collection<ObjectId> readCache(final Context c) {
-        final Collection<ObjectId> commitIds = new ArrayList<>();
-        target.eachNote(commitCache, (ObjectId targetCommitId, byte[] sourceCommitIdArray) -> {
-            ObjectId sourceCommitId = ObjectId.fromString(new String(sourceCommitIdArray));
-            log.debug("Ignoring {} -> {} because it has been already converted ({})",
-                    sourceCommitId.getName(), targetCommitId.getName(), c);
+    public void saveCache(final Context c) {
+        if (cacheLevel == CacheLevel.Commit) {
+            Try.io(c, () -> cacheProvider.writeOutFromCommitMapping(commitMapping, c));
+        } else if (cacheLevel == CacheLevel.Blob || cacheLevel == CacheLevel.Tree) {
+            Try.io(c, () -> cacheProvider.writeOutFromEntryMapping(entryMapping, c));
+        }
 
-            commitIds.add(sourceCommitId);
-
-            commitMapping.put(sourceCommitId, targetCommitId);
-            source.addNote(sourceCommitId, getForwardNote(targetCommitId, c), c);
-            target.addNote(targetCommitId, getBackwardNote(sourceCommitId, c), c);
-        }, c);
-
-        return commitIds;
     }
 }
