@@ -3,7 +3,6 @@ package jp.ac.titech.c.se.stein.core;
 import jp.ac.titech.c.se.stein.Application.Config;
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTag;
@@ -98,7 +97,8 @@ public class RepositoryRewriter {
             target.setDryRunning(true);
         }
         if (cacheLevel.isSet()) {
-            cacheProvider = new CacheProvider.GitNotesCacheProvider(target);
+            // cacheProvider = new CacheProvider.GitNotesCacheProvider(target);
+            cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
         }
     }
 
