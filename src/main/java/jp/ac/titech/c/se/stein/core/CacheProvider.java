@@ -5,6 +5,7 @@ import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.DaoManager;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.jdbc.JdbcConnectionSource;
+import com.j256.ormlite.misc.TransactionManager;
 import com.j256.ormlite.stmt.PreparedQuery;
 import com.j256.ormlite.table.DatabaseTable;
 import com.j256.ormlite.table.TableUtils;
@@ -25,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -128,8 +130,7 @@ public interface CacheProvider {
         // マルチスレッドにもできるらしい、要チェック
         JdbcConnectionSource connectionSource = null;
         Dao<Mapping, String> mappingDao = null;
-        Dao<ObjectType, String> objectTypeDao = null;
-        Dao<PersistedEntry, String> persistedEntryDao = null;
+        Dao<ObjectInfo, String> objectInfoDao = null;
 
         public SQLiteCacheProvider(Repository target) {
             File dotGitDir = target.getDirectory().getAbsoluteFile();
@@ -138,15 +139,12 @@ public interface CacheProvider {
                 connectionSource = new JdbcConnectionSource("jdbc:sqlite:" + dbFile);
                 mappingDao = DaoManager.createDao(connectionSource, Mapping.class);
                 TableUtils.createTableIfNotExists(connectionSource, Mapping.class);
-                objectTypeDao = DaoManager.createDao(connectionSource, ObjectType.class);
-                TableUtils.createTableIfNotExists(connectionSource, ObjectType.class);
-                persistedEntryDao = DaoManager.createDao(connectionSource, PersistedEntry.class);
-                TableUtils.createTableIfNotExists(connectionSource, PersistedEntry.class);
+                objectInfoDao = DaoManager.createDao(connectionSource, ObjectInfo.class);
+                TableUtils.createTableIfNotExists(connectionSource, ObjectInfo.class);
             } catch (SQLException e) {
                 log.error("Failed to connect to Database.", e);
             } finally {
                 try {
-                    // if (conn != null) conn.close();
                     if (connectionSource != null) connectionSource.close();
                 } catch (IOException e) {
                     log.error("Failed to close connection to Database.", e);
@@ -156,11 +154,14 @@ public interface CacheProvider {
 
         @DatabaseTable
         static class Mapping {
-            @DatabaseField(generatedId = true)
-            UUID id;
-            @DatabaseField(index = true)
+            // // sourceとtargetから計算できる値にするとよい?
+            // @DatabaseField(generatedId = true)
+            // UUID id;
+            // primary keyだといいんだが……
+            @DatabaseField(uniqueCombo = true, uniqueIndexName = "mapping-ids")
             String sourceId;
-            @DatabaseField(index = true)
+            // 応急処置(uniqueにならないかもしれない……)
+            @DatabaseField(id = true, uniqueCombo = true, uniqueIndexName = "mapping-ids")
             String targetId;
 
             public Mapping() {}
@@ -171,47 +172,40 @@ public interface CacheProvider {
             }
         }
 
-        enum ObjectTypes {
+        enum ObjectType {
             Commit, Tree, Blob
         }
 
-        // 書きにくかったら混ぜる
         @DatabaseTable
-        static class ObjectType {
+        static class ObjectInfo {
             @DatabaseField(id = true)
             String id;
             @DatabaseField
-            ObjectTypes type;
-
-            public ObjectType() {}
-
-            public ObjectType(ObjectId id, ObjectTypes type) {
-                this.id = id.getName();
-                this.type = type;
-            }
-        }
-
-        @DatabaseTable
-        static class PersistedEntry {
-            @DatabaseField(id = true)
-            String id;
+            ObjectType type;
+            // 以下、typeがCommitの時nullable
             @DatabaseField
-            int mode; // by bytes presentation
+            int mode;
             @DatabaseField
             String fileName;
             @DatabaseField
             String directory;
 
-            public PersistedEntry() {}
+            public ObjectInfo() {}
 
-            public PersistedEntry(Entry e) {
+            public ObjectInfo(ObjectId id, ObjectType type) {
+                this.id = id.getName();
+                this.type = type;
+            }
+
+            public ObjectInfo(Entry e) {
                 this.id = e.id.getName();
+                this.type = e.isTree() ? ObjectType.Tree : ObjectType.Blob;
                 this.fileName = e.name;
                 this.directory = e.directory;
                 this.mode = e.mode.getBits();
             }
 
-            public PersistedEntry(ObjectId id, FileMode mode, String fileName, String directory) {
+            public ObjectInfo(ObjectId id, FileMode mode, String fileName, String directory) {
                 this.id = id.getName();
                 this.mode = mode.getBits();
                 this.fileName = fileName;
@@ -225,16 +219,44 @@ public interface CacheProvider {
             public Entry toEntry() {
                 return new Entry(getFileMode(), fileName, ObjectId.fromString(id), directory);
             }
+
         }
 
         @Override
         public void registerObject(ObjectId source, ObjectId target, Context c) {
             try {
-                Mapping mapping = new Mapping(source, target);
-                mappingDao.create(mapping);
+                TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
+                    Mapping mapping = new Mapping(source, target);
+                    mappingDao.create(mapping);
+                    ObjectInfo sourceObjInfo = new ObjectInfo(source, ObjectType.Commit);
+                    objectInfoDao.createIfNotExists(sourceObjInfo);
+                    ObjectInfo targetObjInfo = new ObjectInfo(target, ObjectType.Commit);
+                    objectInfoDao.createIfNotExists(targetObjInfo);
+                    return null;
+                });
             } catch (SQLException e) {
                 log.warn("Could not save mapping {} to {}", source.getName(), target.getName(), e);
             }
+        }
+
+        @Override
+        public void writeOutFromCommitMapping(final Map<ObjectId, ObjectId> commitMapping, final Context c) throws IOException {
+            try {
+                mappingDao.callBatchTasks((Callable<Void>) () -> {
+                    for (Map.Entry<ObjectId, ObjectId> e : commitMapping.entrySet()) {
+                        Mapping m = new Mapping(e.getKey(), e.getValue());
+                        mappingDao.createIfNotExists(m);
+                        ObjectInfo sourceObjInfo = new ObjectInfo(e.getKey(), ObjectType.Commit);
+                        objectInfoDao.createIfNotExists(sourceObjInfo);
+                        ObjectInfo targetObjInfo = new ObjectInfo(e.getValue(), ObjectType.Commit);
+                        objectInfoDao.createIfNotExists(targetObjInfo);
+                    }
+                    return null;
+                });
+            } catch (Exception e) {
+                log.warn("Failed to save", e);
+            }
+            writeOut(c);
         }
 
         @Override
@@ -252,9 +274,7 @@ public interface CacheProvider {
         public Optional<ObjectId> getFromTargetObject(ObjectId target, Context c) {
             try {
                 PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("target", target.getName()).prepare();
-                return Optional.ofNullable(
-                    mappingDao.queryForFirst(q)
-                ).map(m -> ObjectId.fromString(m.sourceId));
+                return Optional.ofNullable(mappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.sourceId));
             } catch (SQLException e) {
                 log.warn("Could not fetch any data", e);
                 return Optional.empty();
@@ -279,15 +299,27 @@ public interface CacheProvider {
         public void registerEntry(Entry source, EntrySet target, Context c) {
             try {
                 if (target instanceof Entry) {
-                    Mapping mapping = new Mapping(source.id, ((Entry) target).id);
-                    mappingDao.create(mapping);
-                    ObjectType objType = new ObjectType();
+                    TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
+                        Mapping mapping = new Mapping(source.id, ((Entry) target).id);
+                        mappingDao.createIfNotExists(mapping);
+                        ObjectInfo sourceObjInfo = new ObjectInfo(source);
+                        objectInfoDao.createIfNotExists(sourceObjInfo);
+                        ObjectInfo targetObjInfo = new ObjectInfo((Entry) target);
+                        objectInfoDao.createIfNotExists(targetObjInfo);
+                        return null;
+                    });
                 } else {
-                    for (Entry t : ((EntryList) target).entries()) {
-                        Mapping mapping = new Mapping(source.id, t.id);
-                        mappingDao.create(mapping);
-                        // ObjectType sourceType = new ObjectType(source.id, )
-                    }
+                    TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
+                        ObjectInfo sourceInfo = new ObjectInfo(source);
+                        objectInfoDao.createIfNotExists(sourceInfo);
+                        for (Entry t : ((EntryList) target).entries()) {
+                            Mapping mapping = new Mapping(source.id, t.id);
+                            mappingDao.createIfNotExists(mapping);
+                            ObjectInfo targetInfo = new ObjectInfo(t);
+                            objectInfoDao.createIfNotExists(targetInfo);
+                        }
+                        return null;
+                    });
                 }
             } catch (SQLException e) {
                 log.warn("Could not save mappings", e);
@@ -300,10 +332,9 @@ public interface CacheProvider {
             try {
                 PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("source", source.id.getName()).prepare();
                 try (CloseableIterator<Mapping> mappings = mappingDao.iterator(q)) {
-                    while (mappings.hasNext()) {
-                        Mapping m = mappings.next();
-                        if (objectTypeDao.queryForId(m.targetId).type == ObjectTypes.Commit) continue;
-                        el.add(persistedEntryDao.queryForId(m.targetId).toEntry());
+                    for (ObjectInfo t : objectInfoDao.query(objectInfoDao.queryBuilder().where().in("id", mappings).prepare())) {
+                        if (t.type == ObjectType.Commit) continue;
+                        el.add(t.toEntry());
                     }
                 }
                 return Optional.of(el);
@@ -317,12 +348,13 @@ public interface CacheProvider {
         public Optional<ImmutablePair<Entry, EntrySet>> getFromTargetEntry(Entry target, Context c) {
             // 右はtarget自身も含める
             try {
-                // 一意と仮定して良い?
                 PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("target", target.id.getName()).prepare();
                 Mapping m = mappingDao.queryForFirst(q);
                 if (m == null) return Optional.empty();
-                if (objectTypeDao.queryForId(m.sourceId).type == ObjectTypes.Commit) return Optional.empty();
-                Entry sourceEntry = persistedEntryDao.queryForId(m.sourceId).toEntry();
+                ObjectInfo sourceObjInfo = objectInfoDao.queryForId(m.sourceId);
+                if (sourceObjInfo.type == ObjectType.Commit) return Optional.empty();
+
+                Entry sourceEntry = sourceObjInfo.toEntry();
                 EntrySet targetEntries = getFromSourceEntry(sourceEntry, c).orElse(EntrySet.EMPTY);
                 return Optional.of(ImmutablePair.of(sourceEntry, targetEntries));
             } catch (SQLException e) {
