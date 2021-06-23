@@ -175,7 +175,7 @@ public class RepositoryRewriter {
 
         if (cacheLevel == CacheLevel.Commit) {
             uninterestings.addAll(cacheProvider
-                .getAllObjects(c)
+                .getAllCommits(c)
                 .stream()
                 .map(pair -> {
                     // 副作用さん……
@@ -331,7 +331,6 @@ public class RepositoryRewriter {
      */
     protected EntrySet rewriteEntry(final Entry entry, final Context c) {
         final Context uc = c.with(Key.entry, entry);
-        // ここ?
 
         final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, uc) : rewriteBlob(entry.id, uc);
         final String newName = rewriteName(entry.name, uc);

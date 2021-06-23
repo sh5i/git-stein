@@ -98,7 +98,6 @@ public class Historage extends RepositoryRewriter {
 
     @Override
     public EntrySet rewriteEntry(final Entry entry, final Context c) {
-        // entryMapping呼んでなくね?
         if (entry.isTree()) {
             return super.rewriteEntry(entry, c);
         }

@@ -32,45 +32,28 @@ import java.util.stream.Collectors;
 
 public interface CacheProvider {
 
-    // ObjectId系統
-
-    /**
-     * キャッシュを登録
-     *
-     * @param source 変換元オブジェクト
-     * @param target 変換先オブジェクト
-     */
-    void registerObject(final ObjectId source, final ObjectId target, final Context c);
+    // Commit系統
 
     /**
      * @param commitMapping 書き出し元のcommitMapping
      */
     default void writeOutFromCommitMapping(final Map<ObjectId, ObjectId> commitMapping, final Context c) throws IOException {
-        commitMapping.forEach((source, target) -> registerObject(source, target, c));
+        commitMapping.forEach((source, target) -> registerCommit(source, target, c));
         writeOut(c);
     }
 
-    /**
-     * キャッシュの取得
-     *
-     * @param source 取得したい対象のオブジェクト
-     * @return sourceに紐付けられたデータがあればそのデータ、なければempty
-     */
-    Optional<ObjectId> getFromSourceObject(final ObjectId source, final Context c);
+    void registerCommit(final ObjectId source, final ObjectId target, final Context c);
 
-    Optional<ObjectId> getFromTargetObject(final ObjectId target, final Context c);
+    Optional<ObjectId> getFromSourceCommit(final ObjectId source, final Context c);
 
-    /**
-     * キャッシュ全件取得
-     *
-     * @return キャッシュのデータ(( sourceのID, targetのID)のペア)からなるList
-     */
-    List<ImmutablePair<ObjectId, ObjectId>> getAllObjects(final Context c);
+    Optional<ObjectId> getFromTargetCommit(final ObjectId target, final Context c);
+
+    List<ImmutablePair<ObjectId, ObjectId>> getAllCommits(final Context c);
 
     default Map<ObjectId, ObjectId> readToCommitMapping(final Context c) throws IOException {
         readIn(c);
         Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
-        for (ImmutablePair<ObjectId, ObjectId> pair : getAllObjects(c)) {
+        for (ImmutablePair<ObjectId, ObjectId> pair : getAllCommits(c)) {
             commitMapping.put(pair.getLeft(), pair.getRight());
         }
         return commitMapping;
@@ -127,7 +110,6 @@ public interface CacheProvider {
     public static class SQLiteCacheProvider implements CacheProvider {
         static Logger log = LoggerFactory.getLogger(SQLiteCacheProvider.class);
 
-        // マルチスレッドにもできるらしい、要チェック
         JdbcConnectionSource connectionSource = null;
         Dao<Mapping, String> mappingDao = null;
         Dao<ObjectInfo, String> objectInfoDao = null;
@@ -223,7 +205,7 @@ public interface CacheProvider {
         }
 
         @Override
-        public void registerObject(ObjectId source, ObjectId target, Context c) {
+        public void registerCommit(ObjectId source, ObjectId target, Context c) {
             try {
                 TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
                     Mapping mapping = new Mapping(source, target);
@@ -236,6 +218,33 @@ public interface CacheProvider {
                 });
             } catch (SQLException e) {
                 log.warn("Could not save mapping {} to {}", source.getName(), target.getName(), e);
+            }
+        }
+
+        @Override
+        public Optional<ObjectId> getFromSourceCommit(ObjectId source, Context c) {
+            try {
+                // コミットのみ
+                ObjectInfo sInfo = objectInfoDao.queryForId(source.getName());
+                if (sInfo == null || sInfo.type != ObjectType.Commit) return Optional.empty();
+                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("sourceId", source.getName()).prepare();
+                return Optional.ofNullable(mappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.targetId));
+            } catch (SQLException e) {
+                log.warn("Could not fetch any data", e);
+                return Optional.empty();
+            }
+        }
+
+        @Override
+        public Optional<ObjectId> getFromTargetCommit(ObjectId target, Context c) {
+            try {
+                ObjectInfo tInfo = objectInfoDao.queryForId(target.getName());
+                if (tInfo == null || tInfo.type != ObjectType.Commit) return Optional.empty();
+                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("targetId", target.getName()).prepare();
+                return Optional.ofNullable(mappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.sourceId));
+            } catch (SQLException e) {
+                log.warn("Could not fetch any data", e);
+                return Optional.empty();
             }
         }
 
@@ -260,34 +269,21 @@ public interface CacheProvider {
         }
 
         @Override
-        public Optional<ObjectId> getFromSourceObject(ObjectId source, Context c) {
+        public List<ImmutablePair<ObjectId, ObjectId>> getAllCommits(Context c) {
             try {
-                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("source", source.getName()).prepare();
-                return Optional.ofNullable(mappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.targetId));
-            } catch (SQLException e) {
-                log.warn("Could not fetch any data", e);
-                return Optional.empty();
-            }
-        }
-
-        @Override
-        public Optional<ObjectId> getFromTargetObject(ObjectId target, Context c) {
-            try {
-                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("target", target.getName()).prepare();
-                return Optional.ofNullable(mappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.sourceId));
-            } catch (SQLException e) {
-                log.warn("Could not fetch any data", e);
-                return Optional.empty();
-            }
-        }
-
-        @Override
-        public List<ImmutablePair<ObjectId, ObjectId>> getAllObjects(Context c) {
-            try {
-                // ほんとかな(Commitだけとかあった方がよさ?)
                 return mappingDao.queryForAll()
                     .stream()
-                    .map(m -> ImmutablePair.of(ObjectId.fromString(m.sourceId), ObjectId.fromString(m.targetId)))
+                    .map(m -> {
+                        try {
+                            ObjectInfo sInfo = objectInfoDao.queryForId(m.sourceId);
+                            if (sInfo == null || sInfo.type != ObjectType.Commit) return null;
+                            return ImmutablePair.of(ObjectId.fromString(m.sourceId), ObjectId.fromString(m.targetId));
+                        } catch (SQLException e) {
+                            log.warn("Could not fetch data about {}", m.sourceId, e);
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toList());
             } catch (SQLException e) {
                 log.warn("Could not fetch any data", e);
@@ -324,6 +320,39 @@ public interface CacheProvider {
             } catch (SQLException e) {
                 log.warn("Could not save mappings", e);
             }
+        }
+
+        @Override
+        public void writeOutFromEntryMapping(Map<Entry, EntrySet> entryMapping, Context c) throws IOException {
+            try {
+                mappingDao.callBatchTasks((Callable<Void>) () -> {
+                    for (Map.Entry<Entry, EntrySet> e : entryMapping.entrySet()) {
+                        Entry source = e.getKey();
+                        if (e.getValue() instanceof Entry) {
+                            Entry target = (Entry) e.getValue();
+                            Mapping mapping = new Mapping(source.id, target.id);
+                            mappingDao.createIfNotExists(mapping);
+                            ObjectInfo sourceObjInfo = new ObjectInfo(source);
+                            objectInfoDao.createIfNotExists(sourceObjInfo);
+                            ObjectInfo targetObjInfo = new ObjectInfo(target);
+                            objectInfoDao.createIfNotExists(targetObjInfo);
+                        } else if (e.getValue() instanceof EntryList) {
+                            ObjectInfo sourceObjInfo = new ObjectInfo(source);
+                            objectInfoDao.createIfNotExists(sourceObjInfo);
+                            for (Entry t : ((EntryList) e.getValue()).entries()) {
+                                Mapping mapping = new Mapping(source.id, t.id);
+                                mappingDao.createIfNotExists(mapping);
+                                ObjectInfo targetObjectInfo = new ObjectInfo(t);
+                                objectInfoDao.createIfNotExists(targetObjectInfo);
+                            }
+                        }
+                    }
+                    return null;
+                });
+            } catch (Exception e) {
+                log.warn("Failed to save.", e);
+            }
+            writeOut(c);
         }
 
         @Override
@@ -442,30 +471,38 @@ public interface CacheProvider {
         }
 
         @Override
-        public void registerObject(final ObjectId source, final ObjectId target, final Context c) {
+        public void registerCommit(final ObjectId source, final ObjectId target, final Context c) {
             synchronized (noteMap) {
-                targetRepo.addNote(noteMap, target, source.getName(), c);
+                String note = "Commit\n" + source.getName();
+                targetRepo.addNote(noteMap, target, note, c);
             }
         }
 
         @Override
-        public Optional<ObjectId> getFromSourceObject(ObjectId source, Context c) {
+        public Optional<ObjectId> getFromSourceCommit(ObjectId source, Context c) {
             // これどーすんの
             return Optional.empty();
         }
 
         @Override
-        public Optional<ObjectId> getFromTargetObject(ObjectId target, final Context c) {
-            return Try.io(() -> Optional.ofNullable(noteMap.get(target)))
-                .map(blobId -> ObjectId.fromString(targetRepo.readBlob(blobId, c), 0));
+        public Optional<ObjectId> getFromTargetCommit(ObjectId target, final Context c) {
+            ObjectId blobId = Try.io(() -> noteMap.get(target));
+            if (blobId == null) return Optional.empty();
+            String[] note = new String(targetRepo.readBlob(blobId, c)).split("\n");
+            if ((note[0]).equals("Commit")) {
+                return Optional.of(ObjectId.fromString(note[1]));
+            } else return Optional.empty();
         }
 
         @Override
-        public List<ImmutablePair<ObjectId, ObjectId>> getAllObjects(final Context c) {
+        public List<ImmutablePair<ObjectId, ObjectId>> getAllCommits(final Context c) {
             final List<ImmutablePair<ObjectId, ObjectId>> res = new ArrayList<>();
             targetRepo.eachNote(noteMap, (ObjectId targetCommitId, byte[] sourceCommitIdArray) -> {
-                ObjectId sourceObjectId = ObjectId.fromString(sourceCommitIdArray, 0);
-                res.add(ImmutablePair.of(sourceObjectId, targetCommitId));
+                String[] note = new String(sourceCommitIdArray).split("\n");
+                if ((note[0]).equals("Commit")) {
+                    ObjectId sourceObjectId = ObjectId.fromString(note[1]);
+                    res.add(ImmutablePair.of(sourceObjectId, targetCommitId));
+                }
             }, c);
             return res;
         }
