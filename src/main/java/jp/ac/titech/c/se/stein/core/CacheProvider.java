@@ -304,7 +304,7 @@ public interface CacheProvider {
                         objectInfoDao.createIfNotExists(targetObjInfo);
                         return null;
                     });
-                } else {
+                } else if (target instanceof EntryList) {
                     TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
                         ObjectInfo sourceInfo = new ObjectInfo(source);
                         objectInfoDao.createIfNotExists(sourceInfo);
@@ -359,14 +359,16 @@ public interface CacheProvider {
         public Optional<EntrySet> getFromSourceEntry(Entry source, Context c) {
             EntryList el = new EntryList();
             try {
-                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("source", source.id.getName()).prepare();
+                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("sourceId", source.id.getName()).prepare();
                 try (CloseableIterator<Mapping> mappings = mappingDao.iterator(q)) {
                     for (ObjectInfo t : objectInfoDao.query(objectInfoDao.queryBuilder().where().in("id", mappings).prepare())) {
                         if (t.type == ObjectType.Commit) continue;
                         el.add(t.toEntry());
                     }
                 }
-                return Optional.of(el);
+                // 空だった場合の扱い?(変換した結果空なのか、変換したことがないのか)
+                if (el.entries().size() == 0) return Optional.empty();
+                else return Optional.of(el);
             } catch (SQLException | IOException e) {
                 log.warn("Could not get any data", e);
                 return Optional.empty();
@@ -377,15 +379,15 @@ public interface CacheProvider {
         public Optional<ImmutablePair<Entry, EntrySet>> getFromTargetEntry(Entry target, Context c) {
             // 右はtarget自身も含める
             try {
-                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("target", target.id.getName()).prepare();
+                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("targetId", target.id.getName()).prepare();
                 Mapping m = mappingDao.queryForFirst(q);
                 if (m == null) return Optional.empty();
                 ObjectInfo sourceObjInfo = objectInfoDao.queryForId(m.sourceId);
                 if (sourceObjInfo.type == ObjectType.Commit) return Optional.empty();
 
                 Entry sourceEntry = sourceObjInfo.toEntry();
-                EntrySet targetEntries = getFromSourceEntry(sourceEntry, c).orElse(EntrySet.EMPTY);
-                return Optional.of(ImmutablePair.of(sourceEntry, targetEntries));
+                Optional<EntrySet> targetEntries = getFromSourceEntry(sourceEntry, c);
+                return targetEntries.map(entrySet -> ImmutablePair.of(sourceEntry, entrySet));
             } catch (SQLException e) {
                 log.warn("Could not get any data", e);
                 return Optional.empty();
@@ -512,19 +514,19 @@ public interface CacheProvider {
             EntrySerializer es = new EntrySerializer().register(source);
             if (target instanceof Entry) {
                 es.register((Entry) target);
+                String note = es.serialize();
                 synchronized (noteMap) {
-                    targetRepo.addNote(noteMap, ((Entry) target).id, es.serialize(), c);
+                    targetRepo.addNote(noteMap, ((Entry) target).id, note, c);
                 }
-            } else {
+            } else if (target instanceof EntryList) {
                 ((EntryList) target).entries().forEach(es::register);
+                String note = es.serialize();
                 ((EntryList) target).entries().forEach(e -> {
                     synchronized (noteMap) {
-                        targetRepo.addNote(noteMap, e.id, es.serialize(), c);
-
+                        targetRepo.addNote(noteMap, e.id, note, c);
                     }
                 });
             }
-
         }
 
         @Override
@@ -548,8 +550,11 @@ public interface CacheProvider {
             // 死ぬほど重複しそう……要素が一致すればhashCodeも一致するように実装されてるので一旦hashmapとかに入れる?
 
             targetRepo.eachNote(noteMap, (ObjectId targetCommitId, byte[] data) -> {
-                ImmutablePair<Entry, EntrySet> pair = EntryDeserializer.deserialize(new String(data));
-                res.putIfAbsent(pair.getLeft(), pair.getRight());
+                String dataStr = new String(data);
+                if (!((dataStr.split("\n"))[0].equals("Commit"))) {
+                    ImmutablePair<Entry, EntrySet> pair = EntryDeserializer.deserialize(new String(data));
+                    res.putIfAbsent(pair.getLeft(), pair.getRight());
+                }
             }, c);
             return res.entrySet().stream().map(e -> ImmutablePair.of(e.getKey(), e.getValue())).collect(Collectors.toList());
         }

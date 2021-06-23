@@ -319,11 +319,16 @@ public class RepositoryRewriter {
         final EntrySet cache = entryMapping.get(entry);
         if (cache != null) {
             return cache;
-        } else {
-            final EntrySet result = rewriteEntry(entry, c);
-            entryMapping.put(entry, result);
-            return result;
         }
+        if ((cacheLevel == CacheLevel.Tree && entry.isTree()) || (cacheLevel == CacheLevel.Blob && !entry.isTree())) {
+            final Optional<EntrySet> maybeNewEntry = cacheProvider.getFromSourceEntry(entry, c);
+            if (maybeNewEntry.isPresent()) {
+                return maybeNewEntry.get();
+            }
+        }
+        final EntrySet result = rewriteEntry(entry, c);
+        entryMapping.put(entry, result);
+        return result;
     }
 
     /**
@@ -649,7 +654,7 @@ public class RepositoryRewriter {
         if (cacheLevel == CacheLevel.Commit) {
             // commitMappingを直接書き変えてもいいかも……
             commitMapping = Try.io(c, () -> cacheProvider.readToCommitMapping(c));
-        } else if (cacheLevel == CacheLevel.Blob || cacheLevel == CacheLevel.Tree) {
+        } else if (cacheProvider instanceof CacheProvider.GitNotesCacheProvider && (cacheLevel == CacheLevel.Blob || cacheLevel == CacheLevel.Tree)) {
             entryMapping = Try.io(c, () -> cacheProvider.readToEntryMapping(nthreads > 1, c));
         }
     }
