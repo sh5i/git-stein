@@ -81,6 +81,9 @@ public class RepositoryRewriter {
     protected CacheLevel cacheLevel = CacheLevel.None;
     protected CacheProvider cacheProvider;
 
+    @Option(names = "--cache-provider", description = "How to save cache", order = Config.MIDDLE)
+    protected String cacheProviderType = "SQLite";
+
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
         target = new RepositoryAccess(targetRepo);
@@ -97,8 +100,8 @@ public class RepositoryRewriter {
             target.setDryRunning(true);
         }
         if (cacheLevel.isSet()) {
-            // cacheProvider = new CacheProvider.GitNotesCacheProvider(target);
-            cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
+             if (cacheProviderType.equals("git-notes")) cacheProvider = new CacheProvider.GitNotesCacheProvider(target);
+            else cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
         }
     }
 
