@@ -466,6 +466,10 @@ public interface CacheProvider {
                 return ImmutablePair.of(e, el);
             }
         }
+        
+        public GitNotesCacheProvider(Repository target) {
+            this(new RepositoryAccess(target));
+        }
 
         public GitNotesCacheProvider(RepositoryAccess target) {
             this.targetRepo = target;

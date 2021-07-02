@@ -69,19 +69,21 @@ public class RepositoryRewriter {
     protected boolean isRewritingExtraAttributes = false;
 
     enum CacheLevel {
-        None, Blob, Tree, Commit;
-
-        public boolean isSet() { return this != None;}
+        Blob, Tree, Commit
     }
 
-    @Option(names = "--cache-level", description = {
+    @Option(names = "--cache-level", arity = "0..*", description = {
         "granularity of cache used for fast conversion",
+        "this is additive, and if you select None and another, then None is ignored.",
         "Valid values: ${COMPLETION-CANDIDATES}"
     }, order = Config.MIDDLE)
-    protected CacheLevel cacheLevel = CacheLevel.None;
+    protected CacheLevel[] cacheLevel = {};
     protected CacheProvider cacheProvider;
 
-    @Option(names = "--cache-provider", description = "How to save cache", order = Config.MIDDLE)
+    @Option(names = "--cache-provider", description = {
+        "How to save cache",
+        "Currently available method is SQLite and git-notes."
+    }, order = Config.MIDDLE)
     protected String cacheProviderType = "SQLite";
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
@@ -99,20 +101,21 @@ public class RepositoryRewriter {
             source.setDryRunning(true);
             target.setDryRunning(true);
         }
-        if (cacheLevel.isSet()) {
-             if (cacheProviderType.equals("git-notes")) cacheProvider = new CacheProvider.GitNotesCacheProvider(target);
+        if (cacheLevel.length != 0) {
+            if (cacheProviderType.equals("git-notes"))
+                cacheProvider = new CacheProvider.GitNotesCacheProvider(targetRepo);
             else cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
         }
     }
 
     public void rewrite(final Context c) {
         setUp(c);
-        if (cacheLevel.isSet()) loadCache(c);
+        if (cacheLevel.length != 0) loadCache(c);
         rewriteCommits(c);
         updateRefs(c);
         source.writeNotes(c);
         target.writeNotes(c);
-        if (cacheLevel.isSet()) saveCache(c);
+        if (cacheLevel.length != 0) saveCache(c);
         cleanUp(c);
     }
 
@@ -176,7 +179,7 @@ public class RepositoryRewriter {
         final Collection<ObjectId> starts = collectStarts(c);
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
 
-        if (cacheLevel == CacheLevel.Commit) {
+        if (Arrays.asList(cacheLevel).contains(CacheLevel.Commit)) {
             uninterestings.addAll(cacheProvider
                 .getAllCommits(c)
                 .stream()
@@ -323,9 +326,12 @@ public class RepositoryRewriter {
         if (cache != null) {
             return cache;
         }
-        if ((cacheLevel == CacheLevel.Tree && entry.isTree()) || (cacheLevel == CacheLevel.Blob && !entry.isTree())) {
+        if ((Arrays.asList(cacheLevel).contains(CacheLevel.Tree) && entry.isTree()) ||
+            // entryMappingにある = 次回以降は読めるのでOK?
+            (Arrays.asList(cacheLevel).contains(CacheLevel.Blob) && !entry.isTree())) {
             final Optional<EntrySet> maybeNewEntry = cacheProvider.getFromSourceEntry(entry, c);
             if (maybeNewEntry.isPresent()) {
+                entryMapping.put(entry, maybeNewEntry.get());
                 return maybeNewEntry.get();
             }
         }
@@ -654,18 +660,22 @@ public class RepositoryRewriter {
     }
 
     public void loadCache(final Context c) {
-        if (cacheLevel == CacheLevel.Commit) {
+        if (Arrays.asList(cacheLevel).contains(CacheLevel.Commit)) {
             // commitMappingを直接書き変えてもいいかも……
             commitMapping = Try.io(c, () -> cacheProvider.readToCommitMapping(c));
-        } else if (cacheProvider instanceof CacheProvider.GitNotesCacheProvider && (cacheLevel == CacheLevel.Blob || cacheLevel == CacheLevel.Tree)) {
+        }
+        if (cacheProvider instanceof CacheProvider.GitNotesCacheProvider &&
+            (Arrays.asList(cacheLevel).contains(CacheLevel.Blob) || Arrays.asList(cacheLevel).contains(CacheLevel.Tree))) {
             entryMapping = Try.io(c, () -> cacheProvider.readToEntryMapping(nthreads > 1, c));
         }
     }
 
     public void saveCache(final Context c) {
-        if (cacheLevel == CacheLevel.Commit) {
+        if (Arrays.asList(cacheLevel).contains(CacheLevel.Commit)) {
             Try.io(c, () -> cacheProvider.writeOutFromCommitMapping(commitMapping, c));
-        } else if (cacheLevel == CacheLevel.Blob || cacheLevel == CacheLevel.Tree) {
+        } 
+        if (Arrays.asList(cacheLevel).contains(CacheLevel.Blob) || Arrays.asList(cacheLevel).contains(CacheLevel.Tree)) {
+            // 全部(Blob/Tree区別せずに)書いてるなあ(読み出しに影響はないけど……)
             Try.io(c, () -> cacheProvider.writeOutFromEntryMapping(entryMapping, c));
         }
 
