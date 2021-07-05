@@ -337,6 +337,10 @@ public class RepositoryRewriter {
         }
         final EntrySet result = rewriteEntry(entry, c);
         entryMapping.put(entry, result);
+        if ((Arrays.asList(cacheLevel).contains(CacheLevel.Tree) && entry.isTree()) ||
+            (Arrays.asList(cacheLevel).contains(CacheLevel.Blob) && !entry.isTree())) {
+            cacheProvider.registerEntry(entry, result, c);
+        }
         return result;
     }
 
@@ -673,8 +677,9 @@ public class RepositoryRewriter {
     public void saveCache(final Context c) {
         if (Arrays.asList(cacheLevel).contains(CacheLevel.Commit)) {
             Try.io(c, () -> cacheProvider.writeOutFromCommitMapping(commitMapping, c));
-        } 
-        if (Arrays.asList(cacheLevel).contains(CacheLevel.Blob) || Arrays.asList(cacheLevel).contains(CacheLevel.Tree)) {
+        }
+        if (cacheProvider instanceof CacheProvider.GitNotesCacheProvider &&
+            (Arrays.asList(cacheLevel).contains(CacheLevel.Blob) || Arrays.asList(cacheLevel).contains(CacheLevel.Tree))) {
             // 全部(Blob/Tree区別せずに)書いてるなあ(読み出しに影響はないけど……)
             Try.io(c, () -> cacheProvider.writeOutFromEntryMapping(entryMapping, c));
         }
