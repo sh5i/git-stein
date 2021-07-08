@@ -71,11 +71,11 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
     }
 
     /**
-     * Checks whether two vertices can be merged (no parent-child relationship).
+     * Checks whether two vertices are in a ancestor-descendant relationship (either can be the ancestor side).
      */
-    public boolean isMergeable(final Vertex base, final Vertex target) {
+    public boolean isAncestorDescendantRelationship(final Vertex base, final Vertex target) {
         final Set<Vertex> lca = new NaiveLCAFinder<Vertex, Edge>(reversed).getLCASet(base, target);
-        return !lca.contains(base) && !lca.contains(target);
+        return lca.contains(base) || lca.contains(target);
     }
 
     /**
@@ -84,9 +84,9 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
      * @param base
      * @param target
      */
-    public void mergeVertices(final Vertex base, final Vertex target) {
+    public boolean mergeVertices(final Vertex base, final Vertex target) {
         if (base.equals(target)) {
-            return;
+            return false;
         }
         // assert isMergeable(base, target);
 
@@ -94,14 +94,19 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
             final Vertex v = getEdgeTarget(e);
             removeEdge(e);
             // This will use newly created edge having the latest index
-            addEdge(base, v);
+            if (!base.equals(v)) {
+                addEdge(base, v);
+            }
         }
         for (final Edge e : new ArrayList<>(incomingEdgesOf(target))) {
             final Vertex v = getEdgeSource(e);
             removeEdge(e);
-            addEdge(v, base, e); // keep the original edge order
+            if (!base.equals(v)) {
+                addEdge(v, base, e); // keep the original edge order
+            }
         }
         removeVertex(target);
+        return true;
     }
 
     /**
@@ -111,11 +116,11 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
      * @return true if they are mergeable and merged.
      */
     public boolean mergeVerticesSafely(final Vertex base, final Vertex target) {
-        if (!isMergeable(base, target)) {
+        if (isAncestorDescendantRelationship(base, target)) {
             return false;
+        } else {
+            return mergeVertices(base, target);
         }
-        mergeVertices(base, target);
-        return true;
     }
 
     /**

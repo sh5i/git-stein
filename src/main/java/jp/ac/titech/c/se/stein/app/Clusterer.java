@@ -111,7 +111,10 @@ public class Clusterer extends RepositoryRewriter {
             addEdges(recipe.get("addEdges"));
         }
         if (recipe.containsKey("clusters")) {
-            mergeClusters(recipe.get("clusters"));
+            mergeClusters(recipe.get("clusters"), true);
+        }
+        if (recipe.containsKey("forcedClusters")) {
+            mergeClusters(recipe.get("forcedClusters"), false);
         }
     }
 
@@ -133,10 +136,10 @@ public class Clusterer extends RepositoryRewriter {
         }
     }
 
-    private void mergeClusters(final List<List<String>> clustersRecipe) {
+    private void mergeClusters(final List<List<String>> clustersRecipe, final boolean safe) {
         for (final List<String> c : clustersRecipe) {
             final List<Vertex> in = c.stream().map(Vertex::of).collect(Collectors.toList());
-            final List<Vertex> out = mergeCluster(in);
+            final List<Vertex> out = mergeCluster(in, safe);
             log.debug("Merge cluster: {} -> {} (size: {} -> {})", in, out, in.size(), out.size());
         }
     }
@@ -149,12 +152,12 @@ public class Clusterer extends RepositoryRewriter {
      * @return A list of merged commits. If its size = 1, all the commits are
      *         merged into one.
      */
-    protected List<Vertex> mergeCluster(final List<Vertex> cluster) {
+    protected List<Vertex> mergeCluster(final List<Vertex> cluster, final boolean safe) {
         final List<Vertex> result = new ArrayList<>();
         final Vertex base = cluster.get(0);
         result.add(base);
         cluster.stream().skip(1).forEach(v -> {
-            if (graph.mergeVerticesSafely(base, v)) {
+            if (safe ? graph.mergeVerticesSafely(base, v) : graph.mergeVertices(base, v)) {
                 alternateMapping.put(v.id, base.id);
             } else {
                 result.add(v);
