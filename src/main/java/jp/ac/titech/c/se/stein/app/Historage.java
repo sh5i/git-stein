@@ -28,6 +28,7 @@ import org.eclipse.jdt.core.dom.EnumDeclaration;
 import org.eclipse.jdt.core.dom.FieldDeclaration;
 import org.eclipse.jdt.core.dom.Javadoc;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
+import org.eclipse.jdt.core.dom.PackageDeclaration;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.Type;
 import org.eclipse.jdt.core.dom.TypeDeclaration;
@@ -88,6 +89,12 @@ public class Historage extends RepositoryRewriter {
 
     @Option(names = "--comment-ext", description = "comment file extension")
     protected String commentExtension = "com";
+
+    @Option(names = "--unqualify", description = "unqualify typenames")
+    protected boolean unqualifyTypename = false;
+
+    @Option(names = "--parsable", description = "generate more parsable files")
+    protected boolean parsable = false;
 
     @Override
     public EntrySet rewriteEntry(final Entry entry, final Context c) {
@@ -467,10 +474,34 @@ public class Historage extends RepositoryRewriter {
         }
 
         /**
-         * Gets the content of the given node.
+         * Gets the source content of the given node.
+         */
+        protected String getSource(final BodyDeclaration node) {
+            return separatesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).toString();
+        }
+
+        /**
+         * Gets the content of the given node. If an option requested, code of
+         * its belonging package and class is supplied to make it more parsable.
          */
         protected String getContent(final BodyDeclaration node) {
-            return separatesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).toString();
+            if (!parsable) {
+                return getSource(node);
+            }
+
+            final StringBuilder sb = new StringBuilder();
+            final PackageDeclaration pkg = unit.getPackage();
+            if (pkg != null) {
+                sb.append("package ").append(pkg.getName().getFullyQualifiedName()).append(";\n");
+            }
+            if (node instanceof TypeDeclaration) {
+                sb.append(getSource(node));
+            } else {
+                sb.append("class ").append(stack.peek().getBasename()).append(" {\n");
+                sb.append(getSource(node));
+                sb.append("}\n");
+            }
+            return sb.toString();
         }
 
         @Override
@@ -603,7 +634,12 @@ public class Historage extends RepositoryRewriter {
 
         protected String getTypeName(final SingleVariableDeclaration v) {
             final StringBuilder sb = new StringBuilder();
-            sb.append(escape(v.getType().toString()));
+            String name = v.getType().toString();
+            if (unqualifyTypename && name.contains(".")) {
+                name = name.replaceAll("[a-zA-Z0-9_\\$]+\\.", "");
+            }
+            sb.append(escape(name));
+
             for (int i = 0; i < v.getExtraDimensions(); i++) {
                 sb.append("[]");
             }
