@@ -39,3 +39,7 @@ jar {
         attributes "Main-Class": "jp.ac.titech.c.se.stein.Loader"
     }
 }
+
+shadowJar {
+  minimize()
+}
