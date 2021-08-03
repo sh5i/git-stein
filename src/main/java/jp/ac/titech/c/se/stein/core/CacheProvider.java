@@ -111,7 +111,8 @@ public interface CacheProvider {
         static Logger log = LoggerFactory.getLogger(SQLiteCacheProvider.class);
 
         JdbcConnectionSource connectionSource = null;
-        Dao<Mapping, String> mappingDao = null;
+        Dao<CommitMappingTable, String> commitMappingDao = null;
+        Dao<EntryMappingTable, String> entryMappingDao = null;
         Dao<ObjectInfo, String> objectInfoDao = null;
 
         public SQLiteCacheProvider(Repository target) {
@@ -119,8 +120,10 @@ public interface CacheProvider {
             Path dbFile = dotGitDir.toPath().resolve("cache.db");
             try {
                 connectionSource = new JdbcConnectionSource("jdbc:sqlite:" + dbFile);
-                mappingDao = DaoManager.createDao(connectionSource, Mapping.class);
-                TableUtils.createTableIfNotExists(connectionSource, Mapping.class);
+                commitMappingDao = DaoManager.createDao(connectionSource, CommitMappingTable.class);
+                TableUtils.createTableIfNotExists(connectionSource, CommitMappingTable.class);
+                entryMappingDao = DaoManager.createDao(connectionSource, EntryMappingTable.class);
+                TableUtils.createTableIfNotExists(connectionSource, EntryMappingTable.class);
                 objectInfoDao = DaoManager.createDao(connectionSource, ObjectInfo.class);
                 TableUtils.createTableIfNotExists(connectionSource, ObjectInfo.class);
             } catch (SQLException e) {
@@ -135,20 +138,30 @@ public interface CacheProvider {
         }
 
         @DatabaseTable
-        static class Mapping {
-            // // sourceとtargetから計算できる値にするとよい?
-            // @DatabaseField(generatedId = true)
-            // UUID id;
-            // primary keyだといいんだが……
+        static class CommitMappingTable {
             @DatabaseField(uniqueCombo = true, uniqueIndexName = "mapping-ids")
             String sourceId;
-            // 応急処置(uniqueにならないかもしれない……)
             @DatabaseField(id = true, uniqueCombo = true, uniqueIndexName = "mapping-ids")
             String targetId;
 
-            public Mapping() {}
+            public CommitMappingTable() {}
 
-            public Mapping(ObjectId sourceId, ObjectId targetId) {
+            public CommitMappingTable(ObjectId sourceId, ObjectId targetId) {
+                this.sourceId = sourceId.getName();
+                this.targetId = targetId.getName();
+            }
+        }
+
+        @DatabaseTable
+        static class EntryMappingTable {
+            @DatabaseField(uniqueCombo = true, uniqueIndexName = "mapping-ids")
+            String sourceId;
+            @DatabaseField(id = true, uniqueCombo = true, uniqueIndexName = "mapping-ids")
+            String targetId;
+
+            public EntryMappingTable() {}
+
+            public EntryMappingTable(ObjectId sourceId, ObjectId targetId) {
                 this.sourceId = sourceId.getName();
                 this.targetId = targetId.getName();
             }
@@ -164,7 +177,6 @@ public interface CacheProvider {
             String id;
             @DatabaseField
             ObjectType type;
-            // 以下、typeがCommitの時nullable
             @DatabaseField
             int mode;
             @DatabaseField
@@ -208,12 +220,8 @@ public interface CacheProvider {
         public void registerCommit(ObjectId source, ObjectId target, Context c) {
             try {
                 TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
-                    Mapping mapping = new Mapping(source, target);
-                    mappingDao.create(mapping);
-                    ObjectInfo sourceObjInfo = new ObjectInfo(source, ObjectType.Commit);
-                    objectInfoDao.createIfNotExists(sourceObjInfo);
-                    ObjectInfo targetObjInfo = new ObjectInfo(target, ObjectType.Commit);
-                    objectInfoDao.createIfNotExists(targetObjInfo);
+                    CommitMappingTable mapping = new CommitMappingTable(source, target);
+                    commitMappingDao.create(mapping);
                     return null;
                 });
             } catch (SQLException e) {
@@ -225,10 +233,8 @@ public interface CacheProvider {
         public Optional<ObjectId> getFromSourceCommit(ObjectId source, Context c) {
             try {
                 // コミットのみ
-                ObjectInfo sInfo = objectInfoDao.queryForId(source.getName());
-                if (sInfo == null || sInfo.type != ObjectType.Commit) return Optional.empty();
-                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("sourceId", source.getName()).prepare();
-                return Optional.ofNullable(mappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.targetId));
+                PreparedQuery<CommitMappingTable> q = commitMappingDao.queryBuilder().where().eq("sourceId", source.getName()).prepare();
+                return Optional.ofNullable(commitMappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.targetId));
             } catch (SQLException e) {
                 log.warn("Could not fetch any data", e);
                 return Optional.empty();
@@ -238,10 +244,8 @@ public interface CacheProvider {
         @Override
         public Optional<ObjectId> getFromTargetCommit(ObjectId target, Context c) {
             try {
-                ObjectInfo tInfo = objectInfoDao.queryForId(target.getName());
-                if (tInfo == null || tInfo.type != ObjectType.Commit) return Optional.empty();
-                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("targetId", target.getName()).prepare();
-                return Optional.ofNullable(mappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.sourceId));
+                PreparedQuery<CommitMappingTable> q = commitMappingDao.queryBuilder().where().eq("targetId", target.getName()).prepare();
+                return Optional.ofNullable(commitMappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.sourceId));
             } catch (SQLException e) {
                 log.warn("Could not fetch any data", e);
                 return Optional.empty();
@@ -251,14 +255,10 @@ public interface CacheProvider {
         @Override
         public void writeOutFromCommitMapping(final Map<ObjectId, ObjectId> commitMapping, final Context c) throws IOException {
             try {
-                mappingDao.callBatchTasks((Callable<Void>) () -> {
+                entryMappingDao.callBatchTasks((Callable<Void>) () -> {
                     for (Map.Entry<ObjectId, ObjectId> e : commitMapping.entrySet()) {
-                        Mapping m = new Mapping(e.getKey(), e.getValue());
-                        mappingDao.createIfNotExists(m);
-                        ObjectInfo sourceObjInfo = new ObjectInfo(e.getKey(), ObjectType.Commit);
-                        objectInfoDao.createIfNotExists(sourceObjInfo);
-                        ObjectInfo targetObjInfo = new ObjectInfo(e.getValue(), ObjectType.Commit);
-                        objectInfoDao.createIfNotExists(targetObjInfo);
+                        CommitMappingTable m = new CommitMappingTable(e.getKey(), e.getValue());
+                        commitMappingDao.createIfNotExists(m);
                     }
                     return null;
                 });
@@ -271,19 +271,10 @@ public interface CacheProvider {
         @Override
         public List<ImmutablePair<ObjectId, ObjectId>> getAllCommits(Context c) {
             try {
-                return mappingDao.queryForAll()
+                return commitMappingDao
+                    .queryForAll()
                     .stream()
-                    .map(m -> {
-                        try {
-                            ObjectInfo sInfo = objectInfoDao.queryForId(m.sourceId);
-                            if (sInfo == null || sInfo.type != ObjectType.Commit) return null;
-                            return ImmutablePair.of(ObjectId.fromString(m.sourceId), ObjectId.fromString(m.targetId));
-                        } catch (SQLException e) {
-                            log.warn("Could not fetch data about {}", m.sourceId, e);
-                            return null;
-                        }
-                    })
-                    .filter(Objects::nonNull)
+                    .map(m -> ImmutablePair.of(ObjectId.fromString(m.sourceId), ObjectId.fromString(m.targetId)))
                     .collect(Collectors.toList());
             } catch (SQLException e) {
                 log.warn("Could not fetch any data", e);
@@ -296,8 +287,8 @@ public interface CacheProvider {
             try {
                 if (target instanceof Entry) {
                     TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
-                        Mapping mapping = new Mapping(source.id, ((Entry) target).id);
-                        mappingDao.createIfNotExists(mapping);
+                        EntryMappingTable mapping = new EntryMappingTable(source.id, ((Entry) target).id);
+                        entryMappingDao.createIfNotExists(mapping);
                         ObjectInfo sourceObjInfo = new ObjectInfo(source);
                         objectInfoDao.createIfNotExists(sourceObjInfo);
                         ObjectInfo targetObjInfo = new ObjectInfo((Entry) target);
@@ -309,8 +300,8 @@ public interface CacheProvider {
                         ObjectInfo sourceInfo = new ObjectInfo(source);
                         objectInfoDao.createIfNotExists(sourceInfo);
                         for (Entry t : ((EntryList) target).entries()) {
-                            Mapping mapping = new Mapping(source.id, t.id);
-                            mappingDao.createIfNotExists(mapping);
+                            EntryMappingTable mapping = new EntryMappingTable(source.id, t.id);
+                            entryMappingDao.createIfNotExists(mapping);
                             ObjectInfo targetInfo = new ObjectInfo(t);
                             objectInfoDao.createIfNotExists(targetInfo);
                         }
@@ -325,13 +316,13 @@ public interface CacheProvider {
         @Override
         public void writeOutFromEntryMapping(Map<Entry, EntrySet> entryMapping, Context c) throws IOException {
             try {
-                mappingDao.callBatchTasks((Callable<Void>) () -> {
+                entryMappingDao.callBatchTasks((Callable<Void>) () -> {
                     for (Map.Entry<Entry, EntrySet> e : entryMapping.entrySet()) {
                         Entry source = e.getKey();
                         if (e.getValue() instanceof Entry) {
                             Entry target = (Entry) e.getValue();
-                            Mapping mapping = new Mapping(source.id, target.id);
-                            mappingDao.createIfNotExists(mapping);
+                            EntryMappingTable mapping = new EntryMappingTable(source.id, target.id);
+                            entryMappingDao.createIfNotExists(mapping);
                             ObjectInfo sourceObjInfo = new ObjectInfo(source);
                             objectInfoDao.createIfNotExists(sourceObjInfo);
                             ObjectInfo targetObjInfo = new ObjectInfo(target);
@@ -340,8 +331,8 @@ public interface CacheProvider {
                             ObjectInfo sourceObjInfo = new ObjectInfo(source);
                             objectInfoDao.createIfNotExists(sourceObjInfo);
                             for (Entry t : ((EntryList) e.getValue()).entries()) {
-                                Mapping mapping = new Mapping(source.id, t.id);
-                                mappingDao.createIfNotExists(mapping);
+                                EntryMappingTable mapping = new EntryMappingTable(source.id, t.id);
+                                entryMappingDao.createIfNotExists(mapping);
                                 ObjectInfo targetObjectInfo = new ObjectInfo(t);
                                 objectInfoDao.createIfNotExists(targetObjectInfo);
                             }
@@ -359,8 +350,8 @@ public interface CacheProvider {
         public Optional<EntrySet> getFromSourceEntry(Entry source, Context c) {
             EntryList el = new EntryList();
             try {
-                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("sourceId", source.id.getName()).prepare();
-                try (CloseableIterator<Mapping> mappings = mappingDao.iterator(q)) {
+                PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("sourceId", source.id.getName()).prepare();
+                try (CloseableIterator<EntryMappingTable> mappings = entryMappingDao.iterator(q)) {
                     for (ObjectInfo t : objectInfoDao.query(objectInfoDao.queryBuilder().where().in("id", mappings).prepare())) {
                         if (t.type == ObjectType.Commit) continue;
                         el.add(t.toEntry());
@@ -379,8 +370,8 @@ public interface CacheProvider {
         public Optional<ImmutablePair<Entry, EntrySet>> getFromTargetEntry(Entry target, Context c) {
             // 右はtarget自身も含める
             try {
-                PreparedQuery<Mapping> q = mappingDao.queryBuilder().where().eq("targetId", target.id.getName()).prepare();
-                Mapping m = mappingDao.queryForFirst(q);
+                PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("targetId", target.id.getName()).prepare();
+                EntryMappingTable m = entryMappingDao.queryForFirst(q);
                 if (m == null) return Optional.empty();
                 ObjectInfo sourceObjInfo = objectInfoDao.queryForId(m.sourceId);
                 if (sourceObjInfo.type == ObjectType.Commit) return Optional.empty();
@@ -466,7 +457,7 @@ public interface CacheProvider {
                 return ImmutablePair.of(e, el);
             }
         }
-        
+
         public GitNotesCacheProvider(Repository target) {
             this(new RepositoryAccess(target));
         }
