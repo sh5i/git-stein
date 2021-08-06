@@ -1,6 +1,5 @@
 package jp.ac.titech.c.se.stein.core;
 
-import com.j256.ormlite.dao.CloseableIterator;
 import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.DaoManager;
 import com.j256.ormlite.field.DatabaseField;
@@ -351,16 +350,15 @@ public interface CacheProvider {
             EntryList el = new EntryList();
             try {
                 PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("sourceId", source.id.getName()).prepare();
-                try (CloseableIterator<EntryMappingTable> mappings = entryMappingDao.iterator(q)) {
-                    for (ObjectInfo t : objectInfoDao.query(objectInfoDao.queryBuilder().where().in("id", mappings).prepare())) {
-                        if (t.type == ObjectType.Commit) continue;
-                        el.add(t.toEntry());
-                    }
+                List<EntryMappingTable> mappings = entryMappingDao.query(q);
+                for (ObjectInfo t : objectInfoDao.query(objectInfoDao.queryBuilder().where().in("id", mappings).prepare())) {
+                    if (t.type == ObjectType.Commit) continue;
+                    el.add(t.toEntry());
                 }
                 // 空だった場合の扱い?(変換した結果空なのか、変換したことがないのか)
                 if (el.entries().size() == 0) return Optional.empty();
                 else return Optional.of(el);
-            } catch (SQLException | IOException e) {
+            } catch (SQLException e) {
                 log.warn("Could not get any data", e);
                 return Optional.empty();
             }
