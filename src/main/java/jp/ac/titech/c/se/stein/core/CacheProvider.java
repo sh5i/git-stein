@@ -350,9 +350,8 @@ public interface CacheProvider {
             EntryList el = new EntryList();
             try {
                 PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("sourceId", source.id.getName()).prepare();
-                List<EntryMappingTable> mappings = entryMappingDao.query(q);
+                List<String> mappings = entryMappingDao.query(q).stream().map(entry -> entry.sourceId).collect(Collectors.toList());
                 for (ObjectInfo t : objectInfoDao.query(objectInfoDao.queryBuilder().where().in("id", mappings).prepare())) {
-                    if (t.type == ObjectType.Commit) continue;
                     el.add(t.toEntry());
                 }
                 // 空だった場合の扱い?(変換した結果空なのか、変換したことがないのか)
