@@ -356,6 +356,7 @@ public interface CacheProvider {
                 }
                 // 空だった場合の扱い?(変換した結果空なのか、変換したことがないのか)
                 if (el.entries().size() == 0) return Optional.empty();
+                else if (el.entries().size() == 1) return Optional.of(el.entries().get(0));
                 else return Optional.of(el);
             } catch (SQLException e) {
                 log.warn("Could not get any data", e);
