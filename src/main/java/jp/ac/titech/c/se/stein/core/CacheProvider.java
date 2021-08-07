@@ -283,6 +283,7 @@ public interface CacheProvider {
 
         @Override
         public void registerEntry(Entry source, EntrySet target, Context c) {
+            if (source.isRoot()) return;
             try {
                 if (target instanceof Entry) {
                     TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
@@ -347,6 +348,7 @@ public interface CacheProvider {
 
         @Override
         public Optional<EntrySet> getFromSourceEntry(Entry source, Context c) {
+            if (source.isRoot()) return Optional.empty();
             EntryList el = new EntryList();
             try {
                 PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("sourceId", source.id.getName()).prepare();
@@ -504,6 +506,7 @@ public interface CacheProvider {
 
         @Override
         public void registerEntry(Entry source, EntrySet target, Context c) {
+            if (source.isRoot()) return;
             EntrySerializer es = new EntrySerializer().register(source);
             if (target instanceof Entry) {
                 es.register((Entry) target);
