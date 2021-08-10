@@ -28,6 +28,9 @@ public class Cleaner extends RepositoryRewriter {
             converter = SizeConverter.class)
     protected long maxSize = -1L;
 
+    @Option(names = {"-V", "--invert-match"}, description = "filter non-matching items")
+    protected boolean invertMatch;
+
     public static class FilterConverter implements ITypeConverter<IOFileFilter> {
         @Override
         public IOFileFilter convert(final String value) throws Exception {
@@ -72,16 +75,16 @@ public class Cleaner extends RepositoryRewriter {
         if (filters.length > 0) {
             final File name = new File(c.getEntry().name);
             for (final IOFileFilter f : filters) {
-                if (f.accept(name)) {
-                    log.info("remove {}: name ({}) matched {}", blobId.name(), name, c);
+                if (f.accept(name) ^ invertMatch) {
+                    log.info("remove {}: name ({}) {}matched {}", blobId.name(), name, invertMatch ? "not " : "", c);
                     return RepositoryRewriter.ZERO;
                 }
             }
         }
         if (maxSize >= 0) {
             final long size = source.getBlobSize(blobId, c);
-            if (size >= maxSize) {
-                log.info("remove {}: size ({}; {}B) exceeded {}", blobId.name(), FileUtils.byteCountToDisplaySize(size), size, c);
+            if ((size >= maxSize) ^ invertMatch) {
+                log.info("remove {}: size ({}; {}B) {}exceeded {}", blobId.name(), FileUtils.byteCountToDisplaySize(size), size, invertMatch ? "not " : "", c);
                 return RepositoryRewriter.ZERO;
             }
         }
