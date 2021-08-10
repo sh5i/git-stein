@@ -76,7 +76,7 @@ public class Cleaner extends RepositoryRewriter {
             final File name = new File(c.getEntry().name);
             for (final IOFileFilter f : filters) {
                 if (f.accept(name) ^ invertMatch) {
-                    log.info("remove {}: name ({}) {}matched {}", blobId.name(), name, invertMatch ? "not " : "", c);
+                    log.debug("remove {}: name ({}) {}matched {}", blobId.name(), name, invertMatch ? "not " : "", c);
                     return RepositoryRewriter.ZERO;
                 }
             }
@@ -84,7 +84,7 @@ public class Cleaner extends RepositoryRewriter {
         if (maxSize >= 0) {
             final long size = source.getBlobSize(blobId, c);
             if ((size >= maxSize) ^ invertMatch) {
-                log.info("remove {}: size ({}; {}B) {}exceeded {}", blobId.name(), FileUtils.byteCountToDisplaySize(size), size, invertMatch ? "not " : "", c);
+                log.debug("remove {}: size ({}; {}B) {}exceeded {}", blobId.name(), FileUtils.byteCountToDisplaySize(size), size, invertMatch ? "not " : "", c);
                 return RepositoryRewriter.ZERO;
             }
         }
