@@ -15,9 +15,7 @@ import org.jgrapht.Graph;
 import org.jgrapht.alg.lca.NaiveLCAFinder;
 import org.jgrapht.graph.EdgeReversedGraph;
 import org.jgrapht.graph.SimpleDirectedGraph;
-import org.jgrapht.io.ComponentNameProvider;
-import org.jgrapht.io.GmlExporter;
-import org.jgrapht.io.GraphExporter;
+import org.jgrapht.nio.gml.GmlExporter;
 import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import jp.ac.titech.c.se.stein.core.CommitGraph.Edge;
@@ -149,7 +147,8 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
      * Dumps the graph as GML.
      */
     public void dump(final File file) {
-        final GraphExporter<Vertex, Edge> exporter = new GmlExporter<>(new VertexNameProvider(), null, new EdgeNameProvider(), null);
+        final GmlExporter<Vertex, Edge> exporter = new GmlExporter<>(v -> v.id.name());
+        exporter.setEdgeIdProvider(e -> String.valueOf(e.index));
         Try.run(() -> exporter.exportGraph(this, file));
     }
 
@@ -220,26 +219,6 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
         @Override
         public Edge get() {
             return new Edge(++index);
-        }
-    }
-
-    /**
-     * Name provider for GML export.
-     */
-    public static class VertexNameProvider implements ComponentNameProvider<Vertex> {
-        @Override
-        public String getName(final Vertex component) {
-            return component.id.name();
-        }
-    }
-
-    /**
-     * Name provider for GML export.
-     */
-    public static class EdgeNameProvider implements ComponentNameProvider<Edge> {
-        @Override
-        public String getName(final Edge component) {
-            return String.valueOf(component.index);
         }
     }
 }
