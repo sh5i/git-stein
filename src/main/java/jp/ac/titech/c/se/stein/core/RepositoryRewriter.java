@@ -80,12 +80,6 @@ public class RepositoryRewriter {
     protected CacheLevel[] cacheLevel = {};
     protected CacheProvider cacheProvider;
 
-    @Option(names = "--cache-provider", description = {
-        "How to save cache",
-        "Currently available method is SQLite and git-notes."
-    }, order = Config.MIDDLE)
-    protected String cacheProviderType = "SQLite";
-
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
         target = new RepositoryAccess(targetRepo);
@@ -102,9 +96,7 @@ public class RepositoryRewriter {
             target.setDryRunning(true);
         }
         if (cacheLevel.length != 0) {
-            if (cacheProviderType.equals("git-notes"))
-                cacheProvider = new CacheProvider.GitNotesCacheProvider(targetRepo);
-            else cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
+                cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
         }
     }
 
@@ -668,21 +660,11 @@ public class RepositoryRewriter {
             // commitMappingを直接書き変えてもいいかも……
             commitMapping = Try.io(c, () -> cacheProvider.readToCommitMapping(c));
         }
-        if (cacheProvider instanceof CacheProvider.GitNotesCacheProvider &&
-            (Arrays.asList(cacheLevel).contains(CacheLevel.Blob) || Arrays.asList(cacheLevel).contains(CacheLevel.Tree))) {
-            entryMapping = Try.io(c, () -> cacheProvider.readToEntryMapping(nthreads > 1, c));
-        }
     }
 
     public void saveCache(final Context c) {
         if (Arrays.asList(cacheLevel).contains(CacheLevel.Commit)) {
             Try.io(c, () -> cacheProvider.writeOutFromCommitMapping(commitMapping, c));
         }
-        if (cacheProvider instanceof CacheProvider.GitNotesCacheProvider &&
-            (Arrays.asList(cacheLevel).contains(CacheLevel.Blob) || Arrays.asList(cacheLevel).contains(CacheLevel.Tree))) {
-            // 全部(Blob/Tree区別せずに)書いてるなあ(読み出しに影響はないけど……)
-            Try.io(c, () -> cacheProvider.writeOutFromEntryMapping(entryMapping, c));
-        }
-
     }
 }
