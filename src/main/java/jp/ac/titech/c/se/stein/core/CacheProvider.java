@@ -46,24 +46,28 @@ public interface CacheProvider {
 
     /**
      * Return corresponding target commit object to {@code source}
+     *
      * @return Corresponding target commit object if exists, otherwise empty
      */
     Optional<ObjectId> getFromSourceCommit(final ObjectId source, final Context c);
 
     /**
      * Return corresponding target commit object to {@code target}
+     *
      * @return Corresponding target commit object if exists, otherwise empty
      */
     Optional<ObjectId> getFromTargetCommit(final ObjectId target, final Context c);
 
     /**
      * Return all commit pairs
+     *
      * @return List of pairs of commits (left is one in source repository, right is corresponding one in target repository)
      */
     List<ImmutablePair<ObjectId, ObjectId>> getAllCommits(final Context c);
 
     /**
      * Return all commit pairs as commitMapping
+     *
      * @return commitMapping consists of saved mapping
      */
     default Map<ObjectId, ObjectId> readToCommitMapping(final Context c) throws IOException {
@@ -86,32 +90,34 @@ public interface CacheProvider {
      * Save contents of given entryMapping.
      */
     default void writeOutFromEntryMapping(final Map<Entry, EntrySet> entryMapping, final Context c) throws IOException {
-        entryMapping.forEach((source, target) -> {
-            registerEntry(source, target, c);
-        });
+        entryMapping.forEach((source, target) -> registerEntry(source, target, c));
         writeOut(c);
     }
 
     /**
      * Return corresponding target entries to {@code source}
+     *
      * @return Corresponding target commit object if exists, otherwise empty
      */
     Optional<EntrySet> getFromSourceEntry(final Entry source, final Context c);
 
     /**
      * Return entry mapping including {@code target} as target entry
+     *
      * @return Pair of entry mapping (left is source, right is targets) if {@code target} is saved as target entry, otherwise empty.
      */
     Optional<ImmutablePair<Entry, EntrySet>> getFromTargetEntry(final Entry target, final Context c);
 
     /**
      * Return all entry pairs
+     *
      * @return List of pairs of entries (left is one in source repository, right is corresponding ones in target repository)
      */
     List<ImmutablePair<Entry, EntrySet>> getAllEntries(final Context c);
 
     /**
      * Return all entry pairs as entryMapping
+     *
      * @return entryMapping consists of saved mapping
      */
     default Map<Entry, EntrySet> readToEntryMapping(final boolean concurrent, final Context c) throws IOException {
@@ -135,7 +141,7 @@ public interface CacheProvider {
      */
     void readIn(final Context c) throws IOException;
 
-    public static class SQLiteCacheProvider implements CacheProvider {
+    class SQLiteCacheProvider implements CacheProvider {
         static Logger log = LoggerFactory.getLogger(SQLiteCacheProvider.class);
 
         JdbcConnectionSource connectionSource = null;
@@ -281,7 +287,7 @@ public interface CacheProvider {
         }
 
         @Override
-        public void writeOutFromCommitMapping(final Map<ObjectId, ObjectId> commitMapping, final Context c) throws IOException {
+        public void writeOutFromCommitMapping(final Map<ObjectId, ObjectId> commitMapping, final Context c) {
             try {
                 entryMappingDao.callBatchTasks((Callable<Void>) () -> {
                     for (Map.Entry<ObjectId, ObjectId> e : commitMapping.entrySet()) {
@@ -343,7 +349,7 @@ public interface CacheProvider {
         }
 
         @Override
-        public void writeOutFromEntryMapping(Map<Entry, EntrySet> entryMapping, Context c) throws IOException {
+        public void writeOutFromEntryMapping(Map<Entry, EntrySet> entryMapping, Context c) {
             try {
                 entryMappingDao.callBatchTasks((Callable<Void>) () -> {
                     for (Map.Entry<Entry, EntrySet> e : entryMapping.entrySet()) {
@@ -421,13 +427,9 @@ public interface CacheProvider {
         }
 
         @Override
-        public void writeOut(Context c) throws IOException {
-            // ?
-        }
+        public void writeOut(Context c) {}
 
         @Override
-        public void readIn(Context c) throws IOException {
-            // ?
-        }
+        public void readIn(Context c) {}
     }
 }
