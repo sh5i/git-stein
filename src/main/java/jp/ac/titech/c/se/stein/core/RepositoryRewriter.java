@@ -73,8 +73,8 @@ public class RepositoryRewriter {
     }
 
     @Option(names = "--cache-level", arity = "0..*", description = {
-        "granularity of cache used for fast conversion",
-        "this is additive, and if you select None and another, then None is ignored.",
+        "granularity of cache save for incremental conversion",
+        "if you select None and another, then None is ignored.",
         "Valid values: ${COMPLETION-CANDIDATES}"
     }, order = Config.MIDDLE)
     protected CacheLevel[] cacheLevel = {};

@@ -32,21 +32,40 @@ public interface CacheProvider {
     // Commit系統
 
     /**
-     * @param commitMapping 書き出し元のcommitMapping
+     * Save as mapping from {@code source} to {@code target}
+     */
+    void registerCommit(final ObjectId source, final ObjectId target, final Context c);
+
+    /**
+     * Save contents of given commitMapping.
      */
     default void writeOutFromCommitMapping(final Map<ObjectId, ObjectId> commitMapping, final Context c) throws IOException {
         commitMapping.forEach((source, target) -> registerCommit(source, target, c));
         writeOut(c);
     }
 
-    void registerCommit(final ObjectId source, final ObjectId target, final Context c);
-
+    /**
+     * Return corresponding target commit object to {@code source}
+     * @return Corresponding target commit object if exists, otherwise empty
+     */
     Optional<ObjectId> getFromSourceCommit(final ObjectId source, final Context c);
 
+    /**
+     * Return corresponding target commit object to {@code target}
+     * @return Corresponding target commit object if exists, otherwise empty
+     */
     Optional<ObjectId> getFromTargetCommit(final ObjectId target, final Context c);
 
+    /**
+     * Return all commit pairs
+     * @return List of pairs of commits (left is one in source repository, right is corresponding one in target repository)
+     */
     List<ImmutablePair<ObjectId, ObjectId>> getAllCommits(final Context c);
 
+    /**
+     * Return all commit pairs as commitMapping
+     * @return commitMapping consists of saved mapping
+     */
     default Map<ObjectId, ObjectId> readToCommitMapping(final Context c) throws IOException {
         readIn(c);
         Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
@@ -59,11 +78,13 @@ public interface CacheProvider {
     // EntrySet系統
 
     /**
-     * @param source データを紐付けたいEntry
-     * @param target 対象のEntrySet
+     * Save as mapping from {@code source} to {@code target}
      */
     void registerEntry(final Entry source, final EntrySet target, final Context c);
 
+    /**
+     * Save contents of given entryMapping.
+     */
     default void writeOutFromEntryMapping(final Map<Entry, EntrySet> entryMapping, final Context c) throws IOException {
         entryMapping.forEach((source, target) -> {
             registerEntry(source, target, c);
@@ -71,14 +92,28 @@ public interface CacheProvider {
         writeOut(c);
     }
 
+    /**
+     * Return corresponding target entries to {@code source}
+     * @return Corresponding target commit object if exists, otherwise empty
+     */
     Optional<EntrySet> getFromSourceEntry(final Entry source, final Context c);
 
-    // 他のtargetも欲しくなりそうなのでPairで
+    /**
+     * Return entry mapping including {@code target} as target entry
+     * @return Pair of entry mapping (left is source, right is targets) if {@code target} is saved as target entry, otherwise empty.
+     */
     Optional<ImmutablePair<Entry, EntrySet>> getFromTargetEntry(final Entry target, final Context c);
 
+    /**
+     * Return all entry pairs
+     * @return List of pairs of entries (left is one in source repository, right is corresponding ones in target repository)
+     */
     List<ImmutablePair<Entry, EntrySet>> getAllEntries(final Context c);
 
-    // 遅延読み込みしたいと思うとこれは使わないかなあ……
+    /**
+     * Return all entry pairs as entryMapping
+     * @return entryMapping consists of saved mapping
+     */
     default Map<Entry, EntrySet> readToEntryMapping(final boolean concurrent, final Context c) throws IOException {
         readIn(c);
         Map<Entry, EntrySet> entryMapping = concurrent ? new ConcurrentHashMap<>() : new HashMap<>();
@@ -91,16 +126,12 @@ public interface CacheProvider {
     // 共通処理
 
     /**
-     * キャッシュの書き出し
-     *
-     * @throws IOException 書き込みに失敗した場合
+     * Some operations need to finish saving
      */
     void writeOut(final Context c) throws IOException;
 
     /**
-     * キャッシュの読み込み
-     *
-     * @throws IOException 読み込みに失敗した場合
+     * Some operation need to finish loading
      */
     void readIn(final Context c) throws IOException;
 
