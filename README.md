@@ -30,6 +30,7 @@ git-stein supports three rewriting modes.
 - `--[no-]notes-backward`: Note the object ID of original commits to the commits in the destination repository. _Default: yes_.
 - `--extra-attributes`: Allow opportunity to rewrite the encoding and the signature fields in commits.
 - `--mapping=<file>` Store the commit mapping to `<file>` as JSON format.
+- `--cache-level=<object-type>`: Object type for saving cache. `Commit` is recommended.
 - `--log=<level>`: Specify log level (default: `INFO`).
 - `-q`, `--quiet`: Quiet mode (same as `--log=ERROR`).
 - `-v`, `--verbose`: Verbose mode (same as `--log=DEBUG`).
