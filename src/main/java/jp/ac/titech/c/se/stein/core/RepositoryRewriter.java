@@ -1,15 +1,6 @@
 package jp.ac.titech.c.se.stein.core;
 
-import jp.ac.titech.c.se.stein.Application.Config;
-import jp.ac.titech.c.se.stein.core.Context.Key;
-import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
-import org.eclipse.jgit.lib.*;
-import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.revwalk.RevTag;
-import org.eclipse.jgit.revwalk.RevWalk;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import picocli.CommandLine.Option;
+import static java.nio.charset.StandardCharsets.US_ASCII;
 
 import java.nio.charset.Charset;
 import java.util.*;
@@ -19,7 +10,17 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static java.nio.charset.StandardCharsets.US_ASCII;
+import org.eclipse.jgit.lib.*;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevTag;
+import org.eclipse.jgit.revwalk.RevWalk;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import jp.ac.titech.c.se.stein.Application.Config;
+import jp.ac.titech.c.se.stein.core.Context.Key;
+import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
+import picocli.CommandLine.Option;
 
 public class RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
@@ -52,11 +53,11 @@ public class RepositoryRewriter {
 
     protected boolean isPathSensitive = false;
 
-    @Option(names = {"-p", "--parallel"}, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = Config.MIDDLE,
-        fallbackValue = "0")
+    @Option(names = { "-p", "--parallel" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = Config.MIDDLE,
+            fallbackValue = "0")
     protected int nthreads = 1;
 
-    @Option(names = {"-n", "--dry-run"}, description = "do not actually touch destination repo", order = Config.MIDDLE)
+    @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = Config.MIDDLE)
     protected boolean isDryRunning = false;
 
     @Option(names = "--notes-forward", negatable = true, description = "note rewritten commits to source repo", order = Config.MIDDLE)
@@ -255,7 +256,6 @@ public class RepositoryRewriter {
 
         final ObjectId oldId = commit.getId();
         commitMapping.put(oldId, newId);
-
         log.debug("Rewrite commit: {} -> {} {}", oldId.name(), newId.name(), c);
 
         source.addNote(oldId, getForwardNote(newId, c), uc);
@@ -319,7 +319,6 @@ public class RepositoryRewriter {
             return cache;
         }
         if ((Arrays.asList(cacheLevel).contains(CacheLevel.Tree) && entry.isTree()) ||
-            // entryMappingにある = 次回以降は読めるのでOK?
             (Arrays.asList(cacheLevel).contains(CacheLevel.Blob) && !entry.isTree())) {
             final Optional<EntrySet> maybeNewEntry = cacheProvider.getFromSourceEntry(entry, c);
             if (maybeNewEntry.isPresent()) {
