@@ -77,7 +77,7 @@ public class RepositoryRewriter {
         "granularity of cache save for incremental conversion",
         "Valid values: ${COMPLETION-CANDIDATES}"
     }, order = Config.MIDDLE)
-    protected CacheLevel[] cacheLevel = {};
+    protected EnumSet<CacheLevel> cacheLevel;
     protected CacheProvider cacheProvider;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
@@ -95,19 +95,19 @@ public class RepositoryRewriter {
             source.setDryRunning(true);
             target.setDryRunning(true);
         }
-        if (cacheLevel.length != 0) {
+        if (cacheLevel.size() != 0) {
                 cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
         }
     }
 
     public void rewrite(final Context c) {
         setUp(c);
-        if (cacheLevel.length != 0) loadCache(c);
+        if (cacheLevel.size() != 0) loadCache(c);
         rewriteCommits(c);
         updateRefs(c);
         source.writeNotes(c);
         target.writeNotes(c);
-        if (cacheLevel.length != 0) saveCache(c);
+        if (cacheLevel.size() != 0) saveCache(c);
         cleanUp(c);
     }
 
@@ -171,7 +171,7 @@ public class RepositoryRewriter {
         final Collection<ObjectId> starts = collectStarts(c);
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
 
-        if (Arrays.asList(cacheLevel).contains(CacheLevel.commit)) {
+        if (cacheLevel.contains(CacheLevel.commit)) {
             uninterestings.addAll(cacheProvider
                 .getAllCommits(c)
                 .stream()
@@ -317,8 +317,8 @@ public class RepositoryRewriter {
         if (cache != null) {
             return cache;
         }
-        if ((Arrays.asList(cacheLevel).contains(CacheLevel.tree) && entry.isTree()) ||
-            (Arrays.asList(cacheLevel).contains(CacheLevel.blob) && !entry.isTree())) {
+        if ((cacheLevel.contains(CacheLevel.tree) && entry.isTree()) ||
+            (cacheLevel.contains(CacheLevel.blob) && !entry.isTree())) {
             final Optional<EntrySet> maybeNewEntry = cacheProvider.getFromSourceEntry(entry, c);
             if (maybeNewEntry.isPresent()) {
                 entryMapping.put(entry, maybeNewEntry.get());
@@ -327,8 +327,8 @@ public class RepositoryRewriter {
         }
         final EntrySet result = rewriteEntry(entry, c);
         entryMapping.put(entry, result);
-        if ((Arrays.asList(cacheLevel).contains(CacheLevel.tree) && entry.isTree()) ||
-            (Arrays.asList(cacheLevel).contains(CacheLevel.blob) && !entry.isTree())) {
+        if ((cacheLevel.contains(CacheLevel.tree) && entry.isTree()) ||
+            (cacheLevel.contains(CacheLevel.blob) && !entry.isTree())) {
             cacheProvider.registerEntry(entry, result, c);
         }
         return result;
@@ -654,14 +654,14 @@ public class RepositoryRewriter {
     }
 
     public void loadCache(final Context c) {
-        if (Arrays.asList(cacheLevel).contains(CacheLevel.commit)) {
+        if (cacheLevel.contains(CacheLevel.commit)) {
             // commitMappingを直接書き変えてもいいかも……
             commitMapping = Try.io(c, () -> cacheProvider.readToCommitMapping(c));
         }
     }
 
     public void saveCache(final Context c) {
-        if (Arrays.asList(cacheLevel).contains(CacheLevel.commit)) {
+        if (cacheLevel.contains(CacheLevel.commit)) {
             Try.io(c, () -> cacheProvider.writeOutFromCommitMapping(commitMapping, c));
         }
     }
