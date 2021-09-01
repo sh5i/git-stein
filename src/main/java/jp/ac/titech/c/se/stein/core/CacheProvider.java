@@ -12,6 +12,7 @@ import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.EntrySet.EntryList;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
@@ -22,9 +23,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -67,7 +68,7 @@ public interface CacheProvider {
      *
      * @return List of pairs of commits (left is one in source repository, right is corresponding one in target repository)
      */
-    List<ImmutablePair<ObjectId, ObjectId>> getAllCommits(final Context c);
+    Collection<Pair<ObjectId, ObjectId>> getAllCommits(final Context c);
 
     /**
      * Return all commit pairs as commitMapping
@@ -77,7 +78,7 @@ public interface CacheProvider {
     default Map<ObjectId, ObjectId> readToCommitMapping(final Context c) throws IOException {
         readIn(c);
         Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
-        for (ImmutablePair<ObjectId, ObjectId> pair : getAllCommits(c)) {
+        for (Pair<ObjectId, ObjectId> pair : getAllCommits(c)) {
             commitMapping.put(pair.getLeft(), pair.getRight());
         }
         return commitMapping;
@@ -110,14 +111,14 @@ public interface CacheProvider {
      *
      * @return Pair of entry mapping (left is source, right is targets) if {@code target} is saved as target entry, otherwise empty.
      */
-    Optional<ImmutablePair<Entry, EntrySet>> getFromTargetEntry(final Entry target, final Context c);
+    Optional<Pair<Entry, EntrySet>> getFromTargetEntry(final Entry target, final Context c);
 
     /**
      * Return all entry pairs
      *
      * @return List of pairs of entries (left is one in source repository, right is corresponding ones in target repository)
      */
-    List<ImmutablePair<Entry, EntrySet>> getAllEntries(final Context c);
+    Collection<Pair<Entry, EntrySet>> getAllEntries(final Context c);
 
     /**
      * Return all entry pairs as entryMapping
@@ -127,7 +128,7 @@ public interface CacheProvider {
     default Map<Entry, EntrySet> readToEntryMapping(final boolean concurrent, final Context c) throws IOException {
         readIn(c);
         Map<Entry, EntrySet> entryMapping = concurrent ? new ConcurrentHashMap<>() : new HashMap<>();
-        for (ImmutablePair<Entry, EntrySet> pair : getAllEntries(c)) {
+        for (Pair<Entry, EntrySet> pair : getAllEntries(c)) {
             entryMapping.put(pair.getLeft(), pair.getRight());
         }
         return entryMapping;
@@ -307,7 +308,7 @@ public interface CacheProvider {
         }
 
         @Override
-        public List<ImmutablePair<ObjectId, ObjectId>> getAllCommits(Context c) {
+        public Collection<Pair<ObjectId, ObjectId>> getAllCommits(Context c) {
             try {
                 return commitMappingDao
                     .queryForAll()
@@ -391,7 +392,7 @@ public interface CacheProvider {
             EntryList el = new EntryList();
             try {
                 PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("sourceId", source.id.getName()).prepare();
-                List<String> mappings = entryMappingDao.query(q).stream().map(entry -> entry.sourceId).collect(Collectors.toList());
+                Collection<String> mappings = entryMappingDao.query(q).stream().map(entry -> entry.sourceId).collect(Collectors.toList());
                 for (ObjectInfo t : objectInfoDao.query(objectInfoDao.queryBuilder().where().in("id", mappings).prepare())) {
                     el.add(t.toEntry());
                 }
@@ -406,7 +407,7 @@ public interface CacheProvider {
         }
 
         @Override
-        public Optional<ImmutablePair<Entry, EntrySet>> getFromTargetEntry(Entry target, Context c) {
+        public Optional<Pair<Entry, EntrySet>> getFromTargetEntry(Entry target, Context c) {
             // 右はtarget自身も含める
             try {
                 PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("targetId", target.id.getName()).prepare();
@@ -425,7 +426,7 @@ public interface CacheProvider {
         }
 
         @Override
-        public List<ImmutablePair<Entry, EntrySet>> getAllEntries(Context c) {
+        public Collection<Pair<Entry, EntrySet>> getAllEntries(Context c) {
             // ?
             throw new NotImplementedException("This method should not be used.");
         }
