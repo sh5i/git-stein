@@ -90,7 +90,7 @@ public class RepositoryRewriter {
         "granularity of cache save for incremental conversion",
         "Valid values: ${COMPLETION-CANDIDATES}"
     }, order = Config.MIDDLE)
-    protected EnumSet<CacheLevel> cacheLevel;
+    protected EnumSet<CacheLevel> cacheLevel = EnumSet.noneOf(CacheLevel.class);
     protected CacheProvider cacheProvider;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
