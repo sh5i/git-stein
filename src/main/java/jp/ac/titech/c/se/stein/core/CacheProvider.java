@@ -4,6 +4,7 @@ import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.DaoManager;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.jdbc.JdbcConnectionSource;
+import com.j256.ormlite.logger.Slf4jLoggingLogBackend;
 import com.j256.ormlite.misc.TransactionManager;
 import com.j256.ormlite.stmt.PreparedQuery;
 import com.j256.ormlite.table.DatabaseTable;
@@ -149,6 +150,9 @@ public interface CacheProvider {
         Dao<ObjectInfo, String> objectInfoDao = null;
 
         public SQLiteCacheProvider(Repository target) {
+            com.j256.ormlite.logger.LoggerFactory.setLogBackendFactory(new Slf4jLoggingLogBackend.Slf4jLoggingLogBackendFactory());
+            com.j256.ormlite.logger.Logger.setGlobalLogLevel(com.j256.ormlite.logger.Level.FATAL);
+
             File dotGitDir = target.getDirectory().getAbsoluteFile();
             Path dbFile = dotGitDir.toPath().resolve("cache.db");
             try {
