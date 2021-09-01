@@ -43,5 +43,7 @@ jar {
 }
 
 shadowJar {
-  minimize()
+  minimize {
+      exclude(dependency('org.xerial:sqlite-jdbc:.*'))
+  }
 }
