@@ -34,8 +34,6 @@ import java.util.stream.Collectors;
 
 public interface CacheProvider {
 
-    // Commit系統
-
     /**
      * Save as mapping from {@code source} to {@code target}
      */
@@ -84,8 +82,6 @@ public interface CacheProvider {
         return commitMapping;
     }
 
-    // EntrySet系統
-
     /**
      * Save as mapping from {@code source} to {@code target}
      */
@@ -133,8 +129,6 @@ public interface CacheProvider {
         }
         return entryMapping;
     }
-
-    // 共通処理
 
     /**
      * Some operations need to finish saving
@@ -271,7 +265,6 @@ public interface CacheProvider {
         @Override
         public Optional<ObjectId> getFromSourceCommit(ObjectId source, Context c) {
             try {
-                // コミットのみ
                 PreparedQuery<CommitMappingTable> q = commitMappingDao.queryBuilder().where().eq("sourceId", source.getName()).prepare();
                 return Optional.ofNullable(commitMappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.targetId));
             } catch (SQLException e) {
@@ -396,7 +389,6 @@ public interface CacheProvider {
                 for (ObjectInfo t : objectInfoDao.query(objectInfoDao.queryBuilder().where().in("id", mappings).prepare())) {
                     el.add(t.toEntry());
                 }
-                // 空だった場合の扱い?(変換した結果空なのか、変換したことがないのか)
                 if (el.entries().size() == 0) return Optional.empty();
                 else if (el.entries().size() == 1) return Optional.of(el.entries().get(0));
                 else return Optional.of(el);
@@ -408,7 +400,6 @@ public interface CacheProvider {
 
         @Override
         public Optional<Pair<Entry, EntrySet>> getFromTargetEntry(Entry target, Context c) {
-            // 右はtarget自身も含める
             try {
                 PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("targetId", target.id.getName()).prepare();
                 EntryMappingTable m = entryMappingDao.queryForFirst(q);
@@ -427,7 +418,6 @@ public interface CacheProvider {
 
         @Override
         public Collection<Pair<Entry, EntrySet>> getAllEntries(Context c) {
-            // ?
             throw new NotImplementedException("This method should not be used.");
         }
 
