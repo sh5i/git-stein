@@ -24,6 +24,7 @@ import org.eclipse.jgit.lib.TagBuilder;
 import org.eclipse.jgit.lib.TreeFormatter;
 import org.eclipse.jgit.notes.Note;
 import org.eclipse.jgit.notes.NoteMap;
+import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTag;
@@ -69,6 +70,10 @@ public class RepositoryAccess {
 
     // Retrieving and checking objects
 
+    /** Retrieve Ref object of given name. */
+    public Ref getRef(final String name, final Context c) {
+        return Try.io(c, () -> repo.getRefDatabase().findRef(name));
+    }
     /**
      * Retrieves all Ref objects.
      */
@@ -242,13 +247,18 @@ public class RepositoryAccess {
      * Writes notes.
      */
     public void writeNotes(final NoteMap notes, final Context c) {
+        writeNotes(notes, Constants.R_NOTES_COMMITS, c);
+    }
+
+    public void writeNotes(final NoteMap notes, final String ref, final Context c) {
         final ObjectId treeId = isDryRunning ? ObjectId.zeroId() : insert(ins -> notes.writeTree(ins), c);
         // TODO building PersonIdent better.
         final PersonIdent ident = new PersonIdent(repo);
         final String message = "Notes added by 'git notes add'";
         final ObjectId commit = writeCommit(NO_PARENTS, treeId, ident, ident, message, c);
 
-        applyRefUpdate(new RefEntry(Constants.R_NOTES_COMMITS, commit), c);
+        applyRefUpdate(new RefEntry(ref, commit), c);
+
     }
 
     public void eachNote(final NoteMap notes, final BiConsumer<ObjectId, byte[]> f, final Context c) {
@@ -261,6 +271,22 @@ public class RepositoryAccess {
 
     public void eachNote(final BiConsumer<ObjectId, byte[]> f, final Context c) {
         eachNote(defaultNotes, f, c);
+    }
+
+    public NoteMap readNote(final Context c) {
+        return readNote(Constants.R_NOTES_COMMITS, c);
+    }
+
+    public NoteMap readNote(final String noteRef, final Context c) {
+        final Ref targetRef = getRef(noteRef, c);
+        if (targetRef == null) {
+            return NoteMap.newEmptyMap();
+        }
+        return Try.io(c, () -> {
+            RevWalk walk = new RevWalk(repo);
+            RevCommit noteCommit = walk.parseCommit(getRefTarget(targetRef, c));
+            return NoteMap.read(walk.getObjectReader(), noteCommit);
+        });
     }
 
     /**

@@ -6,13 +6,16 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -45,7 +48,7 @@ public class RepositoryRewriter {
     /**
      * Commit-to-commit mapping.
      */
-    protected final Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
+    protected Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
 
     /**
      * Tag-to-tag mapping.
@@ -79,6 +82,17 @@ public class RepositoryRewriter {
     @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = Config.MIDDLE)
     protected boolean isRewritingExtraAttributes = false;
 
+    enum CacheLevel {
+        blob, tree, commit
+    }
+
+    @Option(names = "--cache-level", arity = "0..*", description = {
+        "granularity of cache save for incremental conversion",
+        "Valid values: ${COMPLETION-CANDIDATES}"
+    }, order = Config.MIDDLE)
+    protected EnumSet<CacheLevel> cacheLevel = EnumSet.noneOf(CacheLevel.class);
+    protected CacheProvider cacheProvider;
+
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
         target = new RepositoryAccess(targetRepo);
@@ -94,14 +108,19 @@ public class RepositoryRewriter {
             source.setDryRunning(true);
             target.setDryRunning(true);
         }
+        if (cacheLevel.size() != 0) {
+                cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
+        }
     }
 
     public void rewrite(final Context c) {
         setUp(c);
+        if (cacheLevel.size() != 0) loadCache(c);
         rewriteCommits(c);
         updateRefs(c);
         source.writeNotes(c);
         target.writeNotes(c);
+        if (cacheLevel.size() != 0) saveCache(c);
         cleanUp(c);
     }
 
@@ -165,6 +184,20 @@ public class RepositoryRewriter {
         final Collection<ObjectId> starts = collectStarts(c);
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
 
+        if (cacheLevel.contains(CacheLevel.commit)) {
+            uninterestings.addAll(cacheProvider
+                .getAllCommits(c)
+                .stream()
+                .map(pair -> {
+                    // 副作用さん……
+                    source.addNote(pair.getLeft(), getForwardNote(pair.getRight(), c), c);
+                    target.addNote(pair.getRight(), getBackwardNote(pair.getLeft(), c), c);
+                    return pair.getLeft();
+                })
+                .collect(Collectors.toList())
+            );
+        }
+
         final RevWalk walk = source.walk(c);
         Try.io(c, () -> {
             for (final ObjectId id : starts) {
@@ -208,14 +241,13 @@ public class RepositoryRewriter {
      * Collects the set of commit Ids used as uninteresting points.
      */
     protected Collection<ObjectId> collectUninterestings(final Context c) {
-        return Collections.emptyList();
+        return new ArrayList<>();
     }
 
     /**
      * Rewrites a commit.
      *
-     * @param commit
-     *            target commit.
+     * @param commit target commit.
      * @return the object ID of the rewritten commit
      */
     protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
@@ -297,11 +329,22 @@ public class RepositoryRewriter {
         final EntrySet cache = entryMapping.get(entry);
         if (cache != null) {
             return cache;
-        } else {
-            final EntrySet result = rewriteEntry(entry, c);
-            entryMapping.put(entry, result);
-            return result;
         }
+        if ((cacheLevel.contains(CacheLevel.tree) && entry.isTree()) ||
+            (cacheLevel.contains(CacheLevel.blob) && !entry.isTree())) {
+            final Optional<EntrySet> maybeNewEntry = cacheProvider.getFromSourceEntry(entry, c);
+            if (maybeNewEntry.isPresent()) {
+                entryMapping.put(entry, maybeNewEntry.get());
+                return maybeNewEntry.get();
+            }
+        }
+        final EntrySet result = rewriteEntry(entry, c);
+        entryMapping.put(entry, result);
+        if ((cacheLevel.contains(CacheLevel.tree) && entry.isTree()) ||
+            (cacheLevel.contains(CacheLevel.blob) && !entry.isTree())) {
+            cacheProvider.registerEntry(entry, result, c);
+        }
+        return result;
     }
 
     /**
@@ -620,6 +663,19 @@ public class RepositoryRewriter {
             final ObjectId src = ObjectId.fromString(e.getKey());
             final ObjectId dst = ObjectId.fromString(e.getValue());
             commitMapping.put(src, dst);
+        }
+    }
+
+    public void loadCache(final Context c) {
+        if (cacheLevel.contains(CacheLevel.commit)) {
+            // commitMappingを直接書き変えてもいいかも……
+            commitMapping = Try.io(c, () -> cacheProvider.readToCommitMapping(c));
+        }
+    }
+
+    public void saveCache(final Context c) {
+        if (cacheLevel.contains(CacheLevel.commit)) {
+            Try.io(c, () -> cacheProvider.writeOutFromCommitMapping(commitMapping, c));
         }
     }
 }
