@@ -28,7 +28,7 @@ public class Cleaner extends RepositoryRewriter {
             converter = SizeConverter.class)
     protected long maxSize = -1L;
 
-    @Option(names = {"-V", "--invert-match"}, description = "filter non-matching items")
+    @Option(names = { "-V", "--invert-match" }, description = "filter non-matching items")
     protected boolean invertMatch;
 
     public static class FilterConverter implements ITypeConverter<IOFileFilter> {

@@ -44,8 +44,7 @@ public class Application implements Callable<Integer> {
         OutputOptions output;
 
         static class OutputOptions {
-            @Option(names = { "-o", "--output" }, paramLabel = "<path>", description = "destination repo",
-                    required = true)
+            @Option(names = { "-o", "--output" }, paramLabel = "<path>", description = "destination repo", required = true)
             File target;
 
             @Option(names = { "-d", "--duplicate" }, description = "duplicate source repo and overwrite it")
@@ -61,8 +60,7 @@ public class Application implements Callable<Integer> {
         @Option(names = "--mapping", paramLabel = "<file>", description = "store the commit mapping", order = LOW)
         File commitMappingFile;
 
-        @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})", order = LOW,
-                converter = LevelConverter.class)
+        @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})", order = LOW, converter = LevelConverter.class)
         Level logLevel = Level.INFO;
 
         @Option(names = { "-q", "--quiet" }, description = "quiet mode (same as --log=ERROR)", order = LOW)
@@ -79,12 +77,10 @@ public class Application implements Callable<Integer> {
             }
         }
 
-        @Option(names = "--help", description = "show this help message and exit", order = LAST,
-                usageHelp = true)
+        @Option(names = "--help", description = "show this help message and exit", order = LAST, usageHelp = true)
         boolean helpRequested;
 
-        @Option(names = "--version", description = "print version information and exit", order = LAST,
-                versionHelp = true)
+        @Option(names = "--version", description = "print version information and exit", order = LAST, versionHelp = true)
         boolean versionInfoRequested;
     }
 
@@ -195,7 +191,7 @@ public class Application implements Callable<Integer> {
         }
     }
 
-    public static void execute(final RepositoryRewriter rewriter, String[] args) {
+    public static void execute(final RepositoryRewriter rewriter, final String[] args) {
         final Application app = new Application(rewriter);
         final CommandLine cmdline = new CommandLine(app);
         cmdline.setExpandAtFiles(false);

@@ -72,7 +72,7 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
      * Checks whether two vertices are in a ancestor-descendant relationship (either can be the ancestor side).
      */
     public boolean isAncestorDescendantRelationship(final Vertex base, final Vertex target) {
-        final Set<Vertex> lca = new NaiveLCAFinder<Vertex, Edge>(reversed).getLCASet(base, target);
+        final Set<Vertex> lca = new NaiveLCAFinder<>(reversed).getLCASet(base, target);
         return lca.contains(base) || lca.contains(target);
     }
 
@@ -205,7 +205,7 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
         }
 
         @Override
-        public int compareTo(Edge o) {
+        public int compareTo(final Edge o) {
             return index - o.index;
         }
     }

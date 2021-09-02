@@ -184,7 +184,7 @@ public class Context implements Map<Context.Key, Object> {
 
     private Map.Entry<Key, Object> toEntry(final Key k) {
         final Object v = values[k.ordinal()];
-        return v != null ? new AbstractMap.SimpleEntry<Key, Object>(k, v) : null;
+        return v != null ? new AbstractMap.SimpleEntry<>(k, v) : null;
     }
 
     // Utility methods

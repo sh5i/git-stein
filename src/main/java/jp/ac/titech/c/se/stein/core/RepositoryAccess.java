@@ -74,6 +74,7 @@ public class RepositoryAccess {
     public Ref getRef(final String name, final Context c) {
         return Try.io(c, () -> repo.getRefDatabase().findRef(name));
     }
+
     /**
      * Retrieves all Ref objects.
      */
@@ -283,8 +284,8 @@ public class RepositoryAccess {
             return NoteMap.newEmptyMap();
         }
         return Try.io(c, () -> {
-            RevWalk walk = new RevWalk(repo);
-            RevCommit noteCommit = walk.parseCommit(getRefTarget(targetRef, c));
+            final RevWalk walk = new RevWalk(repo);
+            final RevCommit noteCommit = walk.parseCommit(getRefTarget(targetRef, c));
             return NoteMap.read(walk.getObjectReader(), noteCommit);
         });
     }

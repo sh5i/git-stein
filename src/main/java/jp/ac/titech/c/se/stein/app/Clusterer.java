@@ -42,7 +42,6 @@ public class Clusterer extends RepositoryRewriter {
 
     protected final Map<ObjectId, ObjectId> alternateMapping = new HashMap<>();
 
-
     private final CommitGraph graph = new CommitGraph();
 
     @Override

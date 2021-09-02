@@ -73,10 +73,7 @@ public interface EntrySet {
                 return false;
             }
             final Entry other = (Entry) obj;
-            return Objects.equals(id, other.id) &&
-                   Objects.equals(mode, other.mode) &&
-                   Objects.equals(name, other.name) &&
-                   Objects.equals(directory, other.directory);
+            return Objects.equals(id, other.id) && Objects.equals(mode, other.mode) && Objects.equals(name, other.name) && Objects.equals(directory, other.directory);
         }
     }
 

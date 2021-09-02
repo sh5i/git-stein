@@ -154,6 +154,7 @@ public class Historage extends RepositoryRewriter {
         public ClassModule(final String name, final Module parent, final String content) {
             super(name, classExtension, parent, content);
         }
+
         @Override
         public String getBasename() {
             if (parent instanceof ClassModule) {
@@ -168,6 +169,7 @@ public class Historage extends RepositoryRewriter {
         public MethodModule(final String name, final Module parent, final String content) {
             super(name, methodExtension, parent, content);
         }
+
         @Override
         public String getBasename() {
             return parent.getBasename() + "#" + name;
@@ -178,6 +180,7 @@ public class Historage extends RepositoryRewriter {
         public FieldModule(final String name, final Module parent, final String content) {
             super(name, fieldExtension, parent, content);
         }
+
         @Override
         public String getBasename() {
             return parent.getBasename() + "#" + name;
@@ -188,6 +191,7 @@ public class Historage extends RepositoryRewriter {
         public CommentModule(final Module parent, final String content) {
             super(null, commentExtension, parent, content);
         }
+
         @Override
         public String getBasename() {
             return parent.getFilename();

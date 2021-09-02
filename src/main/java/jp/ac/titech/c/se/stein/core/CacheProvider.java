@@ -76,8 +76,8 @@ public interface CacheProvider {
      */
     default Map<ObjectId, ObjectId> readToCommitMapping(final Context c) throws IOException {
         readIn(c);
-        Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
-        for (Pair<ObjectId, ObjectId> pair : getAllCommits(c)) {
+        final Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
+        for (final Pair<ObjectId, ObjectId> pair : getAllCommits(c)) {
             commitMapping.put(pair.getLeft(), pair.getRight());
         }
         return commitMapping;
@@ -124,8 +124,8 @@ public interface CacheProvider {
      */
     default Map<Entry, EntrySet> readToEntryMapping(final boolean concurrent, final Context c) throws IOException {
         readIn(c);
-        Map<Entry, EntrySet> entryMapping = concurrent ? new ConcurrentHashMap<>() : new HashMap<>();
-        for (Pair<Entry, EntrySet> pair : getAllEntries(c)) {
+        final Map<Entry, EntrySet> entryMapping = concurrent ? new ConcurrentHashMap<>() : new HashMap<>();
+        for (final Pair<Entry, EntrySet> pair : getAllEntries(c)) {
             entryMapping.put(pair.getLeft(), pair.getRight());
         }
         return entryMapping;
@@ -149,12 +149,12 @@ public interface CacheProvider {
         Dao<EntryMappingTable, String> entryMappingDao = null;
         Dao<ObjectInfo, String> objectInfoDao = null;
 
-        public SQLiteCacheProvider(Repository target) {
+        public SQLiteCacheProvider(final Repository target) {
             com.j256.ormlite.logger.LoggerFactory.setLogBackendFactory(new Slf4jLoggingLogBackend.Slf4jLoggingLogBackendFactory());
             com.j256.ormlite.logger.Logger.setGlobalLogLevel(com.j256.ormlite.logger.Level.FATAL);
 
-            File dotGitDir = target.getDirectory().getAbsoluteFile();
-            Path dbFile = dotGitDir.toPath().resolve("cache.db");
+            final File dotGitDir = target.getDirectory().getAbsoluteFile();
+            final Path dbFile = dotGitDir.toPath().resolve("cache.db");
             try {
                 connectionSource = new JdbcConnectionSource("jdbc:sqlite:" + dbFile);
                 commitMappingDao = DaoManager.createDao(connectionSource, CommitMappingTable.class);
@@ -163,12 +163,14 @@ public interface CacheProvider {
                 TableUtils.createTableIfNotExists(connectionSource, EntryMappingTable.class);
                 objectInfoDao = DaoManager.createDao(connectionSource, ObjectInfo.class);
                 TableUtils.createTableIfNotExists(connectionSource, ObjectInfo.class);
-            } catch (SQLException e) {
+            } catch (final SQLException e) {
                 log.error("Failed to connect to Database.", e);
             } finally {
                 try {
-                    if (connectionSource != null) connectionSource.close();
-                } catch (IOException e) {
+                    if (connectionSource != null) {
+                        connectionSource.close();
+                    }
+                } catch (final IOException e) {
                     log.error("Failed to close connection to Database.", e);
                 }
             }
@@ -183,7 +185,7 @@ public interface CacheProvider {
 
             public CommitMappingTable() {}
 
-            public CommitMappingTable(ObjectId sourceId, ObjectId targetId) {
+            public CommitMappingTable(final ObjectId sourceId, final ObjectId targetId) {
                 this.sourceId = sourceId.getName();
                 this.targetId = targetId.getName();
             }
@@ -198,7 +200,7 @@ public interface CacheProvider {
 
             public EntryMappingTable() {}
 
-            public EntryMappingTable(ObjectId sourceId, ObjectId targetId) {
+            public EntryMappingTable(final ObjectId sourceId, final ObjectId targetId) {
                 this.sourceId = sourceId.getName();
                 this.targetId = targetId.getName();
             }
@@ -223,12 +225,12 @@ public interface CacheProvider {
 
             public ObjectInfo() {}
 
-            public ObjectInfo(ObjectId id, ObjectType type) {
+            public ObjectInfo(final ObjectId id, final ObjectType type) {
                 this.id = id.getName();
                 this.type = type;
             }
 
-            public ObjectInfo(Entry e) {
+            public ObjectInfo(final Entry e) {
                 this.id = e.id.getName();
                 this.type = e.isTree() ? ObjectType.Tree : ObjectType.Blob;
                 this.fileName = e.name;
@@ -236,7 +238,7 @@ public interface CacheProvider {
                 this.mode = e.mode.getBits();
             }
 
-            public ObjectInfo(ObjectId id, FileMode mode, String fileName, String directory) {
+            public ObjectInfo(final ObjectId id, final FileMode mode, final String fileName, final String directory) {
                 this.id = id.getName();
                 this.mode = mode.getBits();
                 this.fileName = fileName;
@@ -254,35 +256,35 @@ public interface CacheProvider {
         }
 
         @Override
-        public void registerCommit(ObjectId source, ObjectId target, Context c) {
+        public void registerCommit(final ObjectId source, final ObjectId target, final Context c) {
             try {
                 TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
-                    CommitMappingTable mapping = new CommitMappingTable(source, target);
+                    final CommitMappingTable mapping = new CommitMappingTable(source, target);
                     commitMappingDao.create(mapping);
                     return null;
                 });
-            } catch (SQLException e) {
+            } catch (final SQLException e) {
                 log.warn("Could not save mapping {} to {}", source.getName(), target.getName(), e);
             }
         }
 
         @Override
-        public Optional<ObjectId> getFromSourceCommit(ObjectId source, Context c) {
+        public Optional<ObjectId> getFromSourceCommit(final ObjectId source, final Context c) {
             try {
-                PreparedQuery<CommitMappingTable> q = commitMappingDao.queryBuilder().where().eq("sourceId", source.getName()).prepare();
+                final PreparedQuery<CommitMappingTable> q = commitMappingDao.queryBuilder().where().eq("sourceId", source.getName()).prepare();
                 return Optional.ofNullable(commitMappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.targetId));
-            } catch (SQLException e) {
+            } catch (final SQLException e) {
                 log.warn("Could not fetch any data", e);
                 return Optional.empty();
             }
         }
 
         @Override
-        public Optional<ObjectId> getFromTargetCommit(ObjectId target, Context c) {
+        public Optional<ObjectId> getFromTargetCommit(final ObjectId target, final Context c) {
             try {
-                PreparedQuery<CommitMappingTable> q = commitMappingDao.queryBuilder().where().eq("targetId", target.getName()).prepare();
+                final PreparedQuery<CommitMappingTable> q = commitMappingDao.queryBuilder().where().eq("targetId", target.getName()).prepare();
                 return Optional.ofNullable(commitMappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.sourceId));
-            } catch (SQLException e) {
+            } catch (final SQLException e) {
                 log.warn("Could not fetch any data", e);
                 return Optional.empty();
             }
@@ -292,143 +294,157 @@ public interface CacheProvider {
         public void writeOutFromCommitMapping(final Map<ObjectId, ObjectId> commitMapping, final Context c) {
             try {
                 entryMappingDao.callBatchTasks((Callable<Void>) () -> {
-                    for (Map.Entry<ObjectId, ObjectId> e : commitMapping.entrySet()) {
-                        CommitMappingTable m = new CommitMappingTable(e.getKey(), e.getValue());
+                    for (final Map.Entry<ObjectId, ObjectId> e : commitMapping.entrySet()) {
+                        final CommitMappingTable m = new CommitMappingTable(e.getKey(), e.getValue());
                         commitMappingDao.createIfNotExists(m);
                     }
                     return null;
                 });
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 log.warn("Failed to save", e);
             }
             writeOut(c);
         }
 
         @Override
-        public Collection<Pair<ObjectId, ObjectId>> getAllCommits(Context c) {
+        public Collection<Pair<ObjectId, ObjectId>> getAllCommits(final Context c) {
             try {
                 return commitMappingDao
                     .queryForAll()
                     .stream()
                     .map(m -> ImmutablePair.of(ObjectId.fromString(m.sourceId), ObjectId.fromString(m.targetId)))
                     .collect(Collectors.toList());
-            } catch (SQLException e) {
+            } catch (final SQLException e) {
                 log.warn("Could not fetch any data", e);
                 return Collections.emptyList();
             }
         }
 
         @Override
-        public void registerEntry(Entry source, EntrySet target, Context c) {
-            if (source.isRoot()) return;
+        public void registerEntry(final Entry source, final EntrySet target, final Context c) {
+            if (source.isRoot()) {
+                return;
+            }
             try {
                 if (target instanceof Entry) {
                     TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
-                        EntryMappingTable mapping = new EntryMappingTable(source.id, ((Entry) target).id);
+                        final EntryMappingTable mapping = new EntryMappingTable(source.id, ((Entry) target).id);
                         entryMappingDao.createIfNotExists(mapping);
-                        ObjectInfo sourceObjInfo = new ObjectInfo(source);
+                        final ObjectInfo sourceObjInfo = new ObjectInfo(source);
                         objectInfoDao.createIfNotExists(sourceObjInfo);
-                        ObjectInfo targetObjInfo = new ObjectInfo((Entry) target);
+                        final ObjectInfo targetObjInfo = new ObjectInfo((Entry) target);
                         objectInfoDao.createIfNotExists(targetObjInfo);
                         return null;
                     });
                 } else if (target instanceof EntryList) {
                     TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
-                        ObjectInfo sourceInfo = new ObjectInfo(source);
+                        final ObjectInfo sourceInfo = new ObjectInfo(source);
                         objectInfoDao.createIfNotExists(sourceInfo);
-                        for (Entry t : ((EntryList) target).entries()) {
-                            EntryMappingTable mapping = new EntryMappingTable(source.id, t.id);
+                        for (final Entry t : ((EntryList) target).entries()) {
+                            final EntryMappingTable mapping = new EntryMappingTable(source.id, t.id);
                             entryMappingDao.createIfNotExists(mapping);
-                            ObjectInfo targetInfo = new ObjectInfo(t);
+                            final ObjectInfo targetInfo = new ObjectInfo(t);
                             objectInfoDao.createIfNotExists(targetInfo);
                         }
                         return null;
                     });
                 }
-            } catch (SQLException e) {
+            } catch (final SQLException e) {
                 log.warn("Could not save mappings", e);
             }
         }
 
         @Override
-        public void writeOutFromEntryMapping(Map<Entry, EntrySet> entryMapping, Context c) {
+        public void writeOutFromEntryMapping(final Map<Entry, EntrySet> entryMapping, final Context c) {
             try {
                 entryMappingDao.callBatchTasks((Callable<Void>) () -> {
-                    for (Map.Entry<Entry, EntrySet> e : entryMapping.entrySet()) {
-                        Entry source = e.getKey();
+                    for (final Map.Entry<Entry, EntrySet> e : entryMapping.entrySet()) {
+                        final Entry source = e.getKey();
                         if (e.getValue() instanceof Entry) {
-                            Entry target = (Entry) e.getValue();
-                            EntryMappingTable mapping = new EntryMappingTable(source.id, target.id);
+                            final Entry target = (Entry) e.getValue();
+                            final EntryMappingTable mapping = new EntryMappingTable(source.id, target.id);
                             entryMappingDao.createIfNotExists(mapping);
-                            ObjectInfo sourceObjInfo = new ObjectInfo(source);
+                            final ObjectInfo sourceObjInfo = new ObjectInfo(source);
                             objectInfoDao.createIfNotExists(sourceObjInfo);
-                            ObjectInfo targetObjInfo = new ObjectInfo(target);
+                            final ObjectInfo targetObjInfo = new ObjectInfo(target);
                             objectInfoDao.createIfNotExists(targetObjInfo);
                         } else if (e.getValue() instanceof EntryList) {
-                            ObjectInfo sourceObjInfo = new ObjectInfo(source);
+                            final ObjectInfo sourceObjInfo = new ObjectInfo(source);
                             objectInfoDao.createIfNotExists(sourceObjInfo);
-                            for (Entry t : ((EntryList) e.getValue()).entries()) {
-                                EntryMappingTable mapping = new EntryMappingTable(source.id, t.id);
+                            for (final Entry t : ((EntryList) e.getValue()).entries()) {
+                                final EntryMappingTable mapping = new EntryMappingTable(source.id, t.id);
                                 entryMappingDao.createIfNotExists(mapping);
-                                ObjectInfo targetObjectInfo = new ObjectInfo(t);
+                                final ObjectInfo targetObjectInfo = new ObjectInfo(t);
                                 objectInfoDao.createIfNotExists(targetObjectInfo);
                             }
                         }
                     }
                     return null;
                 });
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 log.warn("Failed to save.", e);
             }
             writeOut(c);
         }
 
         @Override
-        public Optional<EntrySet> getFromSourceEntry(Entry source, Context c) {
-            if (source.isRoot()) return Optional.empty();
-            EntryList el = new EntryList();
+        public Optional<EntrySet> getFromSourceEntry(final Entry source, final Context c) {
+            if (source.isRoot()) {
+                return Optional.empty();
+            }
+            final EntryList el = new EntryList();
             try {
-                PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("sourceId", source.id.getName()).prepare();
-                Collection<String> mappings = entryMappingDao.query(q).stream().map(entry -> entry.sourceId).collect(Collectors.toList());
-                for (ObjectInfo t : objectInfoDao.query(objectInfoDao.queryBuilder().where().in("id", mappings).prepare())) {
+                final PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("sourceId", source.id.getName()).prepare();
+                final Collection<String> mappings = entryMappingDao.query(q).stream().map(entry -> entry.sourceId).collect(Collectors.toList());
+                for (final ObjectInfo t : objectInfoDao.query(objectInfoDao.queryBuilder().where().in("id", mappings).prepare())) {
                     el.add(t.toEntry());
                 }
-                if (el.entries().size() == 0) return Optional.empty();
-                else if (el.entries().size() == 1) return Optional.of(el.entries().get(0));
-                else return Optional.of(el);
-            } catch (SQLException e) {
+                if (el.entries().size() == 0) {
+                    return Optional.empty();
+                } else if (el.entries().size() == 1) {
+                    return Optional.of(el.entries().get(0));
+                } else {
+                    return Optional.of(el);
+                }
+            } catch (final SQLException e) {
                 log.warn("Could not get any data", e);
                 return Optional.empty();
             }
         }
 
         @Override
-        public Optional<Pair<Entry, EntrySet>> getFromTargetEntry(Entry target, Context c) {
+        public Optional<Pair<Entry, EntrySet>> getFromTargetEntry(final Entry target, final Context c) {
             try {
-                PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("targetId", target.id.getName()).prepare();
-                EntryMappingTable m = entryMappingDao.queryForFirst(q);
-                if (m == null) return Optional.empty();
-                ObjectInfo sourceObjInfo = objectInfoDao.queryForId(m.sourceId);
-                if (sourceObjInfo.type == ObjectType.Commit) return Optional.empty();
+                final PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("targetId", target.id.getName()).prepare();
+                final EntryMappingTable m = entryMappingDao.queryForFirst(q);
+                if (m == null) {
+                    return Optional.empty();
+                }
+                final ObjectInfo sourceObjInfo = objectInfoDao.queryForId(m.sourceId);
+                if (sourceObjInfo.type == ObjectType.Commit) {
+                    return Optional.empty();
+                }
 
-                Entry sourceEntry = sourceObjInfo.toEntry();
-                Optional<EntrySet> targetEntries = getFromSourceEntry(sourceEntry, c);
+                final Entry sourceEntry = sourceObjInfo.toEntry();
+                final Optional<EntrySet> targetEntries = getFromSourceEntry(sourceEntry, c);
                 return targetEntries.map(entrySet -> ImmutablePair.of(sourceEntry, entrySet));
-            } catch (SQLException e) {
+            } catch (final SQLException e) {
                 log.warn("Could not get any data", e);
                 return Optional.empty();
             }
         }
 
         @Override
-        public Collection<Pair<Entry, EntrySet>> getAllEntries(Context c) {
+        public Collection<Pair<Entry, EntrySet>> getAllEntries(final Context c) {
             throw new NotImplementedException("This method should not be used.");
         }
 
         @Override
-        public void writeOut(Context c) {}
+        public void writeOut(final Context c) {
+        }
 
         @Override
-        public void readIn(Context c) {}
+        public void readIn(final Context c) {
+        }
     }
 }

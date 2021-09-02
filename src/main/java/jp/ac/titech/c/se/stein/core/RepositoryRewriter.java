@@ -109,18 +109,22 @@ public class RepositoryRewriter {
             target.setDryRunning(true);
         }
         if (cacheLevel.size() != 0) {
-                cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
+            cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
         }
     }
 
     public void rewrite(final Context c) {
         setUp(c);
-        if (cacheLevel.size() != 0) loadCache(c);
+        if (cacheLevel.size() != 0) {
+            loadCache(c);
+        }
         rewriteCommits(c);
         updateRefs(c);
         source.writeNotes(c);
         target.writeNotes(c);
-        if (cacheLevel.size() != 0) saveCache(c);
+        if (cacheLevel.size() != 0) {
+            saveCache(c);
+        }
         cleanUp(c);
     }
 
@@ -473,7 +477,6 @@ public class RepositoryRewriter {
     protected boolean confirmUpdateRef(final Ref ref, final Context c) {
         return confirmStartRef(ref, c);
     }
-
 
     /**
      * Updates a ref object.
