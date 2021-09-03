@@ -56,9 +56,9 @@ public class RefEntry {
         if (!(obj instanceof RefEntry)) {
             return false;
         }
-        final RefEntry other = (RefEntry) obj;
-        return Objects.equals(id, other.id) &&
-               Objects.equals(name, other.name) &&
-               Objects.equals(target, other.target);
+        final RefEntry that = (RefEntry) obj;
+        return Objects.equals(this.id, that.id) &&
+               Objects.equals(this.name, that.name) &&
+               Objects.equals(this.target, that.target);
     }
 }

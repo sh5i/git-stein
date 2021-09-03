@@ -72,8 +72,11 @@ public interface EntrySet {
             if (!(obj instanceof Entry)) {
                 return false;
             }
-            final Entry other = (Entry) obj;
-            return Objects.equals(id, other.id) && Objects.equals(mode, other.mode) && Objects.equals(name, other.name) && Objects.equals(directory, other.directory);
+            final Entry that = (Entry) obj;
+            return Objects.equals(this.id, that.id) &&
+                   Objects.equals(this.mode, that.mode) &&
+                   Objects.equals(this.name, that.name) &&
+                   Objects.equals(this.directory, that.directory);
         }
     }
 
@@ -112,24 +115,7 @@ public interface EntrySet {
 
         @Override
         public boolean equals(final Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            final EntryList other = (EntryList) obj;
-            if (entries == null) {
-                if (other.entries != null) {
-                    return false;
-                }
-            } else if (!entries.equals(other.entries)) {
-                return false;
-            }
-            return true;
+            return obj instanceof EntryList && Objects.equals(this.entries, ((EntryList) obj).entries);
         }
     }
 
