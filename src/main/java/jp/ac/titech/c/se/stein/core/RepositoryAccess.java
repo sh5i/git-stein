@@ -285,9 +285,10 @@ public class RepositoryAccess {
             return NoteMap.newEmptyMap();
         }
         return Try.io(c, () -> {
-            final RevWalk walk = new RevWalk(repo);
-            final RevCommit noteCommit = walk.parseCommit(getRefTarget(targetRef, c));
-            return NoteMap.read(walk.getObjectReader(), noteCommit);
+            try (final RevWalk walk = new RevWalk(repo)) {
+                final RevCommit noteCommit = walk.parseCommit(getRefTarget(targetRef, c));
+                return NoteMap.read(walk.getObjectReader(), noteCommit);
+            }
         });
     }
 
