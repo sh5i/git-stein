@@ -235,7 +235,7 @@ public interface CacheProvider {
                 this.type = e.isTree() ? ObjectType.Tree : ObjectType.Blob;
                 this.fileName = e.name;
                 this.directory = e.directory;
-                this.mode = e.mode.getBits();
+                this.mode = e.mode;
             }
 
             public ObjectInfo(final ObjectId id, final FileMode mode, final String fileName, final String directory) {
@@ -245,12 +245,8 @@ public interface CacheProvider {
                 this.directory = directory;
             }
 
-            public FileMode getFileMode() {
-                return FileMode.fromBits(this.mode);
-            }
-
             public Entry toEntry() {
-                return new Entry(getFileMode(), fileName, ObjectId.fromString(id), directory);
+                return new Entry(mode, fileName, ObjectId.fromString(id), directory);
             }
 
         }

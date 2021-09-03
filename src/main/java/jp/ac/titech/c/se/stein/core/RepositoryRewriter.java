@@ -317,7 +317,7 @@ public class RepositoryRewriter {
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
         // A root tree is represented as a special entry whose name is "/"
-        final Entry root = new Entry(FileMode.TREE, "", treeId, isPathSensitive ? "" : null);
+        final Entry root = new Entry(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
         final EntrySet newRoot = getEntry(root, c);
         final ObjectId newId = newRoot == EntrySet.EMPTY ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 

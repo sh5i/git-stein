@@ -19,7 +19,7 @@ public interface EntrySet {
      * A normal tree entry.
      */
     public static class Entry implements EntrySet {
-        public final FileMode mode;
+        public final int mode;
 
         public final String name;
 
@@ -29,14 +29,14 @@ public interface EntrySet {
 
         public Object data;
 
-        public Entry(final FileMode mode, final String name, final ObjectId id, final String directory) {
+        public Entry(final int mode, final String name, final ObjectId id, final String directory) {
             this.mode = mode;
             this.name = name;
             this.id = id;
             this.directory = directory;
         }
 
-        public Entry(final FileMode mode, final String name, final ObjectId id) {
+        public Entry(final int mode, final String name, final ObjectId id) {
             this(mode, name, id, null);
         }
 
@@ -50,7 +50,7 @@ public interface EntrySet {
         }
 
         public boolean isTree() {
-            return FileMode.TREE.equals(mode.getBits());
+            return FileMode.TREE.equals(mode);
         }
 
         public boolean isRoot() {

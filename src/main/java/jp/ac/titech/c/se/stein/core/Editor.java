@@ -121,7 +121,7 @@ public class Editor {
                 if (!create) {
                     throw new IllegalStateException("No entry");
                 }
-                e = new Entry(FileMode.REGULAR_FILE, name, null);
+                e = new Entry(FileMode.REGULAR_FILE.getBits(), name, null);
                 entries.put(name, e);
             } else {
                 if (e.isTree()) {
@@ -142,7 +142,7 @@ public class Editor {
                 if (!create) {
                     throw new IllegalStateException("No entry");
                 }
-                e = new Entry(FileMode.TREE, name, null);
+                e = new Entry(FileMode.TREE.getBits(), name, null);
                 entries.put(name, e);
             } else {
                 if (!e.isTree()) {

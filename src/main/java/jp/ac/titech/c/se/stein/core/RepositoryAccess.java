@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.GpgSignature;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
@@ -138,7 +139,7 @@ public class RepositoryAccess {
                 walk.addTree(treeId);
                 walk.setRecursive(false);
                 while (walk.next()) {
-                    result.add(new Entry(walk.getFileMode(), walk.getNameString(), walk.getObjectId(0), path));
+                    result.add(new Entry(walk.getFileMode().getBits(), walk.getNameString(), walk.getObjectId(0), path));
                 }
             }
         });
@@ -151,7 +152,7 @@ public class RepositoryAccess {
     public ObjectId writeTree(final Collection<Entry> entries, final Context c) {
         final TreeFormatter f = new TreeFormatter();
         for (final Entry e : sortEntries(entries, c)) {
-            f.append(e.name, e.mode, e.id);
+            f.append(e.name, FileMode.fromBits(e.mode), e.id);
         }
         return insert(ins -> isDryRunning ? ins.idFor(f) : ins.insert(f), c);
     }
