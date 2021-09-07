@@ -193,7 +193,7 @@ public class RepositoryRewriter {
                 .getAllCommits(c)
                 .stream()
                 .map(pair -> {
-                    // 副作用さん……
+                    // FIXME using side effect
                     source.addNote(pair.getLeft(), getForwardNote(pair.getRight(), c), c);
                     target.addNote(pair.getRight(), getBackwardNote(pair.getLeft(), c), c);
                     return pair.getLeft();
@@ -671,7 +671,7 @@ public class RepositoryRewriter {
 
     public void loadCache(final Context c) {
         if (cacheLevel.contains(CacheLevel.commit)) {
-            // commitMappingを直接書き変えてもいいかも……
+            // FIXME modify commitMapping directly
             commitMapping = Try.io(c, () -> cacheProvider.readToCommitMapping(c));
         }
     }
