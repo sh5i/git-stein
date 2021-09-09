@@ -205,8 +205,8 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
         }
 
         @Override
-        public int compareTo(final Edge o) {
-            return index - o.index;
+        public int compareTo(final Edge that) {
+            return this.index - that.index;
         }
     }
 
