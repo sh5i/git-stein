@@ -4,8 +4,8 @@ plugins {
     id 'com.github.ben-manes.versions' version '0.39.0'
 }
 
-sourceCompatibility = '1.8'
-targetCompatibility = '1.8'
+sourceCompatibility = '11'
+targetCompatibility = '11'
 
 dependencies {
     api 'org.eclipse.jgit:org.eclipse.jgit:5.12.0.202106070339-r'
@@ -16,11 +16,12 @@ dependencies {
     implementation 'info.picocli:picocli:4.6.1'
     implementation 'commons-io:commons-io:2.11.0'
     implementation 'org.apache.commons:commons-lang3:3.12.0'
-    testImplementation 'junit:junit:4.13.2'
     implementation 'org.xerial:sqlite-jdbc:3.34.0'
     implementation  'com.j256.ormlite:ormlite-jdbc:5.5'
+ 
+    testImplementation 'junit:junit:4.13.2'
     
-    // dependencies for sample code: available only if the property is defined
+    // dependencies for sample apps: available only if the property "stein.runsample" is defined
     if (project.findProperty("stein.runsample") == "yes") {
         implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.26.0'
         implementation 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
@@ -43,7 +44,7 @@ jar {
 }
 
 shadowJar {
-  minimize {
-      exclude(dependency('org.xerial:sqlite-jdbc:.*'))
-  }
+    minimize {
+        exclude(dependency('org.xerial:sqlite-jdbc:.*'))
+    }
 }
