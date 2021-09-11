@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.core;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -10,7 +11,7 @@ import org.eclipse.jgit.lib.ObjectId;
 /**
  * Abstract tree entry.
  */
-public interface EntrySet {
+public interface EntrySet extends Serializable {
     void registerTo(List<Entry> out);
 
     public static final EmptySet EMPTY = new EmptySet();
@@ -19,6 +20,8 @@ public interface EntrySet {
      * A normal tree entry.
      */
     public static class Entry implements EntrySet {
+        private static final long serialVersionUID = 1L;
+
         public final int mode;
 
         public final String name;
@@ -27,7 +30,7 @@ public interface EntrySet {
 
         public final String directory;
 
-        public Object data;
+        public transient Object data;
 
         public Entry(final int mode, final String name, final ObjectId id, final String directory) {
             this.mode = mode;
@@ -84,11 +87,11 @@ public interface EntrySet {
      * A set of multiple tree entries.
      */
     public static class EntryList implements EntrySet {
+        private static final long serialVersionUID = 1L;
 
         private final List<Entry> entries = new ArrayList<>();
 
-        public EntryList() {
-        }
+        public EntryList() {}
 
         public List<Entry> entries() {
             return entries;
@@ -123,11 +126,11 @@ public interface EntrySet {
      * An empty set of tree entries.
      */
     public static class EmptySet implements EntrySet {
-        private EmptySet() {
-        }
+        private static final long serialVersionUID = 1L;
+
+        private EmptySet() {}
 
         @Override
-        public void registerTo(final List<Entry> out) {
-        }
+        public void registerTo(final List<Entry> out) {}
     }
 }
