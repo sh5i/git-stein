@@ -56,13 +56,6 @@ public interface CacheProvider {
     Optional<ObjectId> getFromSourceCommit(final ObjectId source, final Context c);
 
     /**
-     * Return corresponding target commit object to {@code target}
-     *
-     * @return Corresponding target commit object if exists, otherwise empty
-     */
-    Optional<ObjectId> getFromTargetCommit(final ObjectId target, final Context c);
-
-    /**
      * Return all commit pairs
      *
      * @return List of pairs of commits (left is one in source repository, right is corresponding one in target repository)
@@ -102,13 +95,6 @@ public interface CacheProvider {
      * @return Corresponding target commit object if exists, otherwise empty
      */
     Optional<EntrySet> getFromSourceEntry(final Entry source, final Context c);
-
-    /**
-     * Return entry mapping including {@code target} as target entry
-     *
-     * @return Pair of entry mapping (left is source, right is targets) if {@code target} is saved as target entry, otherwise empty.
-     */
-    Optional<Pair<Entry, EntrySet>> getFromTargetEntry(final Entry target, final Context c);
 
     /**
      * Return all entry pairs
@@ -276,17 +262,6 @@ public interface CacheProvider {
         }
 
         @Override
-        public Optional<ObjectId> getFromTargetCommit(final ObjectId target, final Context c) {
-            try {
-                final PreparedQuery<CommitMappingTable> q = commitMappingDao.queryBuilder().where().eq("targetId", target.getName()).prepare();
-                return Optional.ofNullable(commitMappingDao.queryForFirst(q)).map(m -> ObjectId.fromString(m.sourceId));
-            } catch (final SQLException e) {
-                log.warn("Could not fetch any data", e);
-                return Optional.empty();
-            }
-        }
-
-        @Override
         public void writeOutFromCommitMapping(final Map<ObjectId, ObjectId> commitMapping, final Context c) {
             try {
                 entryMappingDao.callBatchTasks((Callable<Void>) () -> {
@@ -402,28 +377,6 @@ public interface CacheProvider {
                 } else {
                     return Optional.of(el);
                 }
-            } catch (final SQLException e) {
-                log.warn("Could not get any data", e);
-                return Optional.empty();
-            }
-        }
-
-        @Override
-        public Optional<Pair<Entry, EntrySet>> getFromTargetEntry(final Entry target, final Context c) {
-            try {
-                final PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("targetId", target.id.getName()).prepare();
-                final EntryMappingTable m = entryMappingDao.queryForFirst(q);
-                if (m == null) {
-                    return Optional.empty();
-                }
-                final ObjectInfo sourceObjInfo = objectInfoDao.queryForId(m.sourceId);
-                if (sourceObjInfo.type == ObjectType.Commit) {
-                    return Optional.empty();
-                }
-
-                final Entry sourceEntry = sourceObjInfo.toEntry();
-                final Optional<EntrySet> targetEntries = getFromSourceEntry(sourceEntry, c);
-                return targetEntries.map(entrySet -> ImmutablePair.of(sourceEntry, entrySet));
             } catch (final SQLException e) {
                 log.warn("Could not get any data", e);
                 return Optional.empty();
