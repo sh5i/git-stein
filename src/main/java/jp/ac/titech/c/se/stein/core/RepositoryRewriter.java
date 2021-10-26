@@ -192,12 +192,7 @@ public class RepositoryRewriter {
             uninterestings.addAll(cacheProvider
                 .getAllCommits(c)
                 .stream()
-                .map(pair -> {
-                    // FIXME using side effect
-                    source.addNote(pair.getKey(), getForwardNote(pair.getValue(), c), c);
-                    target.addNote(pair.getValue(), getBackwardNote(pair.getKey(), c), c);
-                    return pair.getKey();
-                })
+                .map(Map.Entry::getKey)
                 .collect(Collectors.toList())
             );
         }

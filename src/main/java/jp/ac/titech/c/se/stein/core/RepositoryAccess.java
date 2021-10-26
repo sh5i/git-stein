@@ -44,7 +44,7 @@ public class RepositoryAccess {
 
     protected final Repository repo;
 
-    protected final NoteMap defaultNotes = NoteMap.newEmptyMap();
+    protected final NoteMap defaultNotes;
 
     protected boolean isDryRunning = false;
 
@@ -55,6 +55,7 @@ public class RepositoryAccess {
 
     public RepositoryAccess(final Repository repo) {
         this.repo = repo;
+        this.defaultNotes = readNote(Context.init());
     }
 
     // walk
