@@ -43,7 +43,6 @@ public interface CacheProvider {
      */
     default void writeOutFromCommitMapping(final Map<ObjectId, ObjectId> commitMapping, final Context c) throws IOException {
         commitMapping.forEach((source, target) -> registerCommit(source, target, c));
-        writeOut(c);
     }
 
     /**
@@ -66,7 +65,6 @@ public interface CacheProvider {
      * @return commitMapping consists of saved mapping
      */
     default Map<ObjectId, ObjectId> readToCommitMapping(final Context c) throws IOException {
-        readIn(c);
         final Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
         for (final Map.Entry<ObjectId, ObjectId> pair : getAllCommits(c)) {
             commitMapping.put(pair.getKey(), pair.getValue());
@@ -84,7 +82,6 @@ public interface CacheProvider {
      */
     default void writeOutFromEntryMapping(final Map<Entry, EntrySet> entryMapping, final Context c) throws IOException {
         entryMapping.forEach((source, target) -> registerEntry(source, target, c));
-        writeOut(c);
     }
 
     /**
@@ -107,7 +104,6 @@ public interface CacheProvider {
      * @return entryMapping consists of saved mapping
      */
     default Map<Entry, EntrySet> readToEntryMapping(final boolean concurrent, final Context c) throws IOException {
-        readIn(c);
         final Map<Entry, EntrySet> entryMapping = concurrent ? new ConcurrentHashMap<>() : new HashMap<>();
         for (final Map.Entry<Entry, EntrySet> pair : getAllEntries(c)) {
             entryMapping.put(pair.getKey(), pair.getValue());
@@ -116,14 +112,50 @@ public interface CacheProvider {
     }
 
     /**
-     * Some operations need to finish saving
+     * Adapter for the commit mapping.
      */
-    void writeOut(final Context c) throws IOException;
+    default Map<ObjectId, ObjectId> getCommitMapping(final Context c) {
+        return new AbstractMap<>() {
+            @Override
+            public ObjectId get(final Object key) {
+                return getFromSourceCommit((ObjectId) key, c).orElse(null);
+            }
+
+            @Override
+            public ObjectId put(final ObjectId key, final ObjectId value) {
+                registerCommit(key, value, c);
+                return value;
+            }
+
+            @Override
+            public Set<Entry<ObjectId, ObjectId>> entrySet() {
+                return getAllCommits(c);
+            }
+        };
+    }
 
     /**
-     * Some operation need to finish loading
+     * Adapter for the entry mapping.
      */
-    void readIn(final Context c) throws IOException;
+    default Map<Entry, EntrySet> getEntryMapping(final Context c) {
+        return new AbstractMap<>() {
+            @Override
+            public EntrySet get(final Object key) {
+                return getFromSourceEntry((EntrySet.Entry) key, c).orElse(null);
+            }
+
+            @Override
+            public EntrySet put(final EntrySet.Entry key, final EntrySet value) {
+                registerEntry(key, value, c);
+                return value;
+            }
+
+            @Override
+            public Set<Entry<EntrySet.Entry, EntrySet>> entrySet() {
+                return getAllEntries(c);
+            }
+        };
+    }
 
     class SQLiteCacheProvider implements CacheProvider {
         static Logger log = LoggerFactory.getLogger(SQLiteCacheProvider.class);
@@ -230,7 +262,6 @@ public interface CacheProvider {
             } catch (final Exception e) {
                 log.warn("Failed to save", e);
             }
-            writeOut(c);
         }
 
         @Override
@@ -278,7 +309,6 @@ public interface CacheProvider {
             } catch (final Exception e) {
                 log.warn("Failed to save.", e);
             }
-            writeOut(c);
         }
 
         @Override
@@ -299,14 +329,6 @@ public interface CacheProvider {
         @Override
         public Set<Map.Entry<Entry, EntrySet>> getAllEntries(final Context c) {
             throw new NotImplementedException("This method should not be used.");
-        }
-
-        @Override
-        public void writeOut(final Context c) {
-        }
-
-        @Override
-        public void readIn(final Context c) {
         }
     }
 }
