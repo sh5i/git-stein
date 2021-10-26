@@ -13,8 +13,6 @@ import com.j256.ormlite.table.TableUtils;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.EntrySet.EntryList;
 import org.apache.commons.lang3.NotImplementedException;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.slf4j.Logger;
@@ -24,11 +22,12 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
-import java.util.Collection;
+import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -57,9 +56,9 @@ public interface CacheProvider {
     /**
      * Return all commit pairs
      *
-     * @return List of pairs of commits (left is one in source repository, right is corresponding one in target repository)
+     * @return Set of pairs of commits (left is one in source repository, right is corresponding one in target repository)
      */
-    Collection<Pair<ObjectId, ObjectId>> getAllCommits(final Context c);
+    Set<Map.Entry<ObjectId, ObjectId>> getAllCommits(final Context c);
 
     /**
      * Return all commit pairs as commitMapping
@@ -69,8 +68,8 @@ public interface CacheProvider {
     default Map<ObjectId, ObjectId> readToCommitMapping(final Context c) throws IOException {
         readIn(c);
         final Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
-        for (final Pair<ObjectId, ObjectId> pair : getAllCommits(c)) {
-            commitMapping.put(pair.getLeft(), pair.getRight());
+        for (final Map.Entry<ObjectId, ObjectId> pair : getAllCommits(c)) {
+            commitMapping.put(pair.getKey(), pair.getValue());
         }
         return commitMapping;
     }
@@ -100,7 +99,7 @@ public interface CacheProvider {
      *
      * @return List of pairs of entries (left is one in source repository, right is corresponding ones in target repository)
      */
-    Collection<Pair<Entry, EntrySet>> getAllEntries(final Context c);
+    Set<Map.Entry<Entry, EntrySet>> getAllEntries(final Context c);
 
     /**
      * Return all entry pairs as entryMapping
@@ -110,8 +109,8 @@ public interface CacheProvider {
     default Map<Entry, EntrySet> readToEntryMapping(final boolean concurrent, final Context c) throws IOException {
         readIn(c);
         final Map<Entry, EntrySet> entryMapping = concurrent ? new ConcurrentHashMap<>() : new HashMap<>();
-        for (final Pair<Entry, EntrySet> pair : getAllEntries(c)) {
-            entryMapping.put(pair.getLeft(), pair.getRight());
+        for (final Map.Entry<Entry, EntrySet> pair : getAllEntries(c)) {
+            entryMapping.put(pair.getKey(), pair.getValue());
         }
         return entryMapping;
     }
@@ -235,16 +234,16 @@ public interface CacheProvider {
         }
 
         @Override
-        public Collection<Pair<ObjectId, ObjectId>> getAllCommits(final Context c) {
+        public Set<Map.Entry<ObjectId, ObjectId>> getAllCommits(final Context c) {
             try {
                 return commitMappingDao
                     .queryForAll()
                     .stream()
-                    .map(m -> ImmutablePair.of(ObjectId.fromString(m.sourceId), ObjectId.fromString(m.targetId)))
-                    .collect(Collectors.toList());
+                    .map(m -> new AbstractMap.SimpleEntry<>(ObjectId.fromString(m.sourceId), ObjectId.fromString(m.targetId)))
+                    .collect(Collectors.toSet());
             } catch (final SQLException e) {
                 log.warn("Could not fetch any data", e);
-                return Collections.emptyList();
+                return Collections.emptySet();
             }
         }
 
@@ -298,7 +297,7 @@ public interface CacheProvider {
         }
 
         @Override
-        public Collection<Pair<Entry, EntrySet>> getAllEntries(final Context c) {
+        public Set<Map.Entry<Entry, EntrySet>> getAllEntries(final Context c) {
             throw new NotImplementedException("This method should not be used.");
         }
 

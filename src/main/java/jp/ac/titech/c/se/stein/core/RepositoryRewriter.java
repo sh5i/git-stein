@@ -194,9 +194,9 @@ public class RepositoryRewriter {
                 .stream()
                 .map(pair -> {
                     // FIXME using side effect
-                    source.addNote(pair.getLeft(), getForwardNote(pair.getRight(), c), c);
-                    target.addNote(pair.getRight(), getBackwardNote(pair.getLeft(), c), c);
-                    return pair.getLeft();
+                    source.addNote(pair.getKey(), getForwardNote(pair.getValue(), c), c);
+                    target.addNote(pair.getValue(), getBackwardNote(pair.getKey(), c), c);
+                    return pair.getKey();
                 })
                 .collect(Collectors.toList())
             );
