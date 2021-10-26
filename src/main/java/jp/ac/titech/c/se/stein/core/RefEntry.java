@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.core;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 import org.eclipse.jgit.lib.ObjectId;
@@ -8,7 +9,7 @@ import org.eclipse.jgit.lib.Ref;
 /**
  * A ref entry.
  */
-public class RefEntry {
+public class RefEntry implements Serializable {
     public final String name;
 
     public final ObjectId id;
