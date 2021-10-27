@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -130,8 +131,16 @@ public class RepositoryRewriter {
 
     public void rewrite(final Context c) {
         setUp(c);
-        rewriteCommits(c);
-        updateRefs(c);
+        if (cacheProvider != null) {
+            cacheProvider.inTransaction((Callable<Void>) () -> {
+                rewriteCommits(c);
+                updateRefs(c);
+                return null;
+            });
+        } else {
+            rewriteCommits(c);
+            updateRefs(c);
+        }
         source.writeNotes(c);
         target.writeNotes(c);
         cleanUp(c);

@@ -86,6 +86,14 @@ public class CacheProvider {
         }
     }
 
+    public void inTransaction(final Callable<Void> fn) {
+        try {
+            TransactionManager.callInTransaction(connectionSource, fn);
+        } catch (final SQLException e) {
+            log.error(e.getMessage(), e);
+        }
+    }
+
     public boolean isInitial() {
         return initial;
     }
@@ -109,7 +117,7 @@ public class CacheProvider {
     /**
      * Adapter for the commit mapping.
      */
-    class SQLiteCache<K, V, Row extends KeyValue> extends AbstractMap<K, V> {
+    static class SQLiteCache<K, V, Row extends KeyValue> extends AbstractMap<K, V> {
 
         final Dao<Row, String> dao;
 
@@ -129,7 +137,6 @@ public class CacheProvider {
         @Override
         public V get(final Object key) {
             try {
-                log.debug("Fetch from {}", dao.getTableName());
                 final byte[] source = keyMarshaler.marshal((K) key);
                 final PreparedQuery<Row> q = dao.queryBuilder().where().eq("source", source).prepare();
                 final Row row = dao.queryForFirst(q);
@@ -143,16 +150,12 @@ public class CacheProvider {
         @Override
         public V put(final K key, final V value) {
             try {
-                log.debug("Write to {}", dao.getTableName());
-                TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
-                    final Row row = constructor.get();
-                    row.source = keyMarshaler.marshal(key);
-                    row.target = valueMarshaler.marshal(value);
-                    dao.createIfNotExists(row);
-                    return null;
-                });
+                final Row row = constructor.get();
+                row.source = keyMarshaler.marshal(key);
+                row.target = valueMarshaler.marshal(value);
+                dao.createIfNotExists(row);
             } catch (final SQLException e) {
-                log.warn("Could not save mappings", e);
+                log.warn("Could not save data", e);
             }
             return value;
         }
