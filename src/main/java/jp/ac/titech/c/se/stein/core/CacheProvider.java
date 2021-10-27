@@ -50,11 +50,11 @@ public class CacheProvider {
 
     JdbcConnectionSource connectionSource = null;
 
-    Dao<CommitRow, String> commitDao;
+    Dao<CommitRow, byte[]> commitDao;
 
-    Dao<EntryRow, String> entryDao;
+    Dao<EntryRow, byte[]> entryDao;
 
-    Dao<RefRow, String> refDao;
+    Dao<RefRow, byte[]> refDao;
 
     final boolean initial;
 
@@ -119,7 +119,7 @@ public class CacheProvider {
      */
     static class SQLiteCache<K, V, Row extends KeyValue> extends AbstractMap<K, V> {
 
-        final Dao<Row, String> dao;
+        final Dao<Row, byte[]> dao;
 
         final Supplier<Row> constructor;
 
@@ -127,7 +127,7 @@ public class CacheProvider {
 
         final Marshaler<V> valueMarshaler;
 
-        public SQLiteCache(final Dao<Row, String> dao, final Supplier<Row> constructor, final Marshaler<K> keyMarshaler, Marshaler<V> valueMarshaler) {
+        public SQLiteCache(final Dao<Row, byte[]> dao, final Supplier<Row> constructor, final Marshaler<K> keyMarshaler, Marshaler<V> valueMarshaler) {
             this.dao = dao;
             this.constructor = constructor;
             this.keyMarshaler = keyMarshaler;
