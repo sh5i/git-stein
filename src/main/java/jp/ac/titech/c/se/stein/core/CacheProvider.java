@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.AbstractMap;
@@ -55,12 +56,15 @@ public class CacheProvider {
 
     Dao<RefRow, String> refDao;
 
+    final boolean initial;
+
     public CacheProvider(final Repository target) {
         com.j256.ormlite.logger.LoggerFactory.setLogBackendFactory(new Slf4jLoggingLogBackend.Slf4jLoggingLogBackendFactory());
         com.j256.ormlite.logger.Logger.setGlobalLogLevel(com.j256.ormlite.logger.Level.FATAL);
 
         final File dotGitDir = target.getDirectory().getAbsoluteFile();
         final Path dbFile = dotGitDir.toPath().resolve("cache.db");
+        initial = !Files.exists(dbFile);
         try {
             connectionSource = new JdbcConnectionSource("jdbc:sqlite:" + dbFile);
             commitDao = DaoManager.createDao(connectionSource, CommitRow.class);
@@ -80,6 +84,10 @@ public class CacheProvider {
                 log.error("Failed to close connection to Database.", e);
             }
         }
+    }
+
+    public boolean isInitial() {
+        return initial;
     }
 
     public Map<ObjectId, ObjectId> getCommitMapping() {

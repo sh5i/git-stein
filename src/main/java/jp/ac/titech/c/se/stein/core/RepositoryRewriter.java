@@ -115,12 +115,15 @@ public class RepositoryRewriter {
                 commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping());
                 refEntryMapping = new Cache<>(refEntryMapping, cacheProvider.getRefEntryMapping());
             }
-            if (cacheLevel.contains(CacheLevel.blob) && cacheLevel.contains(CacheLevel.tree)) {
-                entryMapping = new Cache<>(entryMapping, cacheProvider.getEntryMapping());
-            } else if (cacheLevel.contains(CacheLevel.blob)) {
-                entryMapping = new Cache<>(entryMapping, cacheProvider.getEntryMapping(), e -> !e.isTree());
-            } else if (cacheLevel.contains(CacheLevel.tree)) {
-                entryMapping = new Cache<>(entryMapping, cacheProvider.getEntryMapping(), e -> e.isTree());
+            if (cacheLevel.contains(CacheLevel.blob) || cacheLevel.contains(CacheLevel.tree)) {
+                Map<Entry, EntrySet> storedEntryMapping = cacheProvider.getEntryMapping();
+                if (!cacheLevel.contains(CacheLevel.tree)) {
+                    storedEntryMapping = Cache.Filter.apply(e -> !e.isTree(), storedEntryMapping);
+                } else if (!cacheLevel.contains(CacheLevel.blob)) {
+                    storedEntryMapping = Cache.Filter.apply(e -> e.isTree(), storedEntryMapping);
+                }
+                storedEntryMapping = Cache.PutOnly.applyIf(cacheProvider.isInitial(), storedEntryMapping);
+                entryMapping = new Cache<>(entryMapping, storedEntryMapping);
             }
         }
     }

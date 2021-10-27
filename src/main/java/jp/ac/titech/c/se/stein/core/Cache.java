@@ -15,10 +15,6 @@ public class Cache<K, V> extends AbstractMap<K, V> {
         this.backend = backend;
     }
 
-    public Cache(final Map<K, V> frontend, final Map<K, V> backend, final Predicate<K> condition) {
-        this(frontend, new Filter<>(backend, condition));
-    }
-
     @Override
     public V get(final Object key) {
         return frontend.computeIfAbsent((K) key, backend::get);
@@ -45,12 +41,16 @@ public class Cache<K, V> extends AbstractMap<K, V> {
     }
 
     public static class Filter<K, V> extends AbstractMap<K, V> {
-        private final Map<K, V> delegatee;
         private final Predicate<K> condition;
+        private final Map<K, V> delegatee;
 
-        public Filter(final Map<K, V> delegatee, final Predicate<K> condition) {
-            this.delegatee = delegatee;
+        public Filter(final Predicate<K> condition, final Map<K, V> delegatee) {
             this.condition = condition;
+            this.delegatee = delegatee;
+        }
+
+        public static <K, V> Map<K, V> apply(final Predicate<K> condition, final Map<K, V> delegatee) {
+            return new Filter<>(condition, delegatee);
         }
 
         @Override
@@ -74,6 +74,10 @@ public class Cache<K, V> extends AbstractMap<K, V> {
 
         public PutOnly(final Map<K, V> delegatee) {
             this.delegatee = delegatee;
+        }
+
+        public static <K, V> Map<K, V> applyIf(final boolean condition, final Map<K, V> delegatee) {
+            return condition ? new PutOnly<>(delegatee) : delegatee;
         }
 
         @Override
