@@ -76,6 +76,10 @@ public class Cache<K, V> extends AbstractMap<K, V> {
             this.delegatee = delegatee;
         }
 
+        public static <K, V> Map<K, V> apply(final Map<K, V> delegatee) {
+            return new PutOnly<>(delegatee);
+        }
+
         public static <K, V> Map<K, V> applyIf(final boolean condition, final Map<K, V> delegatee) {
             return condition ? new PutOnly<>(delegatee) : delegatee;
         }

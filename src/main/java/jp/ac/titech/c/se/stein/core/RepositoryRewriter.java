@@ -88,7 +88,7 @@ public class RepositoryRewriter {
         blob, tree, commit
     }
 
-    @Option(names = "--cache-level", arity = "0..*", description = {
+    @Option(names = "--cache-level", arity = "0..*", split = ",", description = {
         "granularity of cache save for incremental conversion",
         "Valid values: ${COMPLETION-CANDIDATES}"
     }, order = Config.MIDDLE)
@@ -113,17 +113,24 @@ public class RepositoryRewriter {
         if (!cacheLevel.isEmpty()) {
             cacheProvider = new CacheProvider(targetRepo);
             if (cacheLevel.contains(CacheLevel.commit)) {
+                log.info("Stored mapping (commit-mapping) is available");
                 commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping());
                 refEntryMapping = new Cache<>(refEntryMapping, cacheProvider.getRefEntryMapping());
             }
             if (cacheLevel.contains(CacheLevel.blob) || cacheLevel.contains(CacheLevel.tree)) {
+                log.info("Stored mapping (entry-mapping) is available");
                 Map<Entry, EntrySet> storedEntryMapping = cacheProvider.getEntryMapping();
                 if (!cacheLevel.contains(CacheLevel.tree)) {
+                    log.info("Stored mapping (entry-mapping): blob-only filtering");
                     storedEntryMapping = Cache.Filter.apply(e -> !e.isTree(), storedEntryMapping);
                 } else if (!cacheLevel.contains(CacheLevel.blob)) {
+                    log.info("Stored mapping (entry-mapping): tree-only filtering");
                     storedEntryMapping = Cache.Filter.apply(e -> e.isTree(), storedEntryMapping);
                 }
-                storedEntryMapping = Cache.PutOnly.applyIf(cacheProvider.isInitial(), storedEntryMapping);
+                if (cacheProvider.isInitial()) {
+                    log.info("entry-level stored mapping: put only (initial running)");
+                    storedEntryMapping = Cache.PutOnly.apply(storedEntryMapping);
+                }
                 entryMapping = new Cache<>(entryMapping, storedEntryMapping);
             }
         }
