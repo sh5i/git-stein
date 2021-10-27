@@ -20,7 +20,7 @@ public class RefEntry implements Serializable {
 
     private RefEntry(final String name, final ObjectId id, final String target) {
         this.name = name;
-        this.id = id;
+        this.id = id.copy(); // avoid a subclass instance (e.g., RevCommit) of to be located
         this.target = target;
     }
 
