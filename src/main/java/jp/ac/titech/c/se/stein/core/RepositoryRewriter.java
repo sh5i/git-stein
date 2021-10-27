@@ -191,17 +191,8 @@ public class RepositoryRewriter {
      * Prepares the revision walk.
      */
     protected RevWalk prepareRevisionWalk(final Context c) {
-        final Collection<ObjectId> starts = collectStarts(c);
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
-
-        if (cacheLevel.contains(CacheLevel.commit)) {
-            uninterestings.addAll(cacheProvider
-                .getAllCommits(c)
-                .stream()
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList())
-            );
-        }
+        final Collection<ObjectId> starts = collectStarts(c);
 
         final RevWalk walk = source.walk(c);
         Try.io(c, () -> {
@@ -246,7 +237,16 @@ public class RepositoryRewriter {
      * Collects the set of commit Ids used as uninteresting points.
      */
     protected Collection<ObjectId> collectUninterestings(final Context c) {
-        return new ArrayList<>();
+        final List<ObjectId> result = new ArrayList<>();
+        for (final Map.Entry<RefEntry, RefEntry> e : refEntryMapping.entrySet()) {
+            final RefEntry ref = e.getKey();
+            if (ref.id != null) {
+                log.debug("Previous Ref {}: added as an uninteresting point (commit: {})", ref.name, ref.id.name());
+                result.add(ref.id);
+            }
+        }
+        refEntryMapping.clear();  // ref entries might be removed when updated.
+        return result;
     }
 
     /**
