@@ -111,6 +111,14 @@ public interface CacheProvider {
         return entryMapping;
     }
 
+    void registerRefEntry(final RefEntry source, final RefEntry target, final Context c);
+
+    Optional<RefEntry> getFromRefEntry(final RefEntry source, final Context c);
+
+    Set<Map.Entry<RefEntry, RefEntry>> getAllRefEntries(final Context c);
+
+    void clearRefEntries(final Context c);
+
     /**
      * Adapter for the commit mapping.
      */
@@ -157,14 +165,40 @@ public interface CacheProvider {
         };
     }
 
+    /**
+     * Adapter for the ref entry mapping.
+     */
+    default Map<RefEntry, RefEntry> getRefEntryMapping(final Context c) {
+        return new AbstractMap<>() {
+            @Override
+            public RefEntry get(final Object key) {
+                return getFromRefEntry((RefEntry) key, c).orElse(null);
+            }
+
+            @Override
+            public RefEntry put(final RefEntry key, final RefEntry value) {
+                registerRefEntry(key, value, c);
+                return value;
+            }
+
+            @Override
+            public Set<Entry<RefEntry, RefEntry>> entrySet() {
+                return getAllRefEntries(c);
+            }
+        };
+    }
+
     class SQLiteCacheProvider implements CacheProvider {
         static Logger log = LoggerFactory.getLogger(SQLiteCacheProvider.class);
 
         JdbcConnectionSource connectionSource = null;
         Dao<CommitMappingTable, String> commitMappingDao = null;
         Dao<EntryMappingTable, String> entryMappingDao = null;
+        Dao<RefEntryMappingTable, String> refEntryMappingDao = null;
 
-        final Marshaler<EntrySet> marshaler = new Marshaler.JavaSerializerMarshaler<EntrySet>();
+        final Marshaler<EntrySet> entryMarshaler = new Marshaler.JavaSerializerMarshaler<>();
+
+        final Marshaler<RefEntry> refEntryMarshaler = new Marshaler.JavaSerializerMarshaler<>();
 
         public SQLiteCacheProvider(final Repository target) {
             com.j256.ormlite.logger.LoggerFactory.setLogBackendFactory(new Slf4jLoggingLogBackend.Slf4jLoggingLogBackendFactory());
@@ -178,6 +212,8 @@ public interface CacheProvider {
                 TableUtils.createTableIfNotExists(connectionSource, CommitMappingTable.class);
                 entryMappingDao = DaoManager.createDao(connectionSource, EntryMappingTable.class);
                 TableUtils.createTableIfNotExists(connectionSource, EntryMappingTable.class);
+                refEntryMappingDao = DaoManager.createDao(connectionSource, RefEntryMappingTable.class);
+                TableUtils.createTableIfNotExists(connectionSource, RefEntryMappingTable.class);
             } catch (final SQLException e) {
                 log.error("Failed to connect to Database.", e);
             } finally {
@@ -216,6 +252,21 @@ public interface CacheProvider {
             public EntryMappingTable() {}
 
             public EntryMappingTable(final byte[] source, final byte[] target) {
+                this.source = source;
+                this.target = target;
+            }
+        }
+
+        @DatabaseTable
+        static class RefEntryMappingTable {
+            @DatabaseField(uniqueCombo = true, uniqueIndexName = "mapping-ids", dataType = DataType.BYTE_ARRAY)
+            byte[] source;
+            @DatabaseField(id = true, uniqueCombo = true, uniqueIndexName = "mapping-ids",  dataType = DataType.BYTE_ARRAY)
+            byte[] target;
+
+            public RefEntryMappingTable() {}
+
+            public RefEntryMappingTable(final byte[] source, final byte[] target) {
                 this.source = source;
                 this.target = target;
             }
@@ -285,7 +336,7 @@ public interface CacheProvider {
             }
             try {
                 TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
-                    final EntryMappingTable mapping = new EntryMappingTable(marshaler.marshal(source), marshaler.marshal(target));
+                    final EntryMappingTable mapping = new EntryMappingTable(entryMarshaler.marshal(source), entryMarshaler.marshal(target));
                     entryMappingDao.createIfNotExists(mapping);
                     return null;
                 });
@@ -301,7 +352,7 @@ public interface CacheProvider {
                     for (final Map.Entry<Entry, EntrySet> e : entryMapping.entrySet()) {
                         final Entry source = e.getKey();
                         final EntrySet target = e.getValue();
-                        final EntryMappingTable mapping = new EntryMappingTable(marshaler.marshal(source), marshaler.marshal(target));
+                        final EntryMappingTable mapping = new EntryMappingTable(entryMarshaler.marshal(source), entryMarshaler.marshal(target));
                         entryMappingDao.createIfNotExists(mapping);
                     }
                     return null;
@@ -318,8 +369,8 @@ public interface CacheProvider {
             }
             final EntryList el = new EntryList();
             try {
-                final PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("source", marshaler.marshal(source)).prepare();
-                return Optional.ofNullable(entryMappingDao.queryForFirst(q)).map(m -> marshaler.unmarshal(m.target));
+                final PreparedQuery<EntryMappingTable> q = entryMappingDao.queryBuilder().where().eq("source", entryMarshaler.marshal(source)).prepare();
+                return Optional.ofNullable(entryMappingDao.queryForFirst(q)).map(m -> entryMarshaler.unmarshal(m.target));
             } catch (final SQLException e) {
                 log.warn("Could not get any data", e);
                 return Optional.empty();
@@ -329,6 +380,53 @@ public interface CacheProvider {
         @Override
         public Set<Map.Entry<Entry, EntrySet>> getAllEntries(final Context c) {
             throw new NotImplementedException("This method should not be used.");
+        }
+
+        @Override
+        public void registerRefEntry(final RefEntry source, final RefEntry target, final Context c) {
+            try {
+                TransactionManager.callInTransaction(connectionSource, (Callable<Void>) () -> {
+                    final RefEntryMappingTable mapping = new RefEntryMappingTable(refEntryMarshaler.marshal(source), refEntryMarshaler.marshal(target));
+                    refEntryMappingDao.createIfNotExists(mapping);
+                    return null;
+                });
+            } catch (final SQLException e) {
+                log.warn("Could not save mappings", e);
+            }
+        }
+
+        @Override
+        public Optional<RefEntry> getFromRefEntry(final RefEntry source, final Context c) {
+            try {
+                final PreparedQuery<RefEntryMappingTable> q = refEntryMappingDao.queryBuilder().where().eq("source", refEntryMarshaler.marshal(source)).prepare();
+                return Optional.ofNullable(refEntryMappingDao.queryForFirst(q)).map(m -> refEntryMarshaler.unmarshal(m.target));
+            } catch (final SQLException e) {
+                log.warn("Could not fetch any data", e);
+                return Optional.empty();
+            }
+        }
+
+        @Override
+        public Set<Map.Entry<RefEntry, RefEntry>> getAllRefEntries(final Context c) {
+            try {
+                return refEntryMappingDao
+                        .queryForAll()
+                        .stream()
+                        .map(m -> new AbstractMap.SimpleEntry<>(refEntryMarshaler.unmarshal(m.source), refEntryMarshaler.unmarshal(m.target)))
+                        .collect(Collectors.toSet());
+            } catch (final SQLException e) {
+                log.warn("Could not fetch any data", e);
+                return Collections.emptySet();
+            }
+        }
+
+        @Override
+        public void clearRefEntries(final Context c) {
+            try {
+                refEntryMappingDao.deleteBuilder().delete();
+            } catch (final SQLException e) {
+                log.warn("Could not delete data", e);
+            }
         }
     }
 }
