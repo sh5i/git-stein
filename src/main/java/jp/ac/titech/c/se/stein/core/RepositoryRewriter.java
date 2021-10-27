@@ -110,17 +110,17 @@ public class RepositoryRewriter {
             target.setDryRunning(true);
         }
         if (!cacheLevel.isEmpty()) {
-            cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
-            final Context c = Context.init();
+            cacheProvider = new CacheProvider(targetRepo);
             if (cacheLevel.contains(CacheLevel.commit)) {
-                commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping(c), o -> true);
-                refEntryMapping = new Cache<>(refEntryMapping, cacheProvider.getRefEntryMapping(c), o -> true);
+                commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping());
+                refEntryMapping = new Cache<>(refEntryMapping, cacheProvider.getRefEntryMapping());
             }
-            if (cacheLevel.contains(CacheLevel.blob) || cacheLevel.contains(CacheLevel.tree)) {
-                Predicate<Entry> condition = !cacheLevel.contains(CacheLevel.blob) ? e -> e.isTree() :
-                                             !cacheLevel.contains(CacheLevel.tree) ? e -> !e.isTree() :
-                                             e -> true;
-                entryMapping = new Cache<>(entryMapping, cacheProvider.getEntryMapping(Context.init()), condition);
+            if (cacheLevel.contains(CacheLevel.blob) && cacheLevel.contains(CacheLevel.tree)) {
+                entryMapping = new Cache<>(entryMapping, cacheProvider.getEntryMapping());
+            } else if (cacheLevel.contains(CacheLevel.blob)) {
+                entryMapping = new Cache<>(entryMapping, cacheProvider.getEntryMapping(), e -> !e.isTree());
+            } else if (cacheLevel.contains(CacheLevel.tree)) {
+                entryMapping = new Cache<>(entryMapping, cacheProvider.getEntryMapping(), e -> e.isTree());
             }
         }
     }
