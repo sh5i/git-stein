@@ -88,18 +88,6 @@ public class Clusterer extends RepositoryRewriter {
                 commitMapping.put(merged, rewritten);
             }
         }
-
-        for (final Map.Entry<ObjectId, ObjectId> e : alternateMapping.entrySet()) {
-            final ObjectId merged = e.getKey();
-            final ObjectId base = e.getValue();
-            final ObjectId rewritten = commitMapping.get(base);
-            if (rewritten == null) {
-                log.warn("Base commit has not rewritten yet: base: {}, merged: {} {}", base.name(), merged.name(), c);
-            } else {
-                log.debug("Add commit mapping: {} (merged into {}) -> {} {}", merged.name(), base.name(), rewritten.name(), c);
-                commitMapping.put(merged, rewritten);
-            }
-        }
     }
 
     protected void rewriteGraph() {
