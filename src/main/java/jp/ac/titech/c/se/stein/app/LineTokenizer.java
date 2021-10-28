@@ -75,6 +75,7 @@ public class LineTokenizer extends RepositoryRewriter {
             try {
                 return new String(data, charset);
             } catch (final UnsupportedEncodingException e) {
+                log.error(e.getMessage(), e);
             }
         }
         return new String(data);

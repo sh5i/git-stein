@@ -254,7 +254,7 @@ public class RepositoryAccess {
     }
 
     public void writeNotes(final NoteMap notes, final String ref, final Context c) {
-        final ObjectId treeId = isDryRunning ? ObjectId.zeroId() : insert(ins -> notes.writeTree(ins), c);
+        final ObjectId treeId = isDryRunning ? ObjectId.zeroId() : insert(notes::writeTree, c);
         // TODO building PersonIdent better.
         final PersonIdent ident = new PersonIdent(repo);
         final String message = "Notes added by 'git notes add'";

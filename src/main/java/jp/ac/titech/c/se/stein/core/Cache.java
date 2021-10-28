@@ -17,7 +17,9 @@ public class Cache<K, V> extends AbstractMap<K, V> {
 
     @Override
     public V get(final Object key) {
-        return frontend.computeIfAbsent((K) key, backend::get);
+        @SuppressWarnings("unchecked")
+        final K k = (K) key;
+        return frontend.computeIfAbsent(k, backend::get);
     }
 
     @Override
@@ -55,12 +57,14 @@ public class Cache<K, V> extends AbstractMap<K, V> {
 
         @Override
         public V get(final Object key) {
-            return condition.test((K) key) ? delegatee.get(key) : null;
+            @SuppressWarnings("unchecked")
+            final K k = (K) key;
+            return condition.test(k) ? delegatee.get(key) : null;
         }
 
         @Override
         public V put(final K key, final V value) {
-            return condition.test((K) key) ? delegatee.put(key, value) : value;
+            return condition.test(key) ? delegatee.put(key, value) : value;
         }
 
         @Override
@@ -78,10 +82,6 @@ public class Cache<K, V> extends AbstractMap<K, V> {
 
         public static <K, V> Map<K, V> apply(final Map<K, V> delegatee) {
             return new PutOnly<>(delegatee);
-        }
-
-        public static <K, V> Map<K, V> applyIf(final boolean condition, final Map<K, V> delegatee) {
-            return condition ? new PutOnly<>(delegatee) : delegatee;
         }
 
         @Override

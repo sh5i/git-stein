@@ -54,7 +54,7 @@ public class Clusterer extends RepositoryRewriter {
      */
     protected Map<String, List<List<String>>> loadRecipe(final File file) {
         final Gson gson = new Gson();
-        final TypeToken<Map<String, List<List<String>>>> t = new TypeToken<Map<String, List<List<String>>>>() {};
+        final TypeToken<Map<String, List<List<String>>>> t = new TypeToken<>() {};
         return Try.run(() -> gson.fromJson(new FileReader(file), t.getType()));
     }
 

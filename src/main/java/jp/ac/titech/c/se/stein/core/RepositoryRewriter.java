@@ -10,14 +10,11 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.Callable;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -125,7 +122,7 @@ public class RepositoryRewriter {
                     storedEntryMapping = Cache.Filter.apply(e -> !e.isTree(), storedEntryMapping);
                 } else if (!cacheLevel.contains(CacheLevel.blob)) {
                     log.info("Stored mapping (entry-mapping): tree-only filtering");
-                    storedEntryMapping = Cache.Filter.apply(e -> e.isTree(), storedEntryMapping);
+                    storedEntryMapping = Cache.Filter.apply(Entry::isTree, storedEntryMapping);
                 }
                 if (cacheProvider.isInitial()) {
                     log.info("entry-level stored mapping: put only (initial running)");
@@ -139,7 +136,7 @@ public class RepositoryRewriter {
     public void rewrite(final Context c) {
         setUp(c);
         if (cacheProvider != null) {
-            cacheProvider.inTransaction((Callable<Void>) () -> {
+            cacheProvider.inTransaction(() -> {
                 rewriteCommits(c);
                 updateRefs(c);
                 return null;
@@ -525,7 +522,7 @@ public class RepositoryRewriter {
             }
         }
 
-        final boolean linkEquals = oldEntry.target == null ? newEntry.target == null : oldEntry.target.equals(newEntry.target);
+        final boolean linkEquals = Objects.equals(oldEntry.target, newEntry.target);
         final boolean idEquals = oldEntry.id == null ? newEntry.id == null : oldEntry.id.name().equals(newEntry.id.name());
 
         if (!isOverwriting || !linkEquals || !idEquals) {

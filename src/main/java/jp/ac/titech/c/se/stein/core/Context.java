@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.core;
 
 import java.util.AbstractMap;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -71,17 +72,6 @@ public class Context implements Map<Context.Key, Object> {
         return new Context(newValues);
     }
 
-    /**
-     * Returns an updated context by the given key-value pairs.
-     */
-    public Context with(final Key k1, final Object v1, final Key k2, final Object v2, final Key k3, final Object v3) {
-        final Object[] newValues = values.clone();
-        newValues[k1.ordinal()] = v1;
-        newValues[k2.ordinal()] = v2;
-        newValues[k3.ordinal()] = v3;
-        return new Context(newValues);
-    }
-
     @Override
     public String toString() {
         if (cache == null) {
@@ -92,9 +82,9 @@ public class Context implements Map<Context.Key, Object> {
 
     protected String doToString() {
         final String result = Stream.of(Key.ALL)
-                .map(k -> toEntry(k))
+                .map(this::toEntry)
                 .filter(Objects::nonNull)
-                .map(e -> entryToString(e))
+                .map(this::entryToString)
                 .filter(Objects::nonNull)
                 .collect(Collectors.joining(", "));
         return result.isEmpty() ? result : "(" + result + ")";
@@ -139,7 +129,7 @@ public class Context implements Map<Context.Key, Object> {
 
     @Override
     public boolean containsValue(final Object value) {
-        return Stream.of(values).anyMatch(v -> v == null ? value == null : v.equals(value));
+        return Arrays.asList(values).contains(value);
     }
 
     @Override
@@ -158,7 +148,7 @@ public class Context implements Map<Context.Key, Object> {
     }
 
     @Override
-    public void putAll(final Map<? extends Key, ? extends Object> m) {
+    public void putAll(final Map<? extends Key, ?> m) {
         throw new UnsupportedOperationException();
     }
 
@@ -179,7 +169,7 @@ public class Context implements Map<Context.Key, Object> {
 
     @Override
     public Set<Entry<Key, Object>> entrySet() {
-        return Stream.of(Key.ALL).map(k -> toEntry(k)).filter(Objects::nonNull).collect(Collectors.toSet());
+        return Stream.of(Key.ALL).map(this::toEntry).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     private Map.Entry<Key, Object> toEntry(final Key k) {
@@ -188,13 +178,6 @@ public class Context implements Map<Context.Key, Object> {
     }
 
     // Utility methods
-
-    /**
-     * Returns the commit Id in the context.
-     */
-    public String getCommitId() {
-        return getCommit().name();
-    }
 
     /**
      * Returns the revision object in the context.
@@ -208,13 +191,6 @@ public class Context implements Map<Context.Key, Object> {
      */
     public RevCommit getCommit() {
         return (RevCommit) get(Key.commit);
-    }
-
-    /**
-     * Returns the commit object in the context.
-     */
-    public RevTag getTag() {
-        return (RevTag) get(Key.tag);
     }
 
     /**

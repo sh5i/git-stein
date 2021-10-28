@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -69,8 +70,8 @@ public class SvnMetadataAnnotator extends RepositoryRewriter {
         final Pattern p = Pattern.compile("^progress SVN r(\\d+) branch master = :(\\d+)");
         try (final Stream<String> stream = Files.lines(file)) {
             return stream
-                    .map(l -> p.matcher(l))
-                    .filter(m -> m.matches())
+                    .map(p::matcher)
+                    .filter(Matcher::matches)
                     .collect(Collectors.toMap(m -> m.group(1), m -> m.group(2)));
         }
     }
@@ -79,8 +80,8 @@ public class SvnMetadataAnnotator extends RepositoryRewriter {
         final Pattern p = Pattern.compile("^:(\\d+) (\\w+)");
         try (final Stream<String> stream = Files.lines(file)) {
             return stream
-                    .map(l -> p.matcher(l))
-                    .filter(m -> m.matches())
+                    .map(p::matcher)
+                    .filter(Matcher::matches)
                     .collect(Collectors.toMap(m -> m.group(1), m -> m.group(2)));
         }
     }

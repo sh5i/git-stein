@@ -33,14 +33,14 @@ public class Cleaner extends RepositoryRewriter {
 
     public static class FilterConverter implements ITypeConverter<IOFileFilter> {
         @Override
-        public IOFileFilter convert(final String value) throws Exception {
+        public IOFileFilter convert(final String value) {
             return new WildcardFileFilter(value);
         }
     }
 
     public static class SizeConverter implements ITypeConverter<Long> {
         @Override
-        public Long convert(final String value) throws Exception {
+        public Long convert(final String value) {
             if (value.isEmpty()) {
                 throw new IllegalArgumentException("Empty value is given");
             }

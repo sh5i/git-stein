@@ -136,8 +136,10 @@ public class CacheProvider {
 
         @Override
         public V get(final Object key) {
+            @SuppressWarnings("unchecked")
+            final K k = (K) key;
             try {
-                final byte[] source = keyMarshaler.marshal((K) key);
+                final byte[] source = keyMarshaler.marshal(k);
                 final PreparedQuery<Row> q = dao.queryBuilder().where().eq("source", source).prepare();
                 final Row row = dao.queryForFirst(q);
                 return row != null ? valueMarshaler.unmarshal(row.target) : null;

@@ -50,8 +50,8 @@ import picocli.CommandLine.Option;
 /**
  * A simple Historage generator with FinerGit-compatible naming convention.
  *
- * @see https://github.com/hideakihata/git2historage
- * @see https://github.com/kusumotolab/FinerGit
+ * @see <a href="https://github.com/hideakihata/git2historage">git2historage</a>
+ * @see <a href="https://github.com/kusumotolab/FinerGit">FinerGit</a>
  */
 @Command(name = "historage", description = "Generate finer-grained modules")
 public class Historage extends RepositoryRewriter {
@@ -209,11 +209,11 @@ public class Historage extends RepositoryRewriter {
             @SuppressWarnings("unchecked")
             final List<Comment> comments = unit != null ? unit.getCommentList() : Collections.emptyList();
             this.comments = comments;
-            this.offsets = comments.stream().map(c -> c.getStartPosition()).collect(Collectors.toList());
+            this.offsets = comments.stream().map(ASTNode::getStartPosition).collect(Collectors.toList());
         }
 
         public List<Comment> getComments(final ASTNode node) {
-            return cache.computeIfAbsent(node, n -> extractComments(n));
+            return cache.computeIfAbsent(node, this::extractComments);
         }
 
         protected List<Comment> extractComments(final ASTNode node) {
@@ -402,7 +402,7 @@ public class Historage extends RepositoryRewriter {
         protected Fragment getFragmentWithoutJavadoc(final BodyDeclaration node) {
             final Optional<Integer> start = findChildNodes(node).stream()
                     .filter(n -> !(n instanceof Javadoc))
-                    .map(n -> n.getStartPosition())
+                    .map(ASTNode::getStartPosition)
                     .min(Comparator.naturalOrder());
             if (start.isPresent() && start.get() > node.getStartPosition()) {
                 return getFragment(start.get(), node.getStartPosition() + node.getLength());
@@ -640,13 +640,10 @@ public class Historage extends RepositoryRewriter {
             final StringBuilder sb = new StringBuilder();
             String name = v.getType().toString();
             if (unqualifyTypename && name.contains(".")) {
-                name = name.replaceAll("[a-zA-Z0-9_\\$]+\\.", "");
+                name = name.replaceAll("[a-zA-Z0-9_$]+\\.", "");
             }
             sb.append(escape(name));
-
-            for (int i = 0; i < v.getExtraDimensions(); i++) {
-                sb.append("[]");
-            }
+            sb.append("[]".repeat(Math.max(0, v.getExtraDimensions())));
             if (v.isVarargs()) {
                 sb.append("...");
             }

@@ -68,7 +68,7 @@ public class Editor {
         return tree.getId();
     }
 
-    public abstract class Node {
+    public abstract static class Node {
         protected ObjectId id;
 
         public Node(final ObjectId id) {

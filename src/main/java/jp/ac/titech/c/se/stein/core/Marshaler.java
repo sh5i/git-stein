@@ -15,30 +15,42 @@ import java.io.OutputStream;
 /**
  * Converts an object to a byte array and vice versa.
  */
-public abstract class Marshaler<T> {
-    private final static Logger log = LoggerFactory.getLogger(Marshaler.class);
+public interface Marshaler<T> {
+    Logger log = LoggerFactory.getLogger(Marshaler.class);
 
-    public abstract void writeObject(final T object, final OutputStream stream);
+    /**
+     * Marshals an object and write it to the given stream.
+     */
+    void writeObject(final T object, final OutputStream stream);
 
-    public abstract T readObject(final InputStream stream);
+    /**
+     * Reads from the given stream and unmarshals it to an object.
+     */
+    T readObject(final InputStream stream);
 
-    public byte[] marshal(final T object) {
+    /**
+     * Marshals an object.
+     */
+    default byte[] marshal(final T object) {
         final ByteArrayOutputStream stream = new ByteArrayOutputStream();
         writeObject(object, stream);
         return stream.toByteArray();
     }
 
-    public T unmarshal(final byte[] binary) {
+    /**
+     * Unmarshals an object.
+     */
+    default T unmarshal(final byte[] binary) {
         return readObject(new ByteArrayInputStream(binary));
     }
 
-    public static class JavaSerializerMarshaler<T> extends Marshaler<T> {
+    class JavaSerializerMarshaler<T> implements Marshaler<T> {
         @Override
         public void writeObject(final T object, final OutputStream stream) {
             try (final ObjectOutputStream output = new ObjectOutputStream(stream)) {
                 output.writeObject(object);
             } catch (final IOException e) {
-                e.printStackTrace();
+                log.error(e.getMessage(), e);
             }
         }
 
@@ -49,13 +61,13 @@ public abstract class Marshaler<T> {
                 final T result = (T) input.readObject();
                 return result;
             } catch (final IOException | ClassNotFoundException e) {
-                e.printStackTrace();
+                log.error(e.getMessage(), e);
                 return null;
             }
         }
     }
 
-    public static class ObjectIdMarshaler extends Marshaler<ObjectId> {
+    class ObjectIdMarshaler implements Marshaler<ObjectId> {
         @Override
         public void writeObject(final ObjectId object, final OutputStream stream) {
             try {

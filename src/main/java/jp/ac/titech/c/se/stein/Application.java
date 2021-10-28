@@ -40,7 +40,7 @@ public class Application implements Callable<Integer> {
         @Parameters(index = "0", paramLabel = "<repo>", description = "source repo")
         File source;
 
-        @ArgGroup(exclusive = false, multiplicity = "0..1")
+        @ArgGroup(exclusive = false)
         OutputOptions output;
 
         static class OutputOptions {
@@ -63,6 +63,7 @@ public class Application implements Callable<Integer> {
         @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})", order = LOW, converter = LevelConverter.class)
         Level logLevel = Level.INFO;
 
+        @SuppressWarnings("unused")
         @Option(names = { "-q", "--quiet" }, description = "quiet mode (same as --log=ERROR)", order = LOW)
         void setQuiet(final boolean isQuiet) {
             if (isQuiet) {
@@ -70,6 +71,7 @@ public class Application implements Callable<Integer> {
             }
         }
 
+        @SuppressWarnings("unused")
         @Option(names = { "-v", "--verbose" }, description = "verbose mode (same as --log=DEBUG)", order = LOW)
         void setVerbose(final boolean isVerbose) {
             if (isVerbose) {
@@ -77,9 +79,11 @@ public class Application implements Callable<Integer> {
             }
         }
 
+        @SuppressWarnings("unused")
         @Option(names = "--help", description = "show this help message and exit", order = LAST, usageHelp = true)
         boolean helpRequested;
 
+        @SuppressWarnings("unused")
         @Option(names = "--version", description = "print version information and exit", order = LAST, versionHelp = true)
         boolean versionInfoRequested;
     }
@@ -186,7 +190,7 @@ public class Application implements Callable<Integer> {
 
     public static class LevelConverter implements ITypeConverter<Level> {
         @Override
-        public Level convert(final String value) throws Exception {
+        public Level convert(final String value) {
             return Level.valueOf(value);
         }
     }
