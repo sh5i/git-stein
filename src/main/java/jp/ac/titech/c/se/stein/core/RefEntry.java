@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.core;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 import org.eclipse.jgit.lib.ObjectId;
@@ -8,7 +9,7 @@ import org.eclipse.jgit.lib.Ref;
 /**
  * A ref entry.
  */
-public class RefEntry {
+public class RefEntry implements Serializable {
     public final String name;
 
     public final ObjectId id;
@@ -19,7 +20,7 @@ public class RefEntry {
 
     private RefEntry(final String name, final ObjectId id, final String target) {
         this.name = name;
-        this.id = id;
+        this.id = id != null ? id.copy() : null; // avoid a subclass instance (e.g., RevCommit) of to be located
         this.target = target;
     }
 

@@ -78,9 +78,6 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
 
     /**
      * Merge the <code>target</code> vertex into <code>base</code> vertex.
-     *
-     * @param base
-     * @param target
      */
     public boolean mergeVertices(final Vertex base, final Vertex target) {
         if (base.equals(target)) {
@@ -172,10 +169,6 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
 
         protected Vertex(final ObjectId id) {
             this.id = id;
-        }
-
-        public boolean is(final String name) {
-            return id.name().equals(name);
         }
 
         @Override

@@ -14,12 +14,12 @@ import org.eclipse.jgit.lib.ObjectId;
 public interface EntrySet extends Serializable {
     void registerTo(List<Entry> out);
 
-    public static final EmptySet EMPTY = new EmptySet();
+    EmptySet EMPTY = new EmptySet();
 
     /**
      * A normal tree entry.
      */
-    public static class Entry implements EntrySet {
+    class Entry implements EntrySet {
         private static final long serialVersionUID = 1L;
 
         public final int mode;
@@ -86,7 +86,7 @@ public interface EntrySet extends Serializable {
     /**
      * A set of multiple tree entries.
      */
-    public static class EntryList implements EntrySet {
+    class EntryList implements EntrySet {
         private static final long serialVersionUID = 1L;
 
         private final List<Entry> entries = new ArrayList<>();
@@ -125,7 +125,7 @@ public interface EntrySet extends Serializable {
     /**
      * An empty set of tree entries.
      */
-    public static class EmptySet implements EntrySet {
+    class EmptySet implements EntrySet {
         private static final long serialVersionUID = 1L;
 
         private EmptySet() {}

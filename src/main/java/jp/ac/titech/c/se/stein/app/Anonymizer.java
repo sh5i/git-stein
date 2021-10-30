@@ -90,7 +90,7 @@ public class Anonymizer extends RepositoryRewriter {
     @Override
     public PersonIdent rewritePerson(final PersonIdent person, final Context c) {
         if (person == null) {
-            return person;
+            return null;
         }
         final String name = personNameMap.convert(person.getName());
         final String address = hash7(person.getEmailAddress());

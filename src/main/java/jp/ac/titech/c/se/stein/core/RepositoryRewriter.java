@@ -10,12 +10,11 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -58,7 +57,7 @@ public class RepositoryRewriter {
     /**
      * Ref-to-ref mapping.
      */
-    protected final Map<RefEntry, RefEntry> refEntryMapping = new HashMap<>();
+    protected Map<RefEntry, RefEntry> refEntryMapping = new HashMap<>();
 
     protected RepositoryAccess source, target;
 
@@ -86,7 +85,7 @@ public class RepositoryRewriter {
         blob, tree, commit
     }
 
-    @Option(names = "--cache-level", arity = "0..*", description = {
+    @Option(names = "--cache-level", arity = "0..*", split = ",", description = {
         "granularity of cache save for incremental conversion",
         "Valid values: ${COMPLETION-CANDIDATES}"
     }, order = Config.MIDDLE)
@@ -108,23 +107,46 @@ public class RepositoryRewriter {
             source.setDryRunning(true);
             target.setDryRunning(true);
         }
-        if (cacheLevel.size() != 0) {
-            cacheProvider = new CacheProvider.SQLiteCacheProvider(targetRepo);
+        if (!cacheLevel.isEmpty()) {
+            cacheProvider = new CacheProvider(targetRepo);
+            if (cacheLevel.contains(CacheLevel.commit)) {
+                log.info("Stored mapping (commit-mapping) is available");
+                commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping());
+                refEntryMapping = new Cache<>(refEntryMapping, cacheProvider.getRefEntryMapping());
+            }
+            if (cacheLevel.contains(CacheLevel.blob) || cacheLevel.contains(CacheLevel.tree)) {
+                log.info("Stored mapping (entry-mapping) is available");
+                Map<Entry, EntrySet> storedEntryMapping = cacheProvider.getEntryMapping();
+                if (!cacheLevel.contains(CacheLevel.tree)) {
+                    log.info("Stored mapping (entry-mapping): blob-only filtering");
+                    storedEntryMapping = Cache.Filter.apply(e -> !e.isTree(), storedEntryMapping);
+                } else if (!cacheLevel.contains(CacheLevel.blob)) {
+                    log.info("Stored mapping (entry-mapping): tree-only filtering");
+                    storedEntryMapping = Cache.Filter.apply(Entry::isTree, storedEntryMapping);
+                }
+                if (cacheProvider.isInitial()) {
+                    log.info("entry-level stored mapping: put only (initial running)");
+                    storedEntryMapping = Cache.PutOnly.apply(storedEntryMapping);
+                }
+                entryMapping = new Cache<>(entryMapping, storedEntryMapping);
+            }
         }
     }
 
     public void rewrite(final Context c) {
         setUp(c);
-        if (cacheLevel.size() != 0) {
-            loadCache(c);
+        if (cacheProvider != null) {
+            cacheProvider.inTransaction(() -> {
+                rewriteCommits(c);
+                updateRefs(c);
+                return null;
+            });
+        } else {
+            rewriteCommits(c);
+            updateRefs(c);
         }
-        rewriteCommits(c);
-        updateRefs(c);
         source.writeNotes(c);
         target.writeNotes(c);
-        if (cacheLevel.size() != 0) {
-            saveCache(c);
-        }
         cleanUp(c);
     }
 
@@ -185,22 +207,8 @@ public class RepositoryRewriter {
      * Prepares the revision walk.
      */
     protected RevWalk prepareRevisionWalk(final Context c) {
-        final Collection<ObjectId> starts = collectStarts(c);
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
-
-        if (cacheLevel.contains(CacheLevel.commit)) {
-            uninterestings.addAll(cacheProvider
-                .getAllCommits(c)
-                .stream()
-                .map(pair -> {
-                    // FIXME using side effect
-                    source.addNote(pair.getLeft(), getForwardNote(pair.getRight(), c), c);
-                    target.addNote(pair.getRight(), getBackwardNote(pair.getLeft(), c), c);
-                    return pair.getLeft();
-                })
-                .collect(Collectors.toList())
-            );
-        }
+        final Collection<ObjectId> starts = collectStarts(c);
 
         final RevWalk walk = source.walk(c);
         Try.io(c, () -> {
@@ -245,7 +253,16 @@ public class RepositoryRewriter {
      * Collects the set of commit Ids used as uninteresting points.
      */
     protected Collection<ObjectId> collectUninterestings(final Context c) {
-        return new ArrayList<>();
+        final List<ObjectId> result = new ArrayList<>();
+        for (final Map.Entry<RefEntry, RefEntry> e : refEntryMapping.entrySet()) {
+            final RefEntry ref = e.getKey();
+            if (ref.id != null) {
+                log.debug("Previous Ref {}: added as an uninteresting point (commit: {})", ref.name, ref.id.name());
+                result.add(ref.id);
+            }
+        }
+        refEntryMapping.clear();  // ref entries might be removed when updated.
+        return result;
     }
 
     /**
@@ -319,7 +336,7 @@ public class RepositoryRewriter {
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = new Entry(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
         final EntrySet newRoot = getEntry(root, c);
-        final ObjectId newId = newRoot == EntrySet.EMPTY ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
+        final ObjectId newId = newRoot instanceof EntrySet.EmptySet ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
         log.debug("Rewrite tree: {} -> {} {}", treeId.name(), newId.name(), c);
         return newId;
@@ -334,20 +351,8 @@ public class RepositoryRewriter {
         if (cache != null) {
             return cache;
         }
-        if ((cacheLevel.contains(CacheLevel.tree) && entry.isTree()) ||
-            (cacheLevel.contains(CacheLevel.blob) && !entry.isTree())) {
-            final Optional<EntrySet> maybeNewEntry = cacheProvider.getFromSourceEntry(entry, c);
-            if (maybeNewEntry.isPresent()) {
-                entryMapping.put(entry, maybeNewEntry.get());
-                return maybeNewEntry.get();
-            }
-        }
         final EntrySet result = rewriteEntry(entry, c);
         entryMapping.put(entry, result);
-        if ((cacheLevel.contains(CacheLevel.tree) && entry.isTree()) ||
-            (cacheLevel.contains(CacheLevel.blob) && !entry.isTree())) {
-            cacheProvider.registerEntry(entry, result, c);
-        }
         return result;
     }
 
@@ -517,7 +522,7 @@ public class RepositoryRewriter {
             }
         }
 
-        final boolean linkEquals = oldEntry.target == null ? newEntry.target == null : oldEntry.target.equals(newEntry.target);
+        final boolean linkEquals = Objects.equals(oldEntry.target, newEntry.target);
         final boolean idEquals = oldEntry.id == null ? newEntry.id == null : oldEntry.id.name().equals(newEntry.id.name());
 
         if (!isOverwriting || !linkEquals || !idEquals) {
@@ -655,30 +660,5 @@ public class RepositoryRewriter {
             result.put(src, dst);
         }
         return result;
-    }
-
-    /**
-     * Imports source-to-destination mapping of commits.
-     */
-    public void importCommitMapping(final Map<String, String> map) {
-        commitMapping.clear();
-        for (final Map.Entry<String, String> e : map.entrySet()) {
-            final ObjectId src = ObjectId.fromString(e.getKey());
-            final ObjectId dst = ObjectId.fromString(e.getValue());
-            commitMapping.put(src, dst);
-        }
-    }
-
-    public void loadCache(final Context c) {
-        if (cacheLevel.contains(CacheLevel.commit)) {
-            // FIXME modify commitMapping directly
-            commitMapping = Try.io(c, () -> cacheProvider.readToCommitMapping(c));
-        }
-    }
-
-    public void saveCache(final Context c) {
-        if (cacheLevel.contains(CacheLevel.commit)) {
-            Try.io(c, () -> cacheProvider.writeOutFromCommitMapping(commitMapping, c));
-        }
     }
 }

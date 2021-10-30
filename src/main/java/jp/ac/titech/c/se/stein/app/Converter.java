@@ -28,6 +28,7 @@ public class Converter extends RepositoryRewriter {
 
     protected FileFilter filter;
 
+    @SuppressWarnings("unused")
     @Option(names = "--pattern", paramLabel = "<glob>", description = "filter target files")
     protected void setFilter(final String glob) {
         filter = new WildcardFileFilter(glob);
@@ -61,7 +62,7 @@ public class Converter extends RepositoryRewriter {
                 log.error("Bad status code in respoonse: {}", conn.getResponseCode());
             }
         } catch (final IOException e) {
-            log.error("IOException occurred: {}", e);
+            log.error(e.getMessage(), e);
         }
         return content;
     }

@@ -7,42 +7,42 @@ import java.util.function.Function;
 /**
  * A tiny helper for converting IOException to UncheckedIOException.
  */
-public class Try {
+public interface Try {
     @FunctionalInterface
-    public static interface ThrowableRunnable {
+    interface ThrowableRunnable {
         void run() throws Exception;
     }
 
     @FunctionalInterface
-    public static interface ThrowableSupplier<T> {
+    interface ThrowableSupplier<T> {
         T get() throws Exception;
     }
 
     @FunctionalInterface
-    public static interface ThrowableFunction<T, R> {
+    interface ThrowableFunction<T, R> {
         R apply(T t) throws Exception;
     }
 
     // ------
 
     @FunctionalInterface
-    public static interface IOThrowableRunnable {
+    interface IOThrowableRunnable {
         void run() throws IOException;
     }
 
     @FunctionalInterface
-    public static interface IOThrowableSupplier<T> {
+    interface IOThrowableSupplier<T> {
         T get() throws IOException;
     }
 
     @FunctionalInterface
-    public static interface IOThrowableFunction<T, R> {
+    interface IOThrowableFunction<T, R> {
         R apply(T t) throws IOException;
     }
 
     // ------
 
-    public static void run(final ThrowableRunnable f) {
+    static void run(final ThrowableRunnable f) {
         try {
             f.run();
         } catch (final Exception e) {
@@ -50,7 +50,7 @@ public class Try {
         }
     }
 
-    public static void run(final Context c, final ThrowableRunnable f) {
+    static void run(final Context c, final ThrowableRunnable f) {
         try {
             f.run();
         } catch (final Exception e) {
@@ -58,7 +58,7 @@ public class Try {
         }
     }
 
-    public static <T> T run(final ThrowableSupplier<T> f) {
+    static <T> T run(final ThrowableSupplier<T> f) {
         try {
             return f.get();
         } catch (final Exception e) {
@@ -66,7 +66,7 @@ public class Try {
         }
     }
 
-    public static <T> T run(final Context c, final ThrowableSupplier<T> f) {
+    static <T> T run(final Context c, final ThrowableSupplier<T> f) {
         try {
             return f.get();
         } catch (final Exception e) {
@@ -74,7 +74,7 @@ public class Try {
         }
     }
 
-    public static <T, R> Function<T, R> run(final ThrowableFunction<T, R> f) {
+    static <T, R> Function<T, R> run(final ThrowableFunction<T, R> f) {
         return x -> {
             try {
                 return f.apply(x);
@@ -84,7 +84,7 @@ public class Try {
         };
     }
 
-    public static <T, R> Function<T, R> run(final Context c, final ThrowableFunction<T, R> f) {
+    static <T, R> Function<T, R> run(final Context c, final ThrowableFunction<T, R> f) {
         return x -> {
             try {
                 return f.apply(x);
@@ -96,7 +96,7 @@ public class Try {
 
     // ------
 
-    public static void io(final IOThrowableRunnable f) {
+    static void io(final IOThrowableRunnable f) {
         try {
             f.run();
         } catch (final IOException e) {
@@ -104,7 +104,7 @@ public class Try {
         }
     }
 
-    public static void io(final Context c, final IOThrowableRunnable f) {
+    static void io(final Context c, final IOThrowableRunnable f) {
         try {
             f.run();
         } catch (final IOException e) {
@@ -112,7 +112,7 @@ public class Try {
         }
     }
 
-    public static <T> T io(final IOThrowableSupplier<T> f) {
+    static <T> T io(final IOThrowableSupplier<T> f) {
         try {
             return f.get();
         } catch (final IOException e) {
@@ -120,7 +120,7 @@ public class Try {
         }
     }
 
-    public static <T> T io(final Context c, final IOThrowableSupplier<T> f) {
+    static <T> T io(final Context c, final IOThrowableSupplier<T> f) {
         try {
             return f.get();
         } catch (final IOException e) {
@@ -128,7 +128,7 @@ public class Try {
         }
     }
 
-    public static <T, R> Function<T, R> io(final IOThrowableFunction<T, R> f) {
+    static <T, R> Function<T, R> io(final IOThrowableFunction<T, R> f) {
         return x -> {
             try {
                 return f.apply(x);
@@ -138,7 +138,7 @@ public class Try {
         };
     }
 
-    public static <T, R> Function<T, R> io(final Context c, final IOThrowableFunction<T, R> f) {
+    static <T, R> Function<T, R> io(final Context c, final IOThrowableFunction<T, R> f) {
         return x -> {
             try {
                 return f.apply(x);

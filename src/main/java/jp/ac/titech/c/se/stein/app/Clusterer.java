@@ -54,7 +54,7 @@ public class Clusterer extends RepositoryRewriter {
      */
     protected Map<String, List<List<String>>> loadRecipe(final File file) {
         final Gson gson = new Gson();
-        final TypeToken<Map<String, List<List<String>>>> t = new TypeToken<Map<String, List<List<String>>>>() {};
+        final TypeToken<Map<String, List<List<String>>>> t = new TypeToken<>() {};
         return Try.run(() -> gson.fromJson(new FileReader(file), t.getType()));
     }
 
@@ -76,18 +76,6 @@ public class Clusterer extends RepositoryRewriter {
                 rewriteCommit(Try.io(() -> walk.parseCommit(v.id)), uc);
             }
         }, c);
-
-        for (final Map.Entry<ObjectId, ObjectId> e : alternateMapping.entrySet()) {
-            final ObjectId merged = e.getKey();
-            final ObjectId base = e.getValue();
-            final ObjectId rewritten = commitMapping.get(base);
-            if (rewritten == null) {
-                log.warn("Base commit has not rewritten yet: base: {}, merged: {} {}", base.name(), merged.name(), c);
-            } else {
-                log.debug("Add commit mapping: {} (merged into {}) -> {} {}", merged.name(), base.name(), rewritten.name(), c);
-                commitMapping.put(merged, rewritten);
-            }
-        }
 
         for (final Map.Entry<ObjectId, ObjectId> e : alternateMapping.entrySet()) {
             final ObjectId merged = e.getKey();
