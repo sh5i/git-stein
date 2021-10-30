@@ -29,8 +29,8 @@ import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class CacheProvider {
-    private final static Logger log = LoggerFactory.getLogger(CacheProvider.class);
+public class SQLiteCacheProvider {
+    private final static Logger log = LoggerFactory.getLogger(SQLiteCacheProvider.class);
 
     static class KeyValue {
         @DatabaseField(id = true, dataType = DataType.BYTE_ARRAY)
@@ -58,7 +58,7 @@ public class CacheProvider {
 
     final boolean initial;
 
-    public CacheProvider(final Repository target) {
+    public SQLiteCacheProvider(final Repository target) {
         com.j256.ormlite.logger.LoggerFactory.setLogBackendFactory(new Slf4jLoggingLogBackend.Slf4jLoggingLogBackendFactory());
         com.j256.ormlite.logger.Logger.setGlobalLogLevel(com.j256.ormlite.logger.Level.FATAL);
 
@@ -100,24 +100,24 @@ public class CacheProvider {
 
     public Map<ObjectId, ObjectId> getCommitMapping() {
         final Marshaler<ObjectId> m = new Marshaler.ObjectIdMarshaler();
-        return new SQLiteCache<>(commitDao, CommitRow::new, m, m);
+        return new MapAdapter<>(commitDao, CommitRow::new, m, m);
     }
 
     public Map<Entry, EntrySet> getEntryMapping() {
         final Marshaler<Entry> km = new Marshaler.JavaSerializerMarshaler<>();
         final Marshaler<EntrySet> vm = new Marshaler.JavaSerializerMarshaler<>();
-        return new SQLiteCache<>(entryDao, EntryRow::new, km, vm);
+        return new MapAdapter<>(entryDao, EntryRow::new, km, vm);
     }
 
     public Map<RefEntry, RefEntry> getRefEntryMapping() {
         final Marshaler<RefEntry> m = new Marshaler.JavaSerializerMarshaler<>();
-        return new SQLiteCache<>(refDao, RefRow::new, m, m);
+        return new MapAdapter<>(refDao, RefRow::new, m, m);
     }
 
     /**
      * Map interface using the SQLite cache.
      */
-    static class SQLiteCache<K, V, Row extends KeyValue> extends AbstractMap<K, V> {
+    static class MapAdapter<K, V, Row extends KeyValue> extends AbstractMap<K, V> {
 
         final Dao<Row, byte[]> dao;
 
@@ -127,7 +127,7 @@ public class CacheProvider {
 
         final Marshaler<V> valueMarshaler;
 
-        public SQLiteCache(final Dao<Row, byte[]> dao, final Supplier<Row> constructor, final Marshaler<K> keyMarshaler, Marshaler<V> valueMarshaler) {
+        public MapAdapter(final Dao<Row, byte[]> dao, final Supplier<Row> constructor, final Marshaler<K> keyMarshaler, Marshaler<V> valueMarshaler) {
             this.dao = dao;
             this.constructor = constructor;
             this.keyMarshaler = keyMarshaler;

@@ -90,7 +90,7 @@ public class RepositoryRewriter {
         "Valid values: ${COMPLETION-CANDIDATES}"
     }, order = Config.MIDDLE)
     protected EnumSet<CacheLevel> cacheLevel = EnumSet.noneOf(CacheLevel.class);
-    protected CacheProvider cacheProvider;
+    protected SQLiteCacheProvider cacheProvider;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
@@ -108,7 +108,7 @@ public class RepositoryRewriter {
             target.setDryRunning(true);
         }
         if (!cacheLevel.isEmpty()) {
-            cacheProvider = new CacheProvider(targetRepo);
+            cacheProvider = new SQLiteCacheProvider(targetRepo);
             if (cacheLevel.contains(CacheLevel.commit)) {
                 log.info("Stored mapping (commit-mapping) is available");
                 commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping());
