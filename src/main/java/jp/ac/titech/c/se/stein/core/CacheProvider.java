@@ -74,14 +74,14 @@ public class CacheProvider {
             refDao = DaoManager.createDao(connectionSource, RefRow.class);
             TableUtils.createTableIfNotExists(connectionSource, RefRow.class);
         } catch (final SQLException e) {
-            log.error("Failed to connect to Database.", e);
+            log.error(e.getMessage(), e);
         } finally {
             try {
                 if (connectionSource != null) {
                     connectionSource.close();
                 }
             } catch (final IOException e) {
-                log.error("Failed to close connection to Database.", e);
+                log.error("Failed to close connection to Database", e);
             }
         }
     }
@@ -115,7 +115,7 @@ public class CacheProvider {
     }
 
     /**
-     * Adapter for the commit mapping.
+     * Map interface using the SQLite cache.
      */
     static class SQLiteCache<K, V, Row extends KeyValue> extends AbstractMap<K, V> {
 
@@ -144,7 +144,7 @@ public class CacheProvider {
                 final Row row = dao.queryForFirst(q);
                 return row != null ? valueMarshaler.unmarshal(row.target) : null;
             } catch (final SQLException e) {
-                log.warn("Could not fetch any data", e);
+                log.warn(e.getMessage(), e);
                 return null;
             }
         }
@@ -157,7 +157,7 @@ public class CacheProvider {
                 row.target = valueMarshaler.marshal(value);
                 dao.createIfNotExists(row);
             } catch (final SQLException e) {
-                log.warn("Could not save data", e);
+                log.error(e.getMessage(), e);
             }
             return value;
         }
@@ -171,7 +171,7 @@ public class CacheProvider {
                         .map(r -> new AbstractMap.SimpleEntry<>(keyMarshaler.unmarshal(r.source), valueMarshaler.unmarshal(r.target)))
                         .collect(Collectors.toSet());
             } catch (final SQLException e) {
-                log.warn("Could not fetch any data", e);
+                log.error(e.getMessage(), e);
                 return Collections.emptySet();
             }
         }
@@ -181,7 +181,7 @@ public class CacheProvider {
             try {
                 dao.deleteBuilder().delete();
             } catch (final SQLException e) {
-                log.warn("Could not delete data", e);
+                log.error(e.getMessage(), e);
             }
         }
     }
