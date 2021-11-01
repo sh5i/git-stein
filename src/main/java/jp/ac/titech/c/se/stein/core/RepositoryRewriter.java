@@ -287,7 +287,7 @@ public class RepositoryRewriter {
             newId = target.writeCommit(parentIds, treeId, author, committer, msg, uc);
         }
 
-        final ObjectId oldId = commit.getId();
+        final ObjectId oldId = commit.getId().copy();
         commitMapping.put(oldId, newId);
         log.debug("Rewrite commit: {} -> {} {}", oldId.name(), newId.name(), c);
 
