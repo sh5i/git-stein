@@ -140,8 +140,7 @@ public class SQLiteCacheProvider {
             final K k = (K) key;
             try {
                 final byte[] source = keyMarshaler.marshal(k);
-                final PreparedQuery<Row> q = dao.queryBuilder().where().eq("source", source).prepare();
-                final Row row = dao.queryForFirst(q);
+                final Row row = dao.queryForId(source);
                 return row != null ? valueMarshaler.unmarshal(row.target) : null;
             } catch (final SQLException e) {
                 log.warn(e.getMessage(), e);
