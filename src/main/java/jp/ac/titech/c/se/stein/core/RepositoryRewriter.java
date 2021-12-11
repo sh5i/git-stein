@@ -362,7 +362,9 @@ public class RepositoryRewriter {
     protected EntrySet rewriteEntry(final Entry entry, final Context c) {
         final Context uc = c.with(Key.entry, entry);
 
-        final ObjectId newId = entry.isTree() ? rewriteTree(entry.id, uc) : rewriteBlob(entry.id, uc);
+        final ObjectId newId = entry.isLink() ? rewriteLink(entry.id, uc)
+                             : entry.isTree() ? rewriteTree(entry.id, uc)
+                             :                  rewriteBlob(entry.id, uc);
         final String newName = rewriteName(entry.name, uc);
         return newId == ZERO ? EntrySet.EMPTY : new Entry(entry.mode, newName, newId, entry.directory);
     }
@@ -401,6 +403,13 @@ public class RepositoryRewriter {
             log.debug("Rewrite blob: {} -> {} {}", blobId.name(), newId.name(), c);
         }
         return newId;
+    }
+
+    /**
+     * Rewrites a commit link.
+     */
+    protected ObjectId rewriteLink(final ObjectId commitId, final Context c) {
+        return commitId;
     }
 
     /**
