@@ -35,6 +35,7 @@ import org.eclipse.jdt.core.dom.TypeDeclaration;
 import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 import org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.util.sha1.SHA1;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,6 +90,9 @@ public class Historage extends RepositoryRewriter {
 
     @Option(names = "--comment-ext", description = "comment file extension")
     protected String commentExtension = "com";
+
+    @Option(names = "--digest-params", description = "digest parameters")
+    protected boolean digestParameters = false;
 
     @Option(names = "--unqualify", description = "unqualify typenames")
     protected boolean unqualifyTypename = false;
@@ -630,9 +634,12 @@ public class Historage extends RepositoryRewriter {
         protected void generateParameters() {
             @SuppressWarnings("unchecked")
             final List<Object> params = node.parameters();
-            final String names = params.stream()
+            String names = params.stream()
                     .map(o -> getTypeName((SingleVariableDeclaration) o))
                     .collect(Collectors.joining(","));
+            if (digestParameters) {
+                names = "~" + digest(names, 6);
+            }
             buffer.append("(").append(names).append(")");
         }
 
@@ -655,6 +662,12 @@ public class Historage extends RepositoryRewriter {
                     .replace('?', '#')
                     .replace('<', '[')
                     .replace('>', ']');
+        }
+        
+        private String digest(final String name, final int length) {
+            final SHA1 sha1 = SHA1.newInstance();
+            sha1.update(name.getBytes());
+            return ObjectId.fromRaw(sha1.digest()).abbreviate(length).name();
         }
     }
 
