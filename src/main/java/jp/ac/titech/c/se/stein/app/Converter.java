@@ -55,11 +55,12 @@ public class Converter extends RepositoryRewriter {
             conn.setRequestProperty("Content-type", "text/plain");
             conn.setRequestProperty("Accept", "text/plain");
             conn.setRequestProperty("Content-Length", String.valueOf(content.length));
+            conn.setRequestProperty("X-Filename", filename);
             conn.getOutputStream().write(content);
             if (conn.getResponseCode() == 200) {
                 return IOUtils.toByteArray(conn.getInputStream());
             } else {
-                log.error("Bad status code in respoonse: {}", conn.getResponseCode());
+                log.error("Bad status code in response: {}", conn.getResponseCode());
             }
         } catch (final IOException e) {
             log.error(e.getMessage(), e);

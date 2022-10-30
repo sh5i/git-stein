@@ -244,7 +244,7 @@ public class RepositoryRewriter {
     /**
      * Confirms whether the given ref is used for a start point.
      */
-    protected boolean confirmStartRef(final Ref ref, final Context c) {
+    protected boolean confirmStartRef(final Ref ref, @SuppressWarnings("unused") final Context c) {
         final String name = ref.getName();
         return name.equals(Constants.HEAD) || name.startsWith(Constants.R_HEADS) || name.startsWith(Constants.R_TAGS);
     }
@@ -252,7 +252,7 @@ public class RepositoryRewriter {
     /**
      * Collects the set of commit Ids used as uninteresting points.
      */
-    protected Collection<ObjectId> collectUninterestings(final Context c) {
+    protected Collection<ObjectId> collectUninterestings(@SuppressWarnings("unused") final Context c) {
         final List<ObjectId> result = new ArrayList<>();
         for (final Map.Entry<RefEntry, RefEntry> e : refEntryMapping.entrySet()) {
             final RefEntry ref = e.getKey();
@@ -300,14 +300,14 @@ public class RepositoryRewriter {
     /**
      * Returns a note for a commit.
      */
-    protected String getForwardNote(final ObjectId newCommitId, final Context c) {
+    protected String getForwardNote(final ObjectId newCommitId, @SuppressWarnings("unused") final Context c) {
         return isAddingForwardNotes ? newCommitId.name() : null;
     }
 
     /**
      * Returns a note for a commit.
      */
-    protected String getBackwardNote(final ObjectId oldCommitId, final Context c) {
+    protected String getBackwardNote(final ObjectId oldCommitId, @SuppressWarnings("unused") final Context c) {
         return isAddingBackwardNotes ? oldCommitId.name() : null;
     }
 
@@ -408,7 +408,7 @@ public class RepositoryRewriter {
     /**
      * Rewrites a commit link.
      */
-    protected ObjectId rewriteLink(final ObjectId commitId, final Context c) {
+    protected ObjectId rewriteLink(final ObjectId commitId, @SuppressWarnings("unused") final Context c) {
         return commitId;
     }
 
@@ -450,21 +450,21 @@ public class RepositoryRewriter {
     /**
      * Rewrites a message.
      */
-    protected String rewriteMessage(final String message, final Context c) {
+    protected String rewriteMessage(final String message, @SuppressWarnings("unused") final Context c) {
         return message;
     }
 
     /**
      * Rewrites an encoding.
      */
-    protected Charset rewriteEncoding(final Charset encoding, final Context c) {
+    protected Charset rewriteEncoding(final Charset encoding, @SuppressWarnings("unused") final Context c) {
         return encoding;
     }
 
     /**
      * Rewrites a GPG signature.
      */
-    protected GpgSignature rewriteSignature(final byte[] rawSignature, final Context c) {
+    protected GpgSignature rewriteSignature(final byte[] rawSignature, @SuppressWarnings("unused") final Context c) {
         if (rawSignature != null) {
             // fix to remove the prefix spaces
             final byte[] fixed = new String(rawSignature, US_ASCII).replaceAll("\n ", "\n").getBytes();
@@ -613,7 +613,7 @@ public class RepositoryRewriter {
     /**
      * Rewrites the tagger identity of a tag.
      */
-    protected PersonIdent rewriteTagger(final PersonIdent tagger, final RevTag tag, final Context c) {
+    protected PersonIdent rewriteTagger(final PersonIdent tagger, @SuppressWarnings("unused") final RevTag tag, final Context c) {
         return rewritePerson(tagger, c);
     }
 
@@ -656,7 +656,7 @@ public class RepositoryRewriter {
     /**
      * A hook method for cleaning up.
      */
-    protected void cleanUp(final Context c) {}
+    protected void cleanUp(@SuppressWarnings("unused") final Context c) {}
 
     /**
      * Exports source-to-destination mapping of commits.

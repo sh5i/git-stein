@@ -63,7 +63,7 @@ public class RepositoryAccess {
     /**
      * Returns a RevWalk object.
      */
-    public RevWalk walk(final Context c) {
+    public RevWalk walk(@SuppressWarnings("unused") final Context c) {
         final RevWalk walk = new RevWalk(repo);
         walk.sort(RevSort.TOPO, true);
         walk.sort(RevSort.REVERSE, true);
@@ -358,7 +358,7 @@ public class RepositoryAccess {
     /**
      * Opens and provides an object inserter.
      */
-    public void openInserter(final Consumer<ObjectInserter> f, final Context c) {
+    public void openInserter(final Consumer<ObjectInserter> f, @SuppressWarnings("unused") final Context c) {
         try (final ObjectInserter ins = repo.newObjectInserter()) {
             f.accept(ins);
         }
@@ -367,7 +367,7 @@ public class RepositoryAccess {
     /**
      * Generates an object inserter.
      */
-    public ObjectInserter getInserter(final Context c) {
+    public ObjectInserter getInserter(@SuppressWarnings("unused") final Context c) {
         return repo.newObjectInserter();
     }
 

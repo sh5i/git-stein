@@ -122,7 +122,7 @@ public class Historage extends RepositoryRewriter {
         return result;
     }
 
-    public abstract class Module {
+    public abstract static class Module {
         protected final String name;
         protected final String extension;
         protected final Module parent;
@@ -148,7 +148,7 @@ public class Historage extends RepositoryRewriter {
         }
     }
 
-    public class FileModule extends Module {
+    public static class FileModule extends Module {
         public FileModule(final String name) {
             super(name, null, null, null);
         }
@@ -352,7 +352,7 @@ public class Historage extends RepositoryRewriter {
          * Creates a JDT ASTParser.
          */
         protected ASTParser createParser() {
-            final ASTParser parser = ASTParser.newParser(AST.JLS_Latest);
+            final ASTParser parser = ASTParser.newParser(AST.getJLSLatest());
             @SuppressWarnings("unchecked")
             final Map<String, String> options = DefaultCodeFormatterConstants.getEclipseDefaultSettings();
             options.put(JavaCore.COMPILER_COMPLIANCE, JavaCore.VERSION_1_8);
@@ -403,6 +403,7 @@ public class Historage extends RepositoryRewriter {
         /**
          * Gets a node fragment with excluding its Javadoc comment.
          */
+        @SuppressWarnings("unused")
         protected Fragment getFragmentWithoutJavadoc(final BodyDeclaration node) {
             final Optional<Integer> start = findChildNodes(node).stream()
                     .filter(n -> !(n instanceof Javadoc))
@@ -555,7 +556,7 @@ public class Historage extends RepositoryRewriter {
             return true;
         }
 
-        protected void endVisitType(final AbstractTypeDeclaration node) {
+        protected void endVisitType(@SuppressWarnings("unused") final AbstractTypeDeclaration node) {
             stack.pop();
         }
 
@@ -620,6 +621,7 @@ public class Historage extends RepositoryRewriter {
             }
         }
 
+        @SuppressWarnings("unused")
         protected void generateReturnType() {
             final Type type = node.getReturnType2();
             if (type != null) {
@@ -664,7 +666,7 @@ public class Historage extends RepositoryRewriter {
                     .replace('>', ']');
         }
         
-        private String digest(final String name, final int length) {
+        private String digest(final String name, @SuppressWarnings("SameParameterValue") final int length) {
             final SHA1 sha1 = SHA1.newInstance();
             sha1.update(name.getBytes());
             return ObjectId.fromRaw(sha1.digest()).abbreviate(length).name();

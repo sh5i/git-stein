@@ -23,7 +23,7 @@ import jp.ac.titech.c.se.stein.core.CommitGraph.Vertex;
 
 /**
  * jGraphT DAG for a commit graph.
- *
+ * <p>
  * This inherits from SimpleDirectedGraph rather than DirectedAcyclicGraph due
  * to efficiency.
  */

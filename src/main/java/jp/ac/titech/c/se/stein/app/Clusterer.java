@@ -71,9 +71,10 @@ public class Clusterer extends RepositoryRewriter {
         target.openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
 
-            final RevWalk walk = source.walk(c);
-            for (final Vertex v : graph) {
-                rewriteCommit(Try.io(() -> walk.parseCommit(v.id)), uc);
+            try (final RevWalk walk = source.walk(c)) {
+                for (final Vertex v : graph) {
+                    rewriteCommit(Try.io(() -> walk.parseCommit(v.id)), uc);
+                }
             }
         }, c);
 

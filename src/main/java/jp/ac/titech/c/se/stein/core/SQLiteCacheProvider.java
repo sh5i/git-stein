@@ -7,7 +7,6 @@ import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.jdbc.JdbcConnectionSource;
 import com.j256.ormlite.logger.Slf4jLoggingLogBackend;
 import com.j256.ormlite.misc.TransactionManager;
-import com.j256.ormlite.stmt.PreparedQuery;
 import com.j256.ormlite.table.DatabaseTable;
 import com.j256.ormlite.table.TableUtils;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
