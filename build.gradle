@@ -7,6 +7,10 @@ plugins {
 sourceCompatibility = '11'
 targetCompatibility = '11'
 
+repositories {
+    mavenCentral()
+}
+
 dependencies {
     api 'org.eclipse.jgit:org.eclipse.jgit:6.3.0.202209071007-r'
     implementation 'org.slf4j:slf4j-api:1.7.36'
@@ -31,10 +35,6 @@ dependencies {
         compileOnly 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
         compileOnly 'org.jgrapht:jgrapht-io:1.5.1'
     }
-}
-
-repositories {
-    mavenCentral()
 }
 
 jar {
