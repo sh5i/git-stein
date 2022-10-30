@@ -1,33 +1,33 @@
 plugins {
     id 'java-library'
-    id 'com.github.johnrengelman.shadow' version '7.0.0'
-    id 'com.github.ben-manes.versions' version '0.39.0'
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
+    id 'com.github.ben-manes.versions' version '0.43.0'
 }
 
 sourceCompatibility = '11'
 targetCompatibility = '11'
 
 dependencies {
-    api 'org.eclipse.jgit:org.eclipse.jgit:5.12.0.202106070339-r'
-    implementation 'org.slf4j:slf4j-api:1.7.32'
-    implementation 'ch.qos.logback:logback-classic:1.2.5'
+    api 'org.eclipse.jgit:org.eclipse.jgit:6.3.0.202209071007-r'
+    implementation 'org.slf4j:slf4j-api:1.7.36'
+    implementation 'ch.qos.logback:logback-classic:1.2.11'
     implementation 'org.jgrapht:jgrapht-core:1.5.1'
-    implementation 'com.google.code.gson:gson:2.8.7'
-    implementation 'info.picocli:picocli:4.6.1'
+    implementation 'com.google.code.gson:gson:2.10'
+    implementation 'info.picocli:picocli:4.6.3'
     implementation 'commons-io:commons-io:2.11.0'
     implementation 'org.apache.commons:commons-lang3:3.12.0'
-    implementation 'org.xerial:sqlite-jdbc:3.34.0'
-    implementation  'com.j256.ormlite:ormlite-jdbc:5.5'
+    implementation 'org.xerial:sqlite-jdbc:3.39.3.0'
+    implementation 'com.j256.ormlite:ormlite-jdbc:5.7'
  
     testImplementation 'junit:junit:4.13.2'
     
     // dependencies for sample apps: available only if the property "stein.runsample" is defined
     if (project.findProperty("stein.runsample") == "yes") {
-        implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.26.0'
+        implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.31.0'
         implementation 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
         implementation 'org.jgrapht:jgrapht-io:1.5.1'
     } else {
-        compileOnly 'org.eclipse.jdt:org.eclipse.jdt.core:3.26.0'
+        compileOnly 'org.eclipse.jdt:org.eclipse.jdt.core:3.31.0'
         compileOnly 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
         compileOnly 'org.jgrapht:jgrapht-io:1.5.1'
     }
