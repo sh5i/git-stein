@@ -30,7 +30,7 @@ public class LineTokenizer extends RepositoryRewriter {
      * Encodes the given source.
      */
     public static String encode(final String source) {
-        final IScanner scanner = ToolFactory.createScanner(true, true, true, JavaCore.VERSION_10);
+        final IScanner scanner = ToolFactory.createScanner(true, true, false, JavaCore.VERSION_18);
         scanner.setSource(source.replaceAll("\r\n|\r|\n", "\n").toCharArray());
         final StringBuilder buffer = new StringBuilder();
         try {
@@ -39,11 +39,11 @@ public class LineTokenizer extends RepositoryRewriter {
                 if (type == ITerminalSymbols.TokenNameEOF) {
                     break;
                 }
-                final String token = new String(scanner.getRawTokenSource());
-                buffer.append(token.replace("\n", "\r\n")).append("\n");
+                final String token = new String(scanner.getCurrentTokenSource());
+                buffer.append(token.replace("\n", "\r")).append("\n");
             }
         } catch (final InvalidInputException e) {
-            e.printStackTrace();
+            log.error(e.getMessage(), e);
         }
         return buffer.toString();
     }
