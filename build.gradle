@@ -52,6 +52,14 @@ jar {
     }
 }
 
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+        }
+    }
+}
+
 shadowJar {
     minimize {
         exclude(dependency('org.xerial:sqlite-jdbc:.*'))
