@@ -42,6 +42,10 @@ dependencies {
     }
 }
 
+java {
+    withSourcesJar()
+}
+
 jar {
     manifest {
         attributes "Main-Class": "jp.ac.titech.c.se.stein.Loader"
