@@ -16,7 +16,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.ITypeConverter;
 import picocli.CommandLine.Option;
 
-@Command(name = "cleaner", description = "Remove blob files")
+@Command(name = "Cleaner", description = "Remove blob files")
 public class Cleaner extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Cleaner.class);
 

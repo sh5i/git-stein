@@ -19,7 +19,7 @@ import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(name = "like-tokenizer", description = "Encode/decode Java source files to/from linetoken format")
+@Command(name = "LikeTokenizer", description = "Encode/decode Java source files to/from linetoken format")
 public class LineTokenizer extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(LineTokenizer.class);
 

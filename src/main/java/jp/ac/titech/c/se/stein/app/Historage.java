@@ -54,7 +54,7 @@ import picocli.CommandLine.Option;
  * @see <a href="https://github.com/hideakihata/git2historage">git2historage</a>
  * @see <a href="https://github.com/kusumotolab/FinerGit">FinerGit</a>
  */
-@Command(name = "historage", description = "Generate finer-grained modules")
+@Command(name = "Historage", description = "Generate finer-grained modules")
 public class Historage extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Historage.class);
 

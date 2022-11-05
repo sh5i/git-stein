@@ -27,7 +27,7 @@ import jp.ac.titech.c.se.stein.core.Try;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(name = "clusterer", description = "Cluster and merge commits")
+@Command(name = "Clusterer", description = "Cluster and merge commits")
 public class Clusterer extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Clusterer.class);
 

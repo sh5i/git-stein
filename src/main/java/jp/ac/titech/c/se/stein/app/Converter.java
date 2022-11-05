@@ -19,7 +19,7 @@ import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(name = "converter", description = "Convert files via HTTP API endpoint")
+@Command(name = "Converter", description = "Convert files via HTTP API endpoint")
 public class Converter extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(Converter.class);
 

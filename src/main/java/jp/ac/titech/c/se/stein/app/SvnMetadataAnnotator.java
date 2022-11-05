@@ -22,7 +22,7 @@ import jp.ac.titech.c.se.stein.core.Try;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(name = "svn-metadata-annotator", description = "Attach metadata obtained from svn2git")
+@Command(name = "SvnMetadataAnnotator", description = "Attach metadata obtained from svn2git")
 public class SvnMetadataAnnotator extends RepositoryRewriter {
     private static final Logger log = LoggerFactory.getLogger(SvnMetadataAnnotator.class);
 
