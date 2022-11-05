@@ -79,17 +79,17 @@ public class Historage extends RepositoryRewriter {
     @Option(names = "--separate-comments", description = "exclude comments from modules")
     protected boolean separatesComments = false;
 
-    @Option(names = "--class-ext", description = "class file extension")
+    @Option(names = "--class-ext", paramLabel = "<ext>", description = "class file extension (default: ${DEFAULT-VALUE})")
     protected String classExtension = ".cjava";
 
-    @Option(names = "--method-ext", description = "method file extension")
+    @Option(names = "--method-ext", paramLabel = "<ext>", description = "method file extension (default: ${DEFAULT-VALUE})")
     protected String methodExtension = ".mjava";
 
-    @Option(names = "--field-ext", description = "field file extension")
+    @Option(names = "--field-ext", paramLabel = "<ext>", description = "field file extension (default: ${DEFAULT-VALUE})")
     protected String fieldExtension = ".fjava";
 
-    @Option(names = "--comment-ext", description = "comment file extension")
-    protected String commentExtension = "com";
+    @Option(names = "--comment-ext", paramLabel = "<ext>", description = "comment file extension (default: ${DEFAULT-VALUE})")
+    protected String commentExtension = ".com";
 
     @Option(names = "--digest-params", description = "digest parameters")
     protected boolean digestParameters = false;
