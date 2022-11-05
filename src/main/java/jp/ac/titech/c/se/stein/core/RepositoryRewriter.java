@@ -85,10 +85,7 @@ public class RepositoryRewriter {
         blob, tree, commit
     }
 
-    @Option(names = "--cache-level", arity = "0..*", split = ",", description = {
-        "granularity of cache save for incremental conversion",
-        "Valid values: ${COMPLETION-CANDIDATES}"
-    }, order = Config.MIDDLE)
+    @Option(names = "--cache", split = ",", paramLabel = "<l>", description = "cache level (${COMPLETION-CANDIDATES}. default: none)", order = Config.MIDDLE)
     protected EnumSet<CacheLevel> cacheLevel = EnumSet.noneOf(CacheLevel.class);
     protected SQLiteCacheProvider cacheProvider;
 
