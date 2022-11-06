@@ -107,7 +107,7 @@ public class Application implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         setLoggerLevel(Logger.ROOT_LOGGER_NAME, conf.logLevel);
-        if (conf.logLevel == Level.DEBUG) {
+        if (conf.logLevel == Level.DEBUG || conf.logLevel == Level.TRACE) {
             // suppress jgit's log
             setLoggerLevel("org.eclipse.jgit", Level.INFO);
         }
