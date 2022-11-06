@@ -49,7 +49,7 @@ public interface EntrySet extends Serializable {
 
         @Override
         public String toString() {
-            return String.format("<Entry:%s %s %s>", mode, getPath(), id.name());
+            return String.format("<Entry:%o %s %s>", mode, getPath(), id.name());
         }
 
         public boolean isTree() {
