@@ -20,6 +20,11 @@ public class Cache<K, V> extends AbstractMap<K, V> {
         this(frontend, backend, backend);
     }
 
+    public Cache(final Map<K, V> frontend, final Map<K, V> backend, final boolean readFrom, final boolean writeTo) {
+        this(frontend, readFrom ? backend : new NullObjectMap<>(),
+                       writeTo  ? backend : new NullObjectMap<>());
+    }
+
     @Override
     public V get(final Object key) {
         @SuppressWarnings("unchecked")
@@ -78,17 +83,7 @@ public class Cache<K, V> extends AbstractMap<K, V> {
         }
     }
 
-    public static class PutOnly<K, V> extends AbstractMap<K, V> {
-        private final Map<K, V> delegatee;
-
-        public PutOnly(final Map<K, V> delegatee) {
-            this.delegatee = delegatee;
-        }
-
-        public static <K, V> Map<K, V> apply(final Map<K, V> delegatee) {
-            return new PutOnly<>(delegatee);
-        }
-
+    public static class NullObjectMap<K, V> extends AbstractMap<K, V> {
         @Override
         public V get(final Object key) {
             return null;
@@ -96,7 +91,7 @@ public class Cache<K, V> extends AbstractMap<K, V> {
 
         @Override
         public V put(final K key, final V value) {
-            return delegatee.put(key, value);
+            return value;
         }
 
         @Override

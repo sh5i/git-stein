@@ -108,8 +108,8 @@ public class RepositoryRewriter {
             cacheProvider = new SQLiteCacheProvider(targetRepo);
             if (cacheLevel.contains(CacheLevel.commit)) {
                 log.info("Stored mapping (commit-mapping) is available");
-                commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping());
-                refEntryMapping = new Cache<>(refEntryMapping, cacheProvider.getRefEntryMapping());
+                commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping(), !cacheProvider.isInitial(), true);
+                refEntryMapping = new Cache<>(refEntryMapping, cacheProvider.getRefEntryMapping(), !cacheProvider.isInitial(), true);
             }
             if (cacheLevel.contains(CacheLevel.blob) || cacheLevel.contains(CacheLevel.tree)) {
                 log.info("Stored mapping (entry-mapping) is available");
@@ -121,11 +121,7 @@ public class RepositoryRewriter {
                     log.info("Stored mapping (entry-mapping): tree-only filtering");
                     storedEntryMapping = Cache.Filter.apply(Entry::isTree, storedEntryMapping);
                 }
-                if (cacheProvider.isInitial()) {
-                    log.info("entry-level stored mapping: put only (initial running)");
-                    storedEntryMapping = Cache.PutOnly.apply(storedEntryMapping);
-                }
-                entryMapping = new Cache<>(entryMapping, storedEntryMapping);
+                entryMapping = new Cache<>(entryMapping, storedEntryMapping, !cacheProvider.isInitial(), true);
             }
         }
     }
