@@ -8,23 +8,28 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 public class Cache<K, V> extends AbstractMap<K, V> {
-    private final Map<K, V> frontend, backend;
+    private final Map<K, V> frontend, readingBackend, writingBackend;
+
+    public Cache(final Map<K, V> frontend, final Map<K, V> readingBackend, final Map<K, V> writingBackend) {
+        this.frontend = frontend;
+        this.readingBackend = readingBackend;
+        this.writingBackend = writingBackend;
+    }
 
     public Cache(final Map<K, V> frontend, final Map<K, V> backend) {
-        this.frontend = frontend;
-        this.backend = backend;
+        this(frontend, backend, backend);
     }
 
     @Override
     public V get(final Object key) {
         @SuppressWarnings("unchecked")
         final K k = (K) key;
-        return frontend.computeIfAbsent(k, backend::get);
+        return frontend.computeIfAbsent(k, readingBackend::get);
     }
 
     @Override
     public V put(final K key, final V value) {
-        backend.put(key, value);
+        writingBackend.put(key, value);
         return frontend.put(key, value);
     }
 
@@ -32,14 +37,14 @@ public class Cache<K, V> extends AbstractMap<K, V> {
     public Set<Entry<K, V>> entrySet() {
         final Set<Entry<K, V>> result = new HashSet<>();
         result.addAll(frontend.entrySet());
-        result.addAll(backend.entrySet());
+        result.addAll(readingBackend.entrySet());
         return result;
     }
 
     @Override
     public void clear() {
         frontend.clear();
-        backend.clear();
+        writingBackend.clear();
     }
 
     public static class Filter<K, V> extends AbstractMap<K, V> {
