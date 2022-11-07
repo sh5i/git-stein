@@ -16,14 +16,13 @@ import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
 
-import ch.qos.logback.classic.Level;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
+import org.slf4j.event.Level;
 import picocli.CommandLine;
 import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.ITypeConverter;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -60,7 +59,7 @@ public class Application implements Callable<Integer> {
         @Option(names = "--mapping", paramLabel = "<file>", description = "store the commit mapping", order = LOW)
         File commitMappingFile;
 
-        @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})", order = LOW, converter = LevelConverter.class)
+        @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})", order = LOW)
         Level logLevel = Level.INFO;
 
         @SuppressWarnings("unused")
@@ -96,7 +95,7 @@ public class Application implements Callable<Integer> {
 
     public static void setLoggerLevel(final String name, final Level level) {
         final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(name);
-        logger.setLevel(level);
+        logger.setLevel(ch.qos.logback.classic.Level.convertAnSLF4JLevel(level));
         log.debug("Set log level of {} to {}", name, level);
     }
 
@@ -186,13 +185,6 @@ public class Application implements Callable<Integer> {
             result.create(conf.isBare);
         }
         return result;
-    }
-
-    public static class LevelConverter implements ITypeConverter<Level> {
-        @Override
-        public Level convert(final String value) {
-            return Level.valueOf(value);
-        }
     }
 
     public static void execute(final RepositoryRewriter rewriter, final String[] args) {
