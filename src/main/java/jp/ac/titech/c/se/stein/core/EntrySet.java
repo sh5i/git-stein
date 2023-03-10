@@ -19,7 +19,7 @@ public interface EntrySet extends Serializable {
     /**
      * A normal tree entry.
      */
-    class Entry implements EntrySet {
+    class Entry implements EntrySet, Comparable<Entry> {
         private static final long serialVersionUID = 1L;
 
         public final int mode;
@@ -88,6 +88,11 @@ public interface EntrySet extends Serializable {
                    Objects.equals(this.mode, that.mode) &&
                    Objects.equals(this.name, that.name) &&
                    Objects.equals(this.directory, that.directory);
+        }
+
+        @Override
+        public int compareTo(final Entry other) {
+            return generateSortKey().compareTo(other.generateSortKey());
         }
     }
 
