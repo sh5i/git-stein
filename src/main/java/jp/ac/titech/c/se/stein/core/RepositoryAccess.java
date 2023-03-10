@@ -1,11 +1,7 @@
 package jp.ac.titech.c.se.stein.core;
 
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -162,15 +158,26 @@ public class RepositoryAccess {
      * Sorts tree entries.
      */
     public Collection<Entry> sortEntries(final Collection<Entry> entries, final Context c) {
-        final SortedMap<String, Entry> map = new TreeMap<>();
+        final Map<String, Entry> map = new HashMap<>();
+        final SortedMap<String, Entry> sorted = new TreeMap<>();
         for (final Entry e : entries) {
-            final String key = e.name + (e.isTree() ? "/" : "");
-            if (map.containsKey(key)) {
-                log.warn("Entry occurred twice: {}, found: {}, new: {} {}", e.getPath(), map.get(key).id.name(), e.id.name(), c);
+            if (map.containsKey(e.name)) {
+                // Find a possible filename with a number suffix
+                int suffix = 2;
+                while (map.containsKey(e.name + "_" + suffix)) {
+                    suffix++;
+                }
+                log.debug("Entry occurred twice: {}, used {}_{} instead; found: {}, new: {} {}", e.getPath(), e.name, suffix, map.get(e.name).id.name(), e.id.name(), c);
+
+                final Entry newEntry = new Entry(e.mode, e.name + "_" + suffix, e.id, e.directory);
+                map.put(newEntry.name, newEntry);
+                sorted.put(newEntry.name + (newEntry.isTree() ? "/" : ""), newEntry);
+            } else {
+                map.put(e.name, e);
+                sorted.put(e.name + (e.isTree() ? "/" : ""), e);
             }
-            map.put(key, e);
         }
-        return map.values();
+        return sorted.values();
     }
 
     /**
