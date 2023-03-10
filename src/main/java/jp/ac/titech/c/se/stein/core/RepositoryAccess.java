@@ -171,10 +171,10 @@ public class RepositoryAccess {
 
                 final Entry newEntry = new Entry(e.mode, e.name + "_" + suffix, e.id, e.directory);
                 map.put(newEntry.name, newEntry);
-                sorted.put(newEntry.name + (newEntry.isTree() ? "/" : ""), newEntry);
+                sorted.put(newEntry.generateSortKey(), newEntry);
             } else {
                 map.put(e.name, e);
-                sorted.put(e.name + (e.isTree() ? "/" : ""), e);
+                sorted.put(e.generateSortKey(), e);
             }
         }
         return sorted.values();

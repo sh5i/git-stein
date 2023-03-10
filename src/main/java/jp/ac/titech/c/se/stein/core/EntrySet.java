@@ -64,6 +64,10 @@ public interface EntrySet extends Serializable {
             return isTree() && name.equals("");
         }
 
+        public String generateSortKey() {
+            return name + (isTree() ? "/" : "");
+        }
+
         @Override
         public void registerTo(final List<Entry> out) {
             out.add(this);
