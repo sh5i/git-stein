@@ -148,18 +148,15 @@ public class RepositoryAccess {
      */
     public ObjectId writeTree(final Collection<Entry> entries, final Context c) {
         final TreeFormatter f = new TreeFormatter();
-        for (final Entry e : sortEntries(entries, c)) {
-            f.append(e.name, FileMode.fromBits(e.mode), e.id);
-        }
+        resolveNameConflicts(entries, c).stream()
+                .sorted(Comparator.comparing(Entry::generateSortKey))
+                .forEach(e -> f.append(e.name, FileMode.fromBits(e.mode), e.id));
         return insert(ins -> isDryRunning ? ins.idFor(f) : ins.insert(f), c);
     }
 
-    /**
-     * Sorts tree entries.
-     */
-    public Collection<Entry> sortEntries(final Collection<Entry> entries, final Context c) {
+    public List<Entry> resolveNameConflicts(final Collection<Entry> entries, final Context c) {
         final Map<String, Entry> map = new HashMap<>();
-        final SortedMap<String, Entry> sorted = new TreeMap<>();
+        final List<Entry> result = new ArrayList<>();
         for (final Entry e : entries) {
             if (map.containsKey(e.name)) {
                 // Find a possible filename with a number suffix
@@ -168,16 +165,15 @@ public class RepositoryAccess {
                     suffix++;
                 }
                 log.debug("Entry occurred twice: {}, used {}_{} instead; found: {}, new: {} {}", e.getPath(), e.name, suffix, map.get(e.name).id.name(), e.id.name(), c);
-
                 final Entry newEntry = new Entry(e.mode, e.name + "_" + suffix, e.id, e.directory);
                 map.put(newEntry.name, newEntry);
-                sorted.put(newEntry.generateSortKey(), newEntry);
+                result.add(newEntry);
             } else {
                 map.put(e.name, e);
-                sorted.put(e.generateSortKey(), e);
+                result.add(e);
             }
         }
-        return sorted.values();
+        return result;
     }
 
     /**
@@ -307,7 +303,9 @@ public class RepositoryAccess {
         final TagBuilder builder = new TagBuilder();
         builder.setObjectId(objectId, type);
         builder.setTag(tag);
-        builder.setTagger(tagger);
+        if (tagger != null) {
+            builder.setTagger(tagger);
+        }
         builder.setMessage(message);
         return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_TAG, builder.build()) : ins.insert(builder), c);
     }

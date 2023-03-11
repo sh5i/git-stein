@@ -65,7 +65,7 @@ public interface EntrySet extends Serializable {
         }
 
         public String generateSortKey() {
-            return name + (isTree() ? "/" : "");
+            return isTree() ? name + "/" : name;
         }
 
         @Override
@@ -112,6 +112,10 @@ public interface EntrySet extends Serializable {
 
         public void add(final Entry entry) {
             entries.add(entry);
+        }
+
+        public int size() {
+            return entries.size();
         }
 
         @Override
