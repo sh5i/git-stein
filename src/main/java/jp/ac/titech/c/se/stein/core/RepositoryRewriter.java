@@ -331,7 +331,7 @@ public class RepositoryRewriter {
         final EntrySet newRoot = getEntry(root, c);
         final ObjectId newId = newRoot instanceof EntrySet.EmptySet ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
-        log.debug("Rewrite tree: {} -> {} {}", treeId.name(), newId.name(), c);
+        log.debug("Rewrite root tree: {} -> {} {}", treeId.name(), newId.name(), c);
         return newId;
     }
 
