@@ -154,22 +154,27 @@ public class RepositoryAccess {
         return insert(ins -> isDryRunning ? ins.idFor(f) : ins.insert(f), c);
     }
 
+    /**
+     * Resolve name conflicts.
+     */
     public List<Entry> resolveNameConflicts(final Collection<Entry> entries, final Context c) {
-        final Map<String, Entry> map = new HashMap<>();
+        final Map<String, Integer> counter = new HashMap<>();
         final List<Entry> result = new ArrayList<>();
         for (final Entry e : entries) {
-            if (map.containsKey(e.name)) {
+            if (counter.containsKey(e.name)) {
                 // Find a possible filename with a number suffix
-                int suffix = 2;
-                while (map.containsKey(e.name + "_" + suffix)) {
+                int suffix = counter.get(e.name) + 1;
+                while (counter.containsKey(e.name + "_" + suffix)) {
+                    log.debug("{}_{} was already used {}", e.name, suffix, c);
                     suffix++;
                 }
-                log.debug("Entry occurred twice: {}, used {}_{} instead; found: {}, new: {} {}", e.getPath(), e.name, suffix, map.get(e.name).id.name(), e.id.name(), c);
+                log.debug("Entry occurred twice: {}, used {}_{} for {} instead {}", e.getPath(), e.name, suffix, e.id.name(), c);
                 final Entry newEntry = new Entry(e.mode, e.name + "_" + suffix, e.id, e.directory);
-                map.put(newEntry.name, newEntry);
+                counter.put(e.name, suffix);
+                counter.put(newEntry.name, 1);
                 result.add(newEntry);
             } else {
-                map.put(e.name, e);
+                counter.put(e.name, 1);
                 result.add(e);
             }
         }
