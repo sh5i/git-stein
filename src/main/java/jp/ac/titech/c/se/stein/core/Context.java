@@ -134,7 +134,11 @@ public class Context implements Map<Context.Key, Object> {
 
     @Override
     public Object get(final Object key) {
-        return key instanceof Key ? values[((Key) key).ordinal()] : null;
+        return key instanceof Key ? get((Key) key) : null;
+    }
+
+    public Object get(final Key key) {
+        return values[key.ordinal()];
     }
 
     @Override
