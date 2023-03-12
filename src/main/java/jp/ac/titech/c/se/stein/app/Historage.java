@@ -102,7 +102,7 @@ public class Historage extends RepositoryRewriter {
 
     @Override
     public EntrySet rewriteEntry(final Entry entry, final Context c) {
-        if (entry.isTree()) {
+        if (!entry.isFile()) {
             return super.rewriteEntry(entry, c);
         }
         if (!entry.name.toLowerCase().endsWith(".java")) {

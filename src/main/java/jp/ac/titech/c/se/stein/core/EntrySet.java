@@ -60,6 +60,10 @@ public interface EntrySet extends Serializable {
             return FileMode.GITLINK.equals(mode);
         }
 
+        public boolean isFile() {
+            return !isTree() && !isLink();
+        }
+
         public boolean isRoot() {
             return isTree() && name.equals("");
         }
