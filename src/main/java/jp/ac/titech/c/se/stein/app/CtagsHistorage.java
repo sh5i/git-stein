@@ -9,10 +9,9 @@ import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.EntrySet.EntryList;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Try;
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.util.sha1.SHA1;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -29,10 +28,9 @@ import java.util.stream.IntStream;
 /**
  * A Historage generator using universal-ctags.
  */
+@Slf4j
 @Command(name = "CtagsHistorage", description = "Generate finer-grained modules with ctags")
 public class CtagsHistorage extends RepositoryRewriter {
-    private static final Logger log = LoggerFactory.getLogger(CtagsHistorage.class);
-
     public final static Path TMP = Paths.get("/tmp");
 
     @Option(names = "--no-original", negatable = true, description = "[ex]/include original files")

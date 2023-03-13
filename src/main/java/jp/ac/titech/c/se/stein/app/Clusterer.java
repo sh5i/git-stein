@@ -9,10 +9,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevWalk;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -27,10 +26,9 @@ import jp.ac.titech.c.se.stein.core.Try;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@Slf4j
 @Command(name = "Clusterer", description = "Cluster and merge commits")
 public class Clusterer extends RepositoryRewriter {
-    private static final Logger log = LoggerFactory.getLogger(Clusterer.class);
-
     @Option(names = "--recipe", paramLabel = "<file>", description = "recipe JSON",
             required = true)
     protected File recipeFile;

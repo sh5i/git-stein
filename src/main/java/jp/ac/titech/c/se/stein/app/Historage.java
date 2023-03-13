@@ -11,6 +11,9 @@ import java.util.Optional;
 import java.util.Stack;
 import java.util.stream.Collectors;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.compiler.IProblem;
@@ -36,8 +39,6 @@ import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 import org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.util.sha1.SHA1;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
@@ -54,10 +55,9 @@ import picocli.CommandLine.Option;
  * @see <a href="https://github.com/hideakihata/git2historage">git2historage</a>
  * @see <a href="https://github.com/kusumotolab/FinerGit">FinerGit</a>
  */
+@Slf4j
 @Command(name = "Historage", description = "Generate finer-grained modules")
 public class Historage extends RepositoryRewriter {
-    private static final Logger log = LoggerFactory.getLogger(Historage.class);
-
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
 
@@ -122,18 +122,14 @@ public class Historage extends RepositoryRewriter {
         return result;
     }
 
+    @AllArgsConstructor
     public abstract static class Module {
         protected final String name;
         protected final String extension;
         protected final Module parent;
-        protected final String content;
 
-        public Module(final String name, final String extension, final Module parent, final String content) {
-            this.name = name;
-            this.extension = extension;
-            this.parent = parent;
-            this.content = content;
-        }
+        @Getter
+        protected final String content;
 
         public String getBasename() {
             return name;
@@ -141,10 +137,6 @@ public class Historage extends RepositoryRewriter {
 
         public String getFilename() {
             return getBasename() + extension;
-        }
-
-        public String getContent() {
-            return content;
         }
     }
 

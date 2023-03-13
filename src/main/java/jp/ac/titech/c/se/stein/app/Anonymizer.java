@@ -3,11 +3,10 @@ package jp.ac.titech.c.se.stein.app;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.util.sha1.SHA1;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
@@ -15,10 +14,9 @@ import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 
+@Slf4j
 @Command(name = "Anonymizer", description = "Anonymize filenames and contents")
 public class Anonymizer extends RepositoryRewriter {
-    private static final Logger log = LoggerFactory.getLogger(Anonymizer.class);
-
     public static class NameMap {
         private final Map<String, String> cache = new ConcurrentHashMap<>();
 

@@ -3,8 +3,11 @@ package jp.ac.titech.c.se.stein.core;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 
@@ -19,6 +22,8 @@ public interface EntrySet extends Serializable {
     /**
      * A normal tree entry.
      */
+    @RequiredArgsConstructor
+    @EqualsAndHashCode
     class Entry implements EntrySet, Comparable<Entry> {
         private static final long serialVersionUID = 1L;
 
@@ -30,14 +35,8 @@ public interface EntrySet extends Serializable {
 
         public final String directory;
 
+        @EqualsAndHashCode.Exclude
         public transient Object data;
-
-        public Entry(final int mode, final String name, final ObjectId id, final String directory) {
-            this.mode = mode;
-            this.name = name;
-            this.id = id;
-            this.directory = directory;
-        }
 
         public Entry(final int mode, final String name, final ObjectId id) {
             this(mode, name, id, null);
@@ -78,23 +77,6 @@ public interface EntrySet extends Serializable {
         }
 
         @Override
-        public int hashCode() {
-            return Objects.hash(id, mode, name, directory);
-        }
-
-        @Override
-        public boolean equals(final Object obj) {
-            if (!(obj instanceof Entry)) {
-                return false;
-            }
-            final Entry that = (Entry) obj;
-            return Objects.equals(this.id, that.id) &&
-                   Objects.equals(this.mode, that.mode) &&
-                   Objects.equals(this.name, that.name) &&
-                   Objects.equals(this.directory, that.directory);
-        }
-
-        @Override
         public int compareTo(final Entry other) {
             return generateSortKey().compareTo(other.generateSortKey());
         }
@@ -103,16 +85,12 @@ public interface EntrySet extends Serializable {
     /**
      * A set of multiple tree entries.
      */
+    @EqualsAndHashCode
     class EntryList implements EntrySet {
         private static final long serialVersionUID = 1L;
 
+        @Getter
         private final List<Entry> entries = new ArrayList<>();
-
-        public EntryList() {}
-
-        public List<Entry> entries() {
-            return entries;
-        }
 
         public void add(final Entry entry) {
             entries.add(entry);
@@ -130,16 +108,6 @@ public interface EntrySet extends Serializable {
         @Override
         public void registerTo(final List<Entry> out) {
             out.addAll(entries);
-        }
-
-        @Override
-        public int hashCode() {
-            return entries.hashCode();
-        }
-
-        @Override
-        public boolean equals(final Object obj) {
-            return obj instanceof EntryList && Objects.equals(this.entries, ((EntryList) obj).entries);
         }
     }
 

@@ -1,14 +1,15 @@
 package jp.ac.titech.c.se.stein.core;
 
 import java.io.Serializable;
-import java.util.Objects;
 
+import lombok.EqualsAndHashCode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 
 /**
  * A ref entry.
  */
+@EqualsAndHashCode
 public class RefEntry implements Serializable {
     public final String name;
 
@@ -45,21 +46,5 @@ public class RefEntry implements Serializable {
     @Override
     public String toString() {
         return String.format("<Ref:%s %s>", name, target != null ? target : id.name());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id, name, target);
-    }
-
-    @Override
-    public boolean equals(final Object obj) {
-        if (!(obj instanceof RefEntry)) {
-            return false;
-        }
-        final RefEntry that = (RefEntry) obj;
-        return Objects.equals(this.id, that.id) &&
-               Objects.equals(this.name, that.name) &&
-               Objects.equals(this.target, that.target);
     }
 }

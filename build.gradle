@@ -27,8 +27,13 @@ dependencies {
     implementation 'org.apache.commons:commons-lang3:3.12.0'
     implementation 'org.xerial:sqlite-jdbc:3.39.3.0'
     implementation 'com.j256.ormlite:ormlite-jdbc:5.7'
- 
+
     testImplementation 'junit:junit:4.13.2'
+
+    compileOnly 'org.projectlombok:lombok:1.18.26'
+    annotationProcessor 'org.projectlombok:lombok:1.18.26'
+    testCompileOnly 'org.projectlombok:lombok:1.18.26'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.26'
     
     // dependencies for bundle apps: available only if the property "stein.runsample" is defined
     if (project.findProperty("stein.runsample") == "yes") {

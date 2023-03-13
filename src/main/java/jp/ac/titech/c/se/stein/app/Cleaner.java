@@ -2,12 +2,11 @@ package jp.ac.titech.c.se.stein.app;
 
 import java.io.File;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.eclipse.jgit.lib.ObjectId;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
@@ -16,10 +15,9 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.ITypeConverter;
 import picocli.CommandLine.Option;
 
+@Slf4j
 @Command(name = "Cleaner", description = "Remove blob files")
 public class Cleaner extends RepositoryRewriter {
-    private static final Logger log = LoggerFactory.getLogger(Cleaner.class);
-
     @Option(names = "--name", paramLabel = "<glob>", description = "remove files that matches the pattern",
             arity = "0..*", converter = FilterConverter.class)
     protected IOFileFilter[] filters;

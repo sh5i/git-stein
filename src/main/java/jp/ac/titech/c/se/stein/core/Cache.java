@@ -1,5 +1,7 @@
 package jp.ac.titech.c.se.stein.core;
 
+import lombok.AllArgsConstructor;
+
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashSet;
@@ -7,14 +9,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
+@AllArgsConstructor
 public class Cache<K, V> extends AbstractMap<K, V> {
     private final Map<K, V> frontend, readingBackend, writingBackend;
-
-    public Cache(final Map<K, V> frontend, final Map<K, V> readingBackend, final Map<K, V> writingBackend) {
-        this.frontend = frontend;
-        this.readingBackend = readingBackend;
-        this.writingBackend = writingBackend;
-    }
 
     public Cache(final Map<K, V> frontend, final Map<K, V> backend) {
         this(frontend, backend, backend);

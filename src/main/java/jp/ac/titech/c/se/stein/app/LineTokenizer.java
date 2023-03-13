@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.app;
 
 import java.io.UnsupportedEncodingException;
 
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.ToolFactory;
 import org.eclipse.jdt.core.compiler.IScanner;
@@ -9,8 +10,6 @@ import org.eclipse.jdt.core.compiler.ITerminalSymbols;
 import org.eclipse.jdt.core.compiler.InvalidInputException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.mozilla.universalchardet.UniversalDetector;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
@@ -19,10 +18,9 @@ import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@Slf4j
 @Command(name = "LikeTokenizer", description = "Encode/decode Java source files to/from linetoken format")
 public class LineTokenizer extends RepositoryRewriter {
-    private static final Logger log = LoggerFactory.getLogger(LineTokenizer.class);
-
     @Option(names = "--decode", description = "decode tokenlines")
     protected boolean isDecoding = false;
 

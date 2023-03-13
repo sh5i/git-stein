@@ -6,11 +6,10 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.eclipse.jgit.lib.ObjectId;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
@@ -19,10 +18,9 @@ import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@Slf4j
 @Command(name = "Converter", description = "Convert files via HTTP API endpoint")
 public class Converter extends RepositoryRewriter {
-    private static final Logger log = LoggerFactory.getLogger(Converter.class);
-
     @Option(names = "--endpoint", paramLabel = "<url>", description = "HTTP Web API endpoint")
     protected URL endpoint;
 

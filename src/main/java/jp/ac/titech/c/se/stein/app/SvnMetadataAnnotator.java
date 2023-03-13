@@ -10,10 +10,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
@@ -22,10 +21,9 @@ import jp.ac.titech.c.se.stein.core.Try;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@Slf4j
 @Command(name = "SvnMetadataAnnotator", description = "Attach metadata obtained from svn2git")
 public class SvnMetadataAnnotator extends RepositoryRewriter {
-    private static final Logger log = LoggerFactory.getLogger(SvnMetadataAnnotator.class);
-
     @Option(names = "--svn-mapping", paramLabel = "<log-git-repository>", description = "svn mapping",
             required = true)
     protected Path svnMappingFile;
