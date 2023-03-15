@@ -1,7 +1,8 @@
 package jp.ac.titech.c.se.stein.app;
 
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 
+import jp.ac.titech.c.se.stein.core.SourceText;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.ToolFactory;
@@ -9,7 +10,6 @@ import org.eclipse.jdt.core.compiler.IScanner;
 import org.eclipse.jdt.core.compiler.ITerminalSymbols;
 import org.eclipse.jdt.core.compiler.InvalidInputException;
 import org.eclipse.jgit.lib.ObjectId;
-import org.mozilla.universalchardet.UniversalDetector;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
@@ -29,7 +29,7 @@ public class LineTokenizer extends RepositoryRewriter {
      */
     public static String encode(final String source) {
         final IScanner scanner = ToolFactory.createScanner(true, true, false, JavaCore.VERSION_18);
-        scanner.setSource(source.replaceAll("\r\n|\r|\n", "\n").toCharArray());
+        scanner.setSource(source.toCharArray());
         final StringBuilder buffer = new StringBuilder();
         try {
             for (;;) {
@@ -59,31 +59,11 @@ public class LineTokenizer extends RepositoryRewriter {
         if (!entry.name.toLowerCase().endsWith(".java")) {
             return super.rewriteBlob(blobId, c);
         }
-        final String source = load(blobId, c);
-        final String converted = isDecoding ? decode(source) : encode(source);
-        final ObjectId newId = target.writeBlob(converted.getBytes(), c);
+        final String text = SourceText.of(source.readBlob(blobId, c)).getContent();
+        final String converted = isDecoding ? decode(text) : encode(text);
+        final ObjectId newId = target.writeBlob(converted.getBytes(StandardCharsets.UTF_8), c);
         log.debug("Rewrite blob: {} -> {} {}", blobId.name(), newId.name(), c);
         return newId;
-    }
-
-    protected String load(final ObjectId blobId, final Context c) {
-        final byte[] data = source.readBlob(blobId, c);
-        final String charset = guessCharset(data);
-        if (charset != null) {
-            try {
-                return new String(data, charset);
-            } catch (final UnsupportedEncodingException e) {
-                log.error(e.getMessage(), e);
-            }
-        }
-        return new String(data);
-    }
-
-    protected String guessCharset(final byte[] data) {
-        final UniversalDetector detector = new UniversalDetector(null);
-        detector.handleData(data, 0, data.length);
-        detector.dataEnd();
-        return detector.getDetectedCharset();
     }
 
     public static void main(final String[] args) {

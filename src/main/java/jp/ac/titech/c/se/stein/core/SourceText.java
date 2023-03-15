@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.core;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.mozilla.universalchardet.UniversalDetector;
@@ -13,6 +14,7 @@ import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
 @Slf4j
+@RequiredArgsConstructor
 public class SourceText {
     public final static Pattern LINE_BREAK = Pattern.compile("\n");
 
@@ -24,12 +26,15 @@ public class SourceText {
 
     protected int[] lineOffsets;
 
-    public SourceText(final byte[] raw) {
-        this.raw = raw;
-        this.content = normalizeBreak(load(raw));
+    public static SourceText of(final byte[] raw) {
+        return new SourceText(raw, load(raw));
     }
 
-    protected String load(final byte[] blob) {
+    public static SourceText ofNormalized(final byte[] raw) {
+        return new SourceText(raw, normalizeBreaks(load(raw)));
+    }
+
+    protected static String load(final byte[] blob) {
         final String charset = guessCharset(blob);
         if (charset != null) {
             try {
@@ -41,14 +46,14 @@ public class SourceText {
         return new String(blob, StandardCharsets.UTF_8);
     }
 
-    protected String guessCharset(final byte[] data) {
+    protected static String guessCharset(final byte[] data) {
         final UniversalDetector detector = new UniversalDetector(null);
         detector.handleData(data, 0, data.length);
         detector.dataEnd();
         return detector.getDetectedCharset();
     }
 
-    protected String normalizeBreak(final String text) {
+    protected static String normalizeBreaks(final String text) {
         return text.replaceAll("\r\n?", "\n");
     }
 
