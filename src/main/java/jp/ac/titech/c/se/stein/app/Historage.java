@@ -530,8 +530,7 @@ public class Historage extends Extractor {
             String names = params.stream()
                     .map(o -> getTypeName((SingleVariableDeclaration) o))
                     .collect(Collectors.joining(","));
-            if (digestParameters) {
-                // TODO keep empty parameters as empty string
+            if (digestParameters && !names.isEmpty()) {
                 names = "~" + digest(names, 6);
             }
             buffer.append("(").append(names).append(")");
