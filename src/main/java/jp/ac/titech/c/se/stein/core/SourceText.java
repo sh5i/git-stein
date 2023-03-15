@@ -2,12 +2,17 @@ package jp.ac.titech.c.se.stein.core;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.lib.ObjectId;
+import org.mozilla.universalchardet.UniversalDetector;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
+@Slf4j
 public class SourceText {
     public final static Pattern LINE_BREAK = Pattern.compile("\n");
 
@@ -21,11 +26,30 @@ public class SourceText {
 
     public SourceText(final byte[] raw) {
         this.raw = raw;
-        this.content = load(raw);
+        this.content = normalizeBreak(load(raw));
     }
 
-    protected static String load(final byte[] blob) {
-        return new String(blob, StandardCharsets.UTF_8).replaceAll("\r\n?", "\n");
+    protected String load(final byte[] blob) {
+        final String charset = guessCharset(blob);
+        if (charset != null) {
+            try {
+                return new String(blob, charset);
+            } catch (final UnsupportedEncodingException e) {
+                log.error(e.getMessage(), e);
+            }
+        }
+        return new String(blob, StandardCharsets.UTF_8);
+    }
+
+    protected String guessCharset(final byte[] data) {
+        final UniversalDetector detector = new UniversalDetector(null);
+        detector.handleData(data, 0, data.length);
+        detector.dataEnd();
+        return detector.getDetectedCharset();
+    }
+
+    protected String normalizeBreak(final String text) {
+        return text.replaceAll("\r\n?", "\n");
     }
 
     public void prepareLineOffsets() {
