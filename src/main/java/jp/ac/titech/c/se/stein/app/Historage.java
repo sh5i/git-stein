@@ -1,16 +1,10 @@
 package jp.ac.titech.c.se.stein.app;
 
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Stack;
+import java.util.*;
 import java.util.stream.Collectors;
 
+import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -37,15 +31,10 @@ import org.eclipse.jdt.core.dom.Type;
 import org.eclipse.jdt.core.dom.TypeDeclaration;
 import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 import org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.util.sha1.SHA1;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.EntrySet;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
-import jp.ac.titech.c.se.stein.core.EntrySet.EntryList;
-import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -57,7 +46,7 @@ import picocli.CommandLine.Option;
  */
 @Slf4j
 @Command(name = "Historage", description = "Generate finer-grained modules")
-public class Historage extends RepositoryRewriter {
+public class Historage extends Extractor {
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
 
@@ -66,12 +55,6 @@ public class Historage extends RepositoryRewriter {
 
     @Option(names = "--no-methods", negatable = true, description = "[ex]/include method files")
     protected boolean requiresMethods = true;
-
-    @Option(names = "--no-original", negatable = true, description = "[ex]/include original files")
-    protected boolean requiresOriginals = true;
-
-    @Option(names = "--no-noncode", negatable = true, description = "[ex]/include non-code files")
-    protected boolean requiresNonCode = true;
 
     @Option(names = "--comments", description = "extract comment files")
     protected boolean requiresComments = false;
@@ -101,29 +84,17 @@ public class Historage extends RepositoryRewriter {
     protected boolean parsable = false;
 
     @Override
-    public EntrySet rewriteEntry(final Entry entry, final Context c) {
-        if (!entry.isFile()) {
-            return super.rewriteEntry(entry, c);
-        }
-        if (!entry.name.toLowerCase().endsWith(".java")) {
-            return requiresNonCode ? super.rewriteEntry(entry, c) : EntrySet.EMPTY;
-        }
+    protected boolean accept(final String filename) {
+        return filename.endsWith(".java");
+    }
 
-        final EntryList result = new EntryList();
-        if (requiresOriginals) {
-            result.add((Entry) super.rewriteEntry(entry, c));
-        }
-        final String content = new String(source.readBlob(entry.id, c), StandardCharsets.UTF_8);
-        for (final Module m : new ModuleGenerator(entry.name, content).generate()) {
-            final ObjectId newId = target.writeBlob(m.getContent().getBytes(StandardCharsets.UTF_8), c);
-            log.debug("Generate module: {} [{}] from {} {}", m.getFilename(), newId.name(), entry, c);
-            result.add(new Entry(entry.mode, m.getFilename(), newId, entry.directory));
-        }
-        return result;
+    @Override
+    protected Collection<Module> generate(final Entry entry, final SourceText text, final Context c) {
+        return new ModuleGenerator(entry.name, text).generate();
     }
 
     @AllArgsConstructor
-    public abstract static class Module {
+    public abstract static class Module implements Extractor.Module {
         protected final String name;
         protected final String extension;
         protected final Module parent;
@@ -135,6 +106,7 @@ public class Historage extends RepositoryRewriter {
             return name;
         }
 
+        @Override
         public String getFilename() {
             return getBasename() + extension;
         }
@@ -226,88 +198,15 @@ public class Historage extends RepositoryRewriter {
         }
     }
 
-    /**
-     * Represents a source fragment of a range with regard to surrounding
-     * spaces.
-     */
-    public static class Fragment {
-        final String source;
-        final int start;
-        final int end;
-        final int widerStart;
-        final int widerEnd;
-
-        public Fragment(final String source, final int start, final int end) {
-            this.source = source;
-            this.start = start;
-            this.end = end;
-            this.widerStart = start - computeLeadingSpaces();
-            this.widerEnd = end + computeTrailingSpaces();
-        }
-
-        /**
-         * Computes the length of the leading spaces.
-         */
-        protected int computeLeadingSpaces() {
-            int result = 0;
-            LOOP: while (start > result) {
-                switch (source.charAt(start - result - 1)) {
-                case ' ':
-                case '\t':
-                    result++;
-                    continue;
-                case '\r':
-                case '\n':
-                    break LOOP;
-                default:
-                    return 0;
-                }
-            }
-            return result;
-        }
-
-        /**
-         * Computes the length of the trailing spaces.
-         */
-        protected int computeTrailingSpaces() {
-            int result = 0;
-            LOOP: while (end + result < source.length()) {
-                switch (source.charAt(end + result)) {
-                case ' ':
-                case '\t':
-                case '\r':
-                    result++;
-                    continue;
-                case '\n':
-                    result++;
-                    break LOOP;
-                default:
-                    return 0;
-                }
-            }
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            final String content = source.substring(widerStart, widerEnd);
-            return source.charAt(end - 1) == '\n' ? content : content + "\n";
-        }
-
-        public String toExactString() {
-            return source.substring(start, end);
-        }
-    }
-
     public class ModuleGenerator extends ASTVisitor {
-        private final String source;
+        private final SourceText text;
         private final CompilationUnit unit;
         private final Stack<Module> stack = new Stack<>();
         private final List<Module> modules = new ArrayList<>();
         private final CommentSet commentSet;
 
-        public ModuleGenerator(final String filename, final String source) {
-            this.source = source;
+        public ModuleGenerator(final String filename, final SourceText text) {
+            this.text = text;
             final String basename = filename.substring(0, filename.lastIndexOf('.'));
             stack.push(new FileModule(basename));
             this.unit = parse();
@@ -330,7 +229,7 @@ public class Historage extends RepositoryRewriter {
          */
         protected CompilationUnit parse() {
             final ASTParser parser = createParser();
-            parser.setSource(source.toCharArray());
+            parser.setSource(text.getContent().toCharArray());
             final CompilationUnit unit = (CompilationUnit) parser.createAST(null);
             final IProblem[] problems = unit.getProblems();
             if (problems == null || problems.length > 0) {
@@ -360,7 +259,7 @@ public class Historage extends RepositoryRewriter {
          * Gets a fragment of the given range.
          */
         protected Fragment getFragment(final int start, final int end) {
-            return new Fragment(source, start, end);
+            return text.getFragment(start, end);
         }
 
         /**
@@ -431,7 +330,7 @@ public class Historage extends RepositoryRewriter {
          */
         protected String getCommentBody(final Comment c) {
             final Fragment f = getFragment(c);
-            final String body = f.toExactString();
+            final String body = f.getExactContent();
             if (c.isLineComment()) {
                 return body;
             }
@@ -439,7 +338,7 @@ public class Historage extends RepositoryRewriter {
             if (breaks == 0) {
                 return body; // single line
             }
-            final String indent = source.substring(f.widerStart, f.start);
+            final String indent = f.getIndent();
             if (!indent.isEmpty() && StringUtils.countMatches(body, "\n" + indent) == breaks) {
                 // if all lines have the same indents, then remove it.
                 return body.replace("\n" + indent, "\n");
@@ -452,12 +351,12 @@ public class Historage extends RepositoryRewriter {
          */
         protected String getSourceWithoutComments(final BodyDeclaration node) {
             final Fragment fragment = getFragmentWithSurroundingComments(node);
-            String source = fragment.toString();
+            String source = fragment.getWiderContent();
             final List<Comment> comments = commentSet.getComments(node);
             for (int i = comments.size() - 1; i >= 0; i--) {
                 final Fragment c = getFragment(comments.get(i));
-                final int localStart = c.widerStart - fragment.widerStart;
-                final int localEnd = c.widerEnd - fragment.widerStart;
+                final int localStart = c.getWiderBegin() - fragment.getWiderBegin();
+                final int localEnd = c.getWiderEnd() - fragment.getWiderBegin();
                 source = source.substring(0, localStart) + source.substring(localEnd);
             }
             return source;
@@ -478,7 +377,7 @@ public class Historage extends RepositoryRewriter {
          * Gets the source content of the given node.
          */
         protected String getSource(final BodyDeclaration node) {
-            return separatesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).toString();
+            return separatesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).getWiderContent();
         }
 
         /**
@@ -632,6 +531,7 @@ public class Historage extends RepositoryRewriter {
                     .map(o -> getTypeName((SingleVariableDeclaration) o))
                     .collect(Collectors.joining(","));
             if (digestParameters) {
+                // TODO keep empty parameters as empty string
                 names = "~" + digest(names, 6);
             }
             buffer.append("(").append(names).append(")");
@@ -656,12 +556,6 @@ public class Historage extends RepositoryRewriter {
                     .replace('?', '#')
                     .replace('<', '[')
                     .replace('>', ']');
-        }
-        
-        private String digest(final String name, @SuppressWarnings("SameParameterValue") final int length) {
-            final SHA1 sha1 = SHA1.newInstance();
-            sha1.update(name.getBytes());
-            return ObjectId.fromRaw(sha1.digest()).abbreviate(length).name();
         }
     }
 
