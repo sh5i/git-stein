@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * A Historage generator using universal-ctags.
@@ -135,29 +136,18 @@ public class CtagsHistorage extends Extractor {
         @Getter
         protected int line, end;
 
+        public static final Comparator<LanguageObject> COMPARATOR = Comparator
+                .comparing(LanguageObject::getLine)
+                .thenComparing(LanguageObject::getEnd, Comparator.reverseOrder())
+                .thenComparing(LanguageObject::getScope)
+                .thenComparing(LanguageObject::getKind)
+                .thenComparing(LanguageObject::getName)
+                .thenComparing(LanguageObject::getSignature);
+
+
         @Override
         public int compareTo(final LanguageObject other) {
-            int result = Integer.compare(line, other.line);
-            if (result != 0) return result;
-            result = Integer.compare(other.end, end);
-            if (result != 0) return result;
-            if (scope != null && other.scope != null) {
-                result = scope.compareTo(other.scope);
-                if (result != 0) return result;
-            }
-            if (kind != null && other.kind != null) {
-                result = kind.compareTo(other.kind);
-                if (result != 0) return result;
-            }
-            if (name != null && other.name != null) {
-                result = name.compareTo(other.name);
-                if (result != 0) return result;
-            }
-            if (signature != null && other.signature != null) {
-                result = signature.compareTo(other.signature);
-                if (result != 0) return result;
-            }
-            return 0;
+            return COMPARATOR.compare(this, other);
         }
     }
 
