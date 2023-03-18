@@ -4,7 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jgit.lib.ObjectId;
 import org.mozilla.universalchardet.UniversalDetector;
 
 import java.io.UnsupportedEncodingException;
@@ -69,7 +68,7 @@ public class SourceText {
     public Fragment getFragmentOfLines(final int beginLine, final int endLine) {
         int beginIndex = lineOffsets[beginLine - 1];
         int endIndex = endLine < lineOffsets.length ? lineOffsets[endLine] : content.length();
-        return new Fragment(beginIndex, beginIndex, endIndex, endIndex);
+        return new Fragment(beginIndex, endIndex, beginIndex, endIndex);
     }
 
     /**
