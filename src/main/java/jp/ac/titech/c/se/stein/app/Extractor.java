@@ -8,6 +8,7 @@ import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.util.sha1.SHA1;
 import picocli.CommandLine.Option;
@@ -42,7 +43,7 @@ public abstract class Extractor extends RepositoryRewriter {
         if (!modules.isEmpty()) {
             for (final Module m : modules) {
                 final ObjectId newId = target.writeBlob(m.getRawContent(), c);
-                log.debug("Generate module: {} [{}] from {} {}", m.getFilename(), newId.name(), entry, c);
+                log.debug("Generate module: {} (`{}...`) [{}] from {} {}", m.getFilename(), StringUtils.left(m.getContent().trim(), 8), newId.name(), entry, c);
                 result.add(new Entry(entry.mode, m.getFilename(), newId, entry.directory));
             }
             log.debug("Rewrite entry: {} -> %d entries {} {}", entry, result.size(), c);
@@ -76,8 +77,6 @@ public abstract class Extractor extends RepositoryRewriter {
 
     @Value
     public static class SimpleModule implements Module {
-        private final String filename;
-
-        private final String content;
+        String filename, content;
     }
 }
