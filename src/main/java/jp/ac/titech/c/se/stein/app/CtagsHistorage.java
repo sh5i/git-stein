@@ -5,16 +5,17 @@ import com.google.gson.reflect.TypeToken;
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
+import jp.ac.titech.c.se.stein.util.ProcessRunner;
+import jp.ac.titech.c.se.stein.util.TemporaryFile;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import java.io.*;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -24,7 +25,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Command(name = "CtagsHistorage", description = "Generate finer-grained modules with ctags")
 public class CtagsHistorage extends Extractor {
-    public final static Path TMP = Paths.get("/tmp");
+    @Option(names = "--ctags", description = "ctags command used")
+    protected String ctags = "ctags";
 
     @Override
     protected boolean accept(String filename) {
@@ -33,11 +35,16 @@ public class CtagsHistorage extends Extractor {
 
     @Override
     protected Collection<? extends Module> generate(final Entry entry, final SourceText text, final Context c) {
-        return new CtagsRunner(entry.name, text, c).generate();
+        try {
+            return new CtagsRunner(entry.name, text, c).generate();
+        } catch (final IOException e) {
+            log.error("IOException: {} {}", e, c);
+            return Collections.emptyList();
+        }
     }
 
     @RequiredArgsConstructor
-    public static class CtagsRunner {
+    public class CtagsRunner {
         private final String basename;
 
         private final SourceText text;
@@ -45,48 +52,27 @@ public class CtagsHistorage extends Extractor {
         private final Context c;
 
         private final Gson gson = new Gson();
-        private final TypeToken<LanguageObject> t = new TypeToken<>() {};
+        private final TypeToken<LanguageObject> token = new TypeToken<>() {};
 
-        public Collection<Module> generate() {
-            try {
-                Path path = null;
-                try {
-                    path = createTemporaryFile();
-                    return extractModules(path);
-                } finally {
-                    if (path != null) {
-                        Files.delete(path);
-                    }
+        public Collection<Module> generate() throws IOException {
+            try (final TemporaryFile tmp = new TemporaryFile("_stein", "." + basename)) {
+                try (final FileOutputStream out = new FileOutputStream(tmp.getPath().toFile())) {
+                    out.write(text.getRaw());
                 }
-            } catch (final IOException e) {
-                log.error("IOException: {} {}", e, c);
-                return Collections.emptyList();
+                return extractModules(tmp.getPath());
             }
-        }
-
-        protected Path createTemporaryFile() throws IOException {
-            final Path result = Files.createTempFile(TMP, "_stein", "." + basename);
-            try (FileOutputStream out = new FileOutputStream(result.toFile())) {
-                out.write(text.getRaw());
-            }
-            return result;
         }
 
         protected List<Module> extractModules(final Path path) throws IOException {
             final List<LanguageObject> los = runCtags(path);
-            if (los.isEmpty()) {
-                return Collections.emptyList();
+            if (!los.isEmpty()) {
+                text.prepareLineOffsets();
             }
-            Collections.sort(los);
-            text.prepareLineOffsets();
+            return los.stream().sorted().map(this::convert).collect(Collectors.toList());
+        }
 
-            final List<Module> result = new ArrayList<>();
-            for (final LanguageObject lo : los) {
-                final String name = generateName(lo);
-                final String content = generateContent(lo);
-                result.add(Module.of(name, content));
-            }
-            return result;
+        protected Module convert(final LanguageObject lo) {
+            return Module.of(generateName(lo), generateContent(lo));
         }
 
         protected String generateName(final LanguageObject lo) {
@@ -101,27 +87,18 @@ public class CtagsHistorage extends Extractor {
         }
 
         protected List<LanguageObject> runCtags(final Path inputPath) throws IOException {
-            final List<LanguageObject> result = new ArrayList<>();
-            final String[] cmd = { "ctags", "--output-format=json", "--fields=NnesKS", "-o", "-", inputPath.toString() };
-            final Process proc = Runtime.getRuntime().exec(cmd);
-            try (final BufferedReader input = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-                String line;
-                while ((line = input.readLine()) != null) {
-                    final LanguageObject lo = gson.fromJson(line, t.getType());
-                    if (lo.name == null || lo.line == 0 || lo.end == 0) {
-                        log.trace("Incompliant ctags entry: {} {}", line, c);
-                        continue;
-                    }
-                    result.add(lo);
-                }
+            final String[] cmd = { ctags, "--output-format=json", "--fields=NnesKS", "-o", "-", inputPath.toString() };
+            try (final ProcessRunner proc = new ProcessRunner(cmd, c)) {
+                return proc.getResult().lines().map(this::load).filter(this::isValid).collect(Collectors.toList());
             }
-            try (final BufferedReader input = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
-                String line;
-                while ((line = input.readLine()) != null) {
-                    log.warn("ctags stderr: {} {}", line, c);
-                }
-            }
-            return result;
+        }
+
+        private LanguageObject load(final String line) {
+            return gson.fromJson(line, token.getType());
+        }
+
+        private boolean isValid(final LanguageObject lo) {
+            return lo.name != null && lo.line != 0 && lo.end != 0;
         }
     }
 
@@ -143,7 +120,6 @@ public class CtagsHistorage extends Extractor {
                 .thenComparing(LanguageObject::getKind)
                 .thenComparing(LanguageObject::getName)
                 .thenComparing(LanguageObject::getSignature);
-
 
         @Override
         public int compareTo(final LanguageObject other) {
