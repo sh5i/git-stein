@@ -52,6 +52,11 @@ public class Loader {
     }
 
     public static void main(final String[] args) {
+        if (args.length == 0) {
+            System.err.println("java -jar path/to/git-stein.jar AppName [args...]");
+            System.err.println("Specify the app name to be executed at the first parameter.");
+            System.exit(1);
+        }
         final String className = args[0];
         final RepositoryRewriter rewriter = new Loader().load(className);
         final String[] realArgs = Arrays.copyOfRange(args, 1, args.length);
