@@ -8,8 +8,8 @@ import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 
 import org.apache.commons.io.FileUtils;
+import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +55,9 @@ public class Application implements Callable<Integer> {
 
         @Option(names = "--bare", description = "treat that repos are bare")
         boolean isBare;
+
+        @Option(names = "--pack", description = "pack objects")
+        boolean isPackingEnabled;
 
         @Option(names = "--mapping", paramLabel = "<file>", description = "store the commit mapping", order = LOW)
         File commitMappingFile;
@@ -125,6 +128,10 @@ public class Application implements Callable<Integer> {
                 log.info("Checking out the HEAD...");
                 new PorcelainAPI(target).checkout();
             }
+            if (conf.isPackingEnabled) {
+                log.info("Packing objects...");
+                new PorcelainAPI(target).repack();
+            }
         });
 
         if (conf.commitMappingFile != null) {
@@ -139,10 +146,10 @@ public class Application implements Callable<Integer> {
     /**
      * Opens the source and target repositories and run the given block.
      */
-    protected void openRepositories(final BiConsumer<Repository, Repository> f) throws IOException {
+    protected void openRepositories(final BiConsumer<FileRepository, FileRepository> f) throws IOException {
         if (conf.output == null) {
             // source -> source
-            try (final Repository repo = createRepository(conf.source, false)) {
+            try (final FileRepository repo = createRepository(conf.source, false)) {
                 f.accept(repo, repo);
             }
             return;
@@ -158,15 +165,15 @@ public class Application implements Callable<Integer> {
             // target -> target (duplicate mode)
             log.info("Duplicate repository: {} -> {}", conf.source, conf.output.target);
             FileUtils.copyDirectory(conf.source, conf.output.target);
-            try (final Repository repo = createRepository(conf.output.target, false)) {
+            try (final FileRepository repo = createRepository(conf.output.target, false)) {
                 f.accept(repo, repo);
             }
             return;
         }
 
         // source -> target
-        try (final Repository source = createRepository(conf.source, false)) {
-            try (final Repository target = createRepository(conf.output.target, true)) {
+        try (final FileRepository source = createRepository(conf.source, false)) {
+            try (final FileRepository target = createRepository(conf.output.target, true)) {
                 f.accept(source, target);
             }
         }
@@ -175,7 +182,7 @@ public class Application implements Callable<Integer> {
     /**
      * Creates a repository object.
      */
-    protected Repository createRepository(final File dir, final boolean createIfAbsent) throws IOException {
+    protected FileRepository createRepository(final File dir, final boolean createIfAbsent) throws IOException {
         final FileRepositoryBuilder builder = new FileRepositoryBuilder();
         if (conf.isBare) {
             builder.setGitDir(dir).setBare();
@@ -184,7 +191,7 @@ public class Application implements Callable<Integer> {
             builder.setWorkTree(dir).setGitDir(dotgit);
         }
 
-        final Repository result = builder.readEnvironment().build();
+        final FileRepository result = (FileRepository) builder.readEnvironment().build();
         if (!dir.exists() && createIfAbsent) {
             result.create(conf.isBare);
         }
