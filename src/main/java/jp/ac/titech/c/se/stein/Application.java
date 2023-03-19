@@ -121,6 +121,10 @@ public class Application implements Callable<Integer> {
             rewriter.rewrite(c);
             final Instant finish = Instant.now();
             log.info("Finished rewriting. Runtime: {} ms", Duration.between(start, finish).toMillis());
+            if (!conf.isBare) {
+                log.info("Checking out the HEAD...");
+                new PorcelainAPI(target).checkout();
+            }
         });
 
         if (conf.commitMappingFile != null) {

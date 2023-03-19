@@ -1,8 +1,6 @@
 package jp.ac.titech.c.se.stein;
 
-import org.eclipse.jgit.api.CleanCommand;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.lib.Repository;
 
@@ -26,9 +24,9 @@ public class PorcelainAPI implements AutoCloseable {
      */
     public void resetHard() {
         Try.run(() -> {
-            final ResetCommand cmd = git.reset();
-            cmd.setMode(ResetType.HARD);
-            cmd.call();
+            git.reset()
+                .setMode(ResetType.HARD)
+                .call();
         });
     }
 
@@ -37,10 +35,19 @@ public class PorcelainAPI implements AutoCloseable {
      */
     public void clean() {
         Try.run(() -> {
-            final CleanCommand cmd = git.clean();
-            cmd.setForce(true);
-            cmd.setCleanDirectories(true);
-            cmd.call();
+            git.clean()
+                .setForce(true)
+                .setCleanDirectories(true)
+                .call();
+        });
+    }
+
+    public void checkout() {
+        Try.run(() -> {
+            git.checkout()
+                .setAllPaths(true)
+                .setStartPoint("HEAD")
+                .call();
         });
     }
 }
