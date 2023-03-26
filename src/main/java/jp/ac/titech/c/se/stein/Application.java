@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 
+import jp.ac.titech.c.se.stein.app.*;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.Constants;
@@ -21,14 +22,20 @@ import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import org.slf4j.event.Level;
 import picocli.CommandLine;
-import picocli.CommandLine.ArgGroup;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Mixin;
-import picocli.CommandLine.Option;
-import picocli.CommandLine.Parameters;
+import picocli.CommandLine.*;
 
-@Command(version = "git-stein", sortOptions = false)
-public class Application implements Callable<Integer> {
+@Command(version = "git-stein", sortOptions = false, subcommands = {
+        Anonymizer.class,
+        Cleaner.class,
+        Clusterer.class,
+        Converter.class,
+        CtagsHistorage.class,
+        Historage.class,
+        Identity.class,
+        LineTokenizer.class,
+        SvnMetadataAnnotator.class
+})
+public class Application implements Callable<Integer>, CommandLine.IExecutionStrategy {
     private static final Logger log = LoggerFactory.getLogger(Application.class);
 
     public static class Config {
@@ -93,17 +100,12 @@ public class Application implements Callable<Integer> {
     @Mixin
     Config conf = new Config();
 
-    @Mixin
-    final RepositoryRewriter rewriter;
+    RepositoryRewriter rewriter;
 
     public static void setLoggerLevel(final String name, final Level level) {
         final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(name);
         logger.setLevel(ch.qos.logback.classic.Level.convertAnSLF4JLevel(level));
         log.debug("Set log level of {} to {}", name, level);
-    }
-
-    public Application(final RepositoryRewriter rewriter) {
-        this.rewriter = rewriter;
     }
 
     @Override
@@ -198,11 +200,28 @@ public class Application implements Callable<Integer> {
         return result;
     }
 
-    public static void execute(final RepositoryRewriter rewriter, final String[] args) {
-        final Application app = new Application(rewriter);
+    @Override
+    public int execute(final ParseResult parseResult) throws ExecutionException, ParameterException {
+        if (CommandLine.printHelpIfRequested(parseResult)) {
+            return 0;
+        }
+        if (parseResult.subcommands().isEmpty()) {
+            throw new ParameterException(parseResult.commandSpec().commandLine(), "No subcommands");
+        }
+        this.rewriter = (RepositoryRewriter) parseResult.subcommand().commandSpec().userObject();
+
+        try {
+            return this.call();
+        } catch (final Exception e) {
+            throw new ExecutionException(parseResult.commandSpec().commandLine(), "Execution failed.", e);
+        }
+    }
+
+    public static void main(final String[] args) {
+        final Application app = new Application();
         final CommandLine cmdline = new CommandLine(app);
         cmdline.setExpandAtFiles(false);
-
+        cmdline.setExecutionStrategy(app);
         final int status = cmdline.execute(args);
         System.exit(status);
     }

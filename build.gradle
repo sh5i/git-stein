@@ -54,12 +54,12 @@ java {
 
 jar {
     manifest {
-        attributes "Main-Class": "jp.ac.titech.c.se.stein.Loader"
+        attributes "Main-Class": "jp.ac.titech.c.se.stein.Application"
     }
 }
 
 application {
-    mainClassName = "jp.ac.titech.c.se.stein.Loader"
+    mainClassName = "jp.ac.titech.c.se.stein.Application"
 }
 
 publishing {
