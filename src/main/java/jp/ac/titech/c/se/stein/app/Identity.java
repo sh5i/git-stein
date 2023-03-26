@@ -6,7 +6,4 @@ import picocli.CommandLine.Command;
 
 @Command(name = "Identity", description = "Copy objects without transformation")
 public class Identity extends RepositoryRewriter {
-    public static void main(final String[] args) {
-        Application.execute(new Identity(), args);
-    }
 }

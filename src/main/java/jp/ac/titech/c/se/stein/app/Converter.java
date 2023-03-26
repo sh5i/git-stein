@@ -65,8 +65,4 @@ public class Converter extends RepositoryRewriter {
         }
         return content;
     }
-
-    public static void main(final String[] args) {
-        Application.execute(new Converter(), args);
-    }
 }

@@ -163,8 +163,4 @@ public class Clusterer extends RepositoryRewriter {
         }
         return super.rewriteParents(newParents, c);
     }
-
-    public static void main(final String[] args) {
-        Application.execute(new Clusterer(), args);
-    }
 }

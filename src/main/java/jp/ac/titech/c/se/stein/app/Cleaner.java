@@ -88,8 +88,4 @@ public class Cleaner extends RepositoryRewriter {
         }
         return super.rewriteBlob(blobId, c);
     }
-
-    public static void main(final String[] args) {
-        Application.execute(new Cleaner(), args);
-    }
 }

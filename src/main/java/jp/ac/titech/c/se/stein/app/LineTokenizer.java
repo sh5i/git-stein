@@ -65,8 +65,4 @@ public class LineTokenizer extends RepositoryRewriter {
         log.debug("Rewrite blob: {} -> {} {}", blobId.name(), newId.name(), c);
         return newId;
     }
-
-    public static void main(final String[] args) {
-        Application.execute(new LineTokenizer(), args);
-    }
 }

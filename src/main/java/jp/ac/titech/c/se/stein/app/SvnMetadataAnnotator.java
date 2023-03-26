@@ -83,8 +83,4 @@ public class SvnMetadataAnnotator extends RepositoryRewriter {
                     .collect(Collectors.toMap(m -> m.group(1), m -> m.group(2)));
         }
     }
-
-    public static void main(final String[] args) {
-        Application.execute(new SvnMetadataAnnotator(), args);
-    }
 }

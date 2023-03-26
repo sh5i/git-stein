@@ -557,8 +557,4 @@ public class Historage extends Extractor {
                     .replace('>', ']');
         }
     }
-
-    public static void main(final String[] args) {
-        Application.execute(new Historage(), args);
-    }
 }

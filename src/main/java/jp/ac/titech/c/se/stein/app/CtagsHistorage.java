@@ -126,8 +126,4 @@ public class CtagsHistorage extends Extractor {
             return COMPARATOR.compare(this, other);
         }
     }
-
-    public static void main(final String[] args) throws IOException {
-        Application.execute(new CtagsHistorage(), args);
-    }
 }

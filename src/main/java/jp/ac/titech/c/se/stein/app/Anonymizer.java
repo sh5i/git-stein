@@ -108,8 +108,4 @@ public class Anonymizer extends RepositoryRewriter {
     public String rewriteTagName(final String name, final Context c) {
         return tagNameMap.convert(name);
     }
-
-    public static void main(final String[] args) {
-        Application.execute(new Anonymizer(), args);
-    }
 }
