@@ -34,7 +34,7 @@ import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import picocli.CommandLine.Option;
 
-public class RepositoryRewriter {
+public class RepositoryRewriter implements RewriterCommand {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
 
     protected static final ObjectId ZERO = ObjectId.zeroId();
@@ -664,7 +664,7 @@ public class RepositoryRewriter {
         return result;
     }
 
-    public interface Factory {
+    public interface Factory extends RewriterCommand {
         RepositoryRewriter create();
     }
 }

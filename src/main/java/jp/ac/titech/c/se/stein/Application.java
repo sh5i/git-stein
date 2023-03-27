@@ -9,7 +9,8 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 
-import jp.ac.titech.c.se.stein.app.*;
+import com.google.common.reflect.ClassPath;
+import jp.ac.titech.c.se.stein.app.Identity;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.Constants;
@@ -26,20 +27,11 @@ import org.slf4j.event.Level;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
-@Command(version = "git-stein", sortOptions = false, subcommandsRepeatable = true, subcommands = {
-        External.class,
-        Anonymize.class,
-        Clean.class,
-        Cluster.class,
-        Convert.class,
-        Historage.class,
-        JavaHistorage.class,
-        Identity.class,
-        JavaTokenize.class,
-        AnnotateSvnMetadata.class
-})
+@Command(version = "git-stein", sortOptions = false, subcommandsRepeatable = true)
 public class Application implements Callable<Integer>, CommandLine.IExecutionStrategy {
     private static final Logger log = LoggerFactory.getLogger(Application.class);
+
+    public static final String PKG_COMMAND = Identity.class.getPackageName();
 
     public static class Config {
         public static final int MIDDLE = 5;
@@ -212,7 +204,6 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
             throw new ParameterException(parseResult.commandSpec().commandLine(), "No subcommands");
         }
         for (final ParseResult pr : parseResult.subcommands()) {
-            System.err.printf("%s: %s\n", pr.commandSpec(), pr.commandSpec().commandLine().getParseResult().matchedArgs());
             final Object obj = pr.commandSpec().userObject();
             if (obj instanceof RepositoryRewriter) {
                 this.rewriters.add((RepositoryRewriter) obj);
@@ -228,9 +219,25 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         }
     }
 
+    public void loadCommands(final CommandLine cmdline, final String pkg) {
+        final ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        try {
+            ClassPath.from(loader).getTopLevelClasses(pkg).stream()
+                    .map(ClassPath.ClassInfo::load)
+                    .filter(c -> c.isAnnotationPresent(Command.class))
+                    .forEach(c -> {
+                        log.info("Found command: {}", c.getName());
+                        cmdline.addSubcommand(c);
+                    });
+        } catch (final IOException e) {
+            log.error("Loading command", e);
+        }
+    }
+
     public static void main(final String[] args) {
         final Application app = new Application();
         final CommandLine cmdline = new CommandLine(app);
+        app.loadCommands(cmdline, PKG_COMMAND);
         cmdline.setExpandAtFiles(false);
         cmdline.setExecutionStrategy(app);
         final int status = cmdline.execute(args);
