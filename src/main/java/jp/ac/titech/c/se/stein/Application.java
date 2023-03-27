@@ -28,15 +28,15 @@ import picocli.CommandLine.*;
 
 @Command(version = "git-stein", sortOptions = false, subcommandsRepeatable = true, subcommands = {
         External.class,
-        Anonymizer.class,
-        Cleaner.class,
-        Clusterer.class,
-        Converter.class,
-        CtagsHistorage.class,
+        Anonymize.class,
+        Clean.class,
+        Cluster.class,
+        Convert.class,
         Historage.class,
+        JavaHistorage.class,
         Identity.class,
-        LineTokenizer.class,
-        SvnMetadataAnnotator.class
+        JavaTokenize.class,
+        AnnotateSvnMetadata.class
 })
 public class Application implements Callable<Integer>, CommandLine.IExecutionStrategy {
     private static final Logger log = LoggerFactory.getLogger(Application.class);

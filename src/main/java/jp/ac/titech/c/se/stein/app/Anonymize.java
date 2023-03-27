@@ -8,15 +8,14 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.util.sha1.SHA1;
 
-import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 
 @Slf4j
-@Command(name = "Anonymizer", description = "Anonymize filenames and contents")
-public class Anonymizer extends RepositoryRewriter {
+@Command(name = "anonymize", description = "Anonymize filenames and contents")
+public class Anonymize extends RepositoryRewriter {
     public static class NameMap {
         private final Map<String, String> cache = new ConcurrentHashMap<>();
 

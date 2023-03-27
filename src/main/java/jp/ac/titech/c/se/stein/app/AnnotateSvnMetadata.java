@@ -14,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 
-import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Try;
@@ -22,8 +21,8 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Slf4j
-@Command(name = "SvnMetadataAnnotator", description = "Attach metadata obtained from svn2git")
-public class SvnMetadataAnnotator extends RepositoryRewriter {
+@Command(name = "annotate-svn-metadata", description = "Attach metadata obtained from svn2git")
+public class AnnotateSvnMetadata extends RepositoryRewriter {
     @Option(names = "--svn-mapping", paramLabel = "<log-git-repository>", description = "svn mapping",
             required = true)
     protected Path svnMappingFile;

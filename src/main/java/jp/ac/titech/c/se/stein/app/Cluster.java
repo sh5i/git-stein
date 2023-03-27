@@ -16,7 +16,6 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.CommitGraph;
 import jp.ac.titech.c.se.stein.core.CommitGraph.Vertex;
 import jp.ac.titech.c.se.stein.core.Context;
@@ -27,8 +26,8 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Slf4j
-@Command(name = "Clusterer", description = "Cluster and merge commits")
-public class Clusterer extends RepositoryRewriter {
+@Command(name = "cluster", description = "Cluster and merge commits")
+public class Cluster extends RepositoryRewriter {
     @Option(names = "--recipe", paramLabel = "<file>", description = "recipe JSON",
             required = true)
     protected File recipeFile;

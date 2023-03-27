@@ -8,7 +8,6 @@ import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.eclipse.jgit.lib.ObjectId;
 
-import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
@@ -16,8 +15,8 @@ import picocli.CommandLine.ITypeConverter;
 import picocli.CommandLine.Option;
 
 @Slf4j
-@Command(name = "Cleaner", description = "Remove blob files")
-public class Cleaner extends RepositoryRewriter {
+@Command(name = "clean", description = "Remove blob files")
+public class Clean extends RepositoryRewriter {
     @Option(names = "--name", paramLabel = "<glob>", description = "remove files that matches the pattern",
             arity = "0..*", converter = FilterConverter.class)
     protected IOFileFilter[] filters;

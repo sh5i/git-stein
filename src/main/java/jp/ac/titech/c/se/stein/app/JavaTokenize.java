@@ -11,7 +11,6 @@ import org.eclipse.jdt.core.compiler.ITerminalSymbols;
 import org.eclipse.jdt.core.compiler.InvalidInputException;
 import org.eclipse.jgit.lib.ObjectId;
 
-import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
@@ -19,8 +18,8 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Slf4j
-@Command(name = "LikeTokenizer", description = "Encode/decode Java source files to/from linetoken format")
-public class LineTokenizer extends RepositoryRewriter {
+@Command(name = "java-tokenize", description = "Encode/decode Java source files to/from linetoken format")
+public class JavaTokenize extends RepositoryRewriter {
     @Option(names = "--decode", description = "decode tokenlines")
     protected boolean isDecoding = false;
 
