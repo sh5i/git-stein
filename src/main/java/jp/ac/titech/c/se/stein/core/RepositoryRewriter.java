@@ -663,4 +663,8 @@ public class RepositoryRewriter {
         }
         return result;
     }
+
+    public interface Factory {
+        RepositoryRewriter create();
+    }
 }

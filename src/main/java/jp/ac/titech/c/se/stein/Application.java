@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 
@@ -24,7 +26,8 @@ import org.slf4j.event.Level;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
-@Command(version = "git-stein", sortOptions = false, subcommands = {
+@Command(version = "git-stein", sortOptions = false, subcommandsRepeatable = true, subcommands = {
+        External.class,
         Anonymizer.class,
         Cleaner.class,
         Clusterer.class,
@@ -100,7 +103,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     @Mixin
     Config conf = new Config();
 
-    RepositoryRewriter rewriter;
+    final List<RepositoryRewriter> rewriters = new ArrayList<>();
 
     public static void setLoggerLevel(final String name, final Level level) {
         final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(name);
@@ -116,14 +119,14 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
             setLoggerLevel("org.eclipse.jgit", Level.INFO);
         }
 
-        log.debug("Rewriter: {}", rewriter.getClass().getName());
+        log.debug("Rewriter: {}", rewriters.get(0).getClass().getName());
 
         openRepositories((source, target) -> {
-            rewriter.initialize(source, target);
+            rewriters.get(0).initialize(source, target);
             log.info("Starting rewriting: {} -> {}", source.getDirectory(), target.getDirectory());
             final Context c = Context.init().with(Key.conf, conf);
             final Instant start = Instant.now();
-            rewriter.rewrite(c);
+            rewriters.get(0).rewrite(c);
             final Instant finish = Instant.now();
             log.info("Finished rewriting. Runtime: {} ms", Duration.between(start, finish).toMillis());
             if (!conf.isBare) {
@@ -138,7 +141,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
         if (conf.commitMappingFile != null) {
             log.debug("Save commit mapping to {}", conf.commitMappingFile);
-            final byte[] content = new Gson().toJson(rewriter.exportCommitMapping()).getBytes();
+            final byte[] content = new Gson().toJson(rewriters.get(0).exportCommitMapping()).getBytes();
             FileUtils.writeByteArrayToFile(conf.commitMappingFile, content);
         }
 
@@ -208,8 +211,16 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         if (parseResult.subcommands().isEmpty()) {
             throw new ParameterException(parseResult.commandSpec().commandLine(), "No subcommands");
         }
-        this.rewriter = (RepositoryRewriter) parseResult.subcommand().commandSpec().userObject();
-
+        for (final ParseResult pr : parseResult.subcommands()) {
+            System.err.printf("%s: %s\n", pr.commandSpec(), pr.commandSpec().commandLine().getParseResult().matchedArgs());
+            final Object obj = pr.commandSpec().userObject();
+            if (obj instanceof RepositoryRewriter) {
+                this.rewriters.add((RepositoryRewriter) obj);
+            } else if (obj instanceof RepositoryRewriter.Factory) {
+                final RepositoryRewriter rewriter = ((RepositoryRewriter.Factory) obj).create();
+                this.rewriters.add(rewriter);
+            }
+        }
         try {
             return this.call();
         } catch (final Exception e) {
