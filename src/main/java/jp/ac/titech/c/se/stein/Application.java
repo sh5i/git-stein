@@ -31,12 +31,15 @@ import picocli.CommandLine.*;
 public class Application implements Callable<Integer>, CommandLine.IExecutionStrategy {
     private static final Logger log = LoggerFactory.getLogger(Application.class);
 
-    public static final String PKG_COMMAND = Identity.class.getPackageName();
+    public static final String BUILTIN_COMMAND_PACKAGE = Identity.class.getPackageName();
 
     public static class Config {
         public static final int MIDDLE = 5;
         public static final int LOW = 8;
         public static final int LAST = 10;
+
+        @Spec(Spec.Target.MIXEE)
+        Model.CommandSpec commandSpec;
 
         @Parameters(index = "0", paramLabel = "<repo>", description = "source repo")
         File source;
@@ -90,6 +93,15 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @SuppressWarnings("unused")
         @Option(names = "--version", description = "print version information and exit", order = LAST, versionHelp = true)
         boolean versionInfoRequested;
+
+        @SuppressWarnings("unused")
+        @Option(names = "--cmdpath", arity = "0..*",
+                paramLabel = "<pkg>", description = "add path package for command classes")
+        void setCommandPath(final String path) {
+            final Application app = (Application) commandSpec.root().userObject();
+            final CommandLine cmdline = commandSpec.root().commandLine();
+            app.loadCommands(cmdline, path);
+        }
     }
 
     @Mixin
@@ -219,7 +231,10 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         }
     }
 
-    public void loadCommands(final CommandLine cmdline, final String pkg) {
+    /**
+     * Add all the command classes found in the given package as subcommands to the given commandline.
+     */
+    public static void loadCommands(final CommandLine cmdline, final String pkg) {
         final ClassLoader loader = Thread.currentThread().getContextClassLoader();
         try {
             ClassPath.from(loader).getTopLevelClasses(pkg).stream()
@@ -237,7 +252,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     public static void main(final String[] args) {
         final Application app = new Application();
         final CommandLine cmdline = new CommandLine(app);
-        app.loadCommands(cmdline, PKG_COMMAND);
+        loadCommands(cmdline, BUILTIN_COMMAND_PACKAGE);
         cmdline.setExpandAtFiles(false);
         cmdline.setExecutionStrategy(app);
         final int status = cmdline.execute(args);
