@@ -1,8 +1,17 @@
 package jp.ac.titech.c.se.stein.util;
 
+import com.google.common.reflect.ClassPath;
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.RewriterCommand;
+import lombok.extern.slf4j.Slf4j;
+import picocli.CommandLine.Command;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.stream.Collectors;
+
+@Slf4j
 public class Loader {
     /**
      * Loads a rewriter class from the given name and instantiates it.
@@ -47,6 +56,26 @@ public class Loader {
             return result;
         } catch (final ClassNotFoundException | ClassCastException e) {
             return null;
+        }
+    }
+
+    /**
+     * Enumerates git-stein commands from the given package.
+     */
+    public static Collection<Class<? extends RewriterCommand>> enumerateCommands(final String pkg, final boolean isRecursive) {
+        final ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        try {
+            final ClassPath cp = ClassPath.from(loader);
+            @SuppressWarnings("unchecked")
+            final Collection<Class<? extends RewriterCommand>> result =
+                    (isRecursive ? cp.getTopLevelClassesRecursive(pkg) : cp.getTopLevelClasses(pkg)).stream()
+                            .map(info -> (Class<? extends RewriterCommand>) info.load())
+                            .filter(c -> c.isAnnotationPresent(Command.class))
+                            .collect(Collectors.toList());
+            return result;
+        } catch (final IOException e) {
+            log.error("Loading command", e);
+            return Collections.emptyList();
         }
     }
 }
