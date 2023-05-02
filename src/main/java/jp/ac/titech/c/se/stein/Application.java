@@ -7,7 +7,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.function.BiConsumer;
 
 import jp.ac.titech.c.se.stein.app.Identity;
 import jp.ac.titech.c.se.stein.core.RewriterCommand;
@@ -33,6 +32,11 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     private static final Logger log = LoggerFactory.getLogger(Application.class);
 
     public static final String BUILTIN_COMMAND_PACKAGE = Identity.class.getPackageName();
+
+    @FunctionalInterface
+    public interface TetraConsumer<T, U, V, W> {
+        void accept(T t, U u, V v, W w);
+    }
 
     public static class Config {
         public static final int MIDDLE = 5;
@@ -101,7 +105,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         void setCommandPath(final String path) {
             final Application app = (Application) commandSpec.root().userObject();
             final CommandLine cmdline = commandSpec.root().commandLine();
-            app.loadCommands(cmdline, path);
+            loadCommands(cmdline, path);
         }
     }
 
@@ -124,23 +128,22 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
             setLoggerLevel("org.eclipse.jgit", Level.INFO);
         }
 
-        log.debug("Rewriter: {}", rewriters.get(0).getClass().getName());
-
-        openRepositories((source, target) -> {
-            rewriters.get(0).initialize(source, target);
+        openRepositories((source, target, rewriter, index) -> {
+            log.debug("Rewriter: {}", rewriter.getClass().getName());
+            rewriter.initialize(source, target);
             log.info("Starting rewriting: {} -> {}", source.getDirectory(), target.getDirectory());
             final Context c = Context.init().with(Key.conf, conf);
             final Instant start = Instant.now();
-            rewriters.get(0).rewrite(c);
+            rewriter.rewrite(c);
             final Instant finish = Instant.now();
             log.info("Finished rewriting. Runtime: {} ms", Duration.between(start, finish).toMillis());
-            if (!conf.isBare) {
-                log.info("Checking out the HEAD...");
-                new PorcelainAPI(target).checkout();
-            }
             if (conf.isPackingEnabled) {
                 log.info("Packing objects...");
                 new PorcelainAPI(target).repack();
+            }
+            if (!conf.isBare && index == rewriters.size() - 1) {
+                log.info("Checking out the HEAD...");
+                new PorcelainAPI(target).checkout();
             }
         });
 
@@ -156,45 +159,54 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     /**
      * Opens the source and target repositories and run the given block.
      */
-    protected void openRepositories(final BiConsumer<FileRepository, FileRepository> f) throws IOException {
-        if (conf.output == null) {
-            // source -> source
-            try (final FileRepository repo = createRepository(conf.source, false)) {
-                f.accept(repo, repo);
-            }
-            return;
-        }
-
+    protected void openRepositories(final TetraConsumer<FileRepository, FileRepository, RepositoryRewriter, Integer> f) throws IOException {
         // cleaning
-        if (conf.output.isCleaningEnabled && conf.output.target.exists()) {
+        if (conf.output != null && conf.output.isCleaningEnabled && conf.output.target.exists()) {
             log.info("Delete directory: {}", conf.output.target);
             FileUtils.deleteDirectory(conf.output.target);
         }
 
-        if (conf.output.isDuplicating) {
-            // target -> target (duplicate mode)
+        // target -> target (duplicate mode)
+        if (conf.output != null && conf.output.isDuplicating) {
             log.info("Duplicate repository: {} -> {}", conf.source, conf.output.target);
             FileUtils.copyDirectory(conf.source, conf.output.target);
-            try (final FileRepository repo = createRepository(conf.output.target, false)) {
-                f.accept(repo, repo);
-            }
-            return;
         }
 
-        // source -> target
-        try (final FileRepository source = createRepository(conf.source, false)) {
-            try (final FileRepository target = createRepository(conf.output.target, true)) {
-                f.accept(source, target);
+        final File target = conf.output != null ? conf.output.target : conf.source;
+
+        for (int i = 0; i < rewriters.size(); i++) {
+            final File src = i == 0 ? conf.source : createIntermediateRepositoryName(target, i);
+            final File dst = i == rewriters.size() - 1 ? target : createIntermediateRepositoryName(target, i + 1);
+            final boolean isSrcBare = i != 0 || conf.isBare;
+            final boolean isDstBare = i != rewriters.size() - 1 || conf.isBare;
+            if (src.equals(dst)) {
+                try (final FileRepository repo = createRepository(src, isSrcBare, false)) {
+                    f.accept(repo, repo, rewriters.get(i), i);
+                }
+            } else {
+                try (final FileRepository sourceRepo = createRepository(src, isSrcBare, false)) {
+                    try (final FileRepository targetRepo = createRepository(dst, isDstBare, true)) {
+                        f.accept(sourceRepo, targetRepo, rewriters.get(i), i);
+                    }
+                }
             }
         }
     }
 
     /**
+     * Generate intermediate repository name.
+     */
+    protected File createIntermediateRepositoryName(final File target, final int n) {
+        final File dotgit = conf.isBare ? target : new File(target, Constants.DOT_GIT);
+        return new File(dotgit, ".git-stein." + n);
+    }
+
+    /**
      * Creates a repository object.
      */
-    protected FileRepository createRepository(final File dir, final boolean createIfAbsent) throws IOException {
+    protected FileRepository createRepository(final File dir, final boolean isBare, final boolean createIfAbsent) throws IOException {
         final FileRepositoryBuilder builder = new FileRepositoryBuilder();
-        if (conf.isBare) {
+        if (isBare) {
             builder.setGitDir(dir).setBare();
         } else {
             final File dotgit = new File(dir, Constants.DOT_GIT);
@@ -203,7 +215,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
         final FileRepository result = (FileRepository) builder.readEnvironment().build();
         if (!dir.exists() && createIfAbsent) {
-            result.create(conf.isBare);
+            result.create(isBare);
         }
         return result;
     }
