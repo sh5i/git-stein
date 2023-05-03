@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -44,36 +45,64 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         public static final int LAST = 10;
 
         @Spec(Spec.Target.MIXEE)
-        Model.CommandSpec commandSpec;
+        public Model.CommandSpec commandSpec;
 
         @Parameters(index = "0", paramLabel = "<repo>", description = "source repo")
-        File source;
+        public File source;
 
         @ArgGroup(exclusive = false)
-        OutputOptions output;
+        public OutputOptions output;
 
-        static class OutputOptions {
+        public static class OutputOptions {
             @Option(names = { "-o", "--output" }, paramLabel = "<path>", description = "destination repo", required = true)
-            File target;
+            public File target;
 
             @Option(names = { "-d", "--duplicate" }, description = "duplicate source repo and overwrite it")
-            boolean isDuplicating;
+            public boolean isDuplicating;
 
             @Option(names = "--clean", description = "delete destination repo beforehand if exists")
-            boolean isCleaningEnabled;
+            public boolean isCleaningEnabled;
         }
 
+        @Option(names = { "-p", "--parallel" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = MIDDLE,
+                fallbackValue = "0")
+        public int nthreads = 1;
+
+        @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = MIDDLE)
+        public boolean isDryRunning = false;
+
+        @Option(names = "--notes-forward", negatable = true, description = "note rewritten commits to source repo", order = MIDDLE)
+        public boolean isAddingForwardNotes = false;
+
+        @Option(names = "--no-notes-backward", negatable = true, description = "note original commits to destination repo", order = MIDDLE)
+        public boolean isAddingBackwardNotes = true;
+
+        @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = MIDDLE)
+        public boolean isRewritingExtraAttributes = false;
+
+        @Option(names = "--cache", split = ",", paramLabel = "<l>", description = "cache level (${COMPLETION-CANDIDATES}. default: none)", order = MIDDLE)
+        public EnumSet<RepositoryRewriter.CacheLevel> cacheLevel = EnumSet.noneOf(RepositoryRewriter.CacheLevel.class);
+
         @Option(names = "--bare", description = "treat that repos are bare")
-        boolean isBare;
+        public boolean isBare = false;
 
         @Option(names = "--pack", description = "pack objects")
-        boolean isPackingEnabled;
+        public boolean isPackingEnabled = false;
+
+        @SuppressWarnings("unused")
+        @Option(names = "--cmdpath", paramLabel = "<pkg>", description = "add path package for command classes", order = LOW,
+                arity = "0..*")
+        void setCommandPath(final String path) {
+            final Application app = (Application) commandSpec.root().userObject();
+            final CommandLine cmdline = commandSpec.root().commandLine();
+            loadCommands(cmdline, path);
+        }
 
         @Option(names = "--mapping", paramLabel = "<file>", description = "store the commit mapping", order = LOW)
-        File commitMappingFile;
+        public File commitMappingFile;
 
         @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})", order = LOW)
-        Level logLevel = Level.INFO;
+        public Level logLevel = Level.INFO;
 
         @SuppressWarnings("unused")
         @Option(names = { "-q", "--quiet" }, description = "quiet mode (same as --log=ERROR)", order = LOW)
@@ -98,15 +127,6 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @SuppressWarnings("unused")
         @Option(names = "--version", description = "print version information and exit", order = LAST, versionHelp = true)
         boolean versionInfoRequested;
-
-        @SuppressWarnings("unused")
-        @Option(names = "--cmdpath", arity = "0..*",
-                paramLabel = "<pkg>", description = "add path package for command classes")
-        void setCommandPath(final String path) {
-            final Application app = (Application) commandSpec.root().userObject();
-            final CommandLine cmdline = commandSpec.root().commandLine();
-            loadCommands(cmdline, path);
-        }
     }
 
     @Mixin
@@ -129,9 +149,9 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         }
 
         openRepositories((source, target, rewriter, index) -> {
-            log.debug("Rewriter: {}", rewriter.getClass().getName());
+            log.info("Starting rewriting [{}]: {} -> {}", rewriter.getClass().getName(), source.getDirectory(), target.getDirectory());
+            rewriter.setConfig(conf);
             rewriter.initialize(source, target);
-            log.info("Starting rewriting: {} -> {}", source.getDirectory(), target.getDirectory());
             final Context c = Context.init().with(Key.conf, conf);
             final Instant start = Instant.now();
             rewriter.rewrite(c);

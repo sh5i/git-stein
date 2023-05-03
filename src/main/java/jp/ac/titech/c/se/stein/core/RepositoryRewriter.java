@@ -6,7 +6,6 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +15,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import lombok.Setter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.GpgSignature;
@@ -32,7 +32,6 @@ import org.slf4j.LoggerFactory;
 import jp.ac.titech.c.se.stein.Application.Config;
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
-import picocli.CommandLine.Option;
 
 public class RepositoryRewriter implements RewriterCommand {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
@@ -65,59 +64,44 @@ public class RepositoryRewriter implements RewriterCommand {
 
     protected boolean isPathSensitive = false;
 
-    @Option(names = { "-p", "--parallel" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = Config.MIDDLE,
-            fallbackValue = "0")
-    protected int nthreads = 1;
+    @Setter
+    protected Config config;
 
-    @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = Config.MIDDLE)
-    protected boolean isDryRunning = false;
-
-    @Option(names = "--notes-forward", negatable = true, description = "note rewritten commits to source repo", order = Config.MIDDLE)
-    protected boolean isAddingForwardNotes = false;
-
-    @Option(names = "--no-notes-backward", negatable = true, description = "note original commits to destination repo", order = Config.MIDDLE)
-    protected boolean isAddingBackwardNotes = true;
-
-    @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = Config.MIDDLE)
-    protected boolean isRewritingExtraAttributes = false;
-
-    enum CacheLevel {
+    public enum CacheLevel {
         blob, tree, commit
     }
 
-    @Option(names = "--cache", split = ",", paramLabel = "<l>", description = "cache level (${COMPLETION-CANDIDATES}. default: none)", order = Config.MIDDLE)
-    protected EnumSet<CacheLevel> cacheLevel = EnumSet.noneOf(CacheLevel.class);
     protected SQLiteCacheProvider cacheProvider;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
         target = new RepositoryAccess(targetRepo);
         isOverwriting = sourceRepo == targetRepo;
-        if (nthreads == 0) {
+        if (config.nthreads == 0) {
             final int nprocs = Runtime.getRuntime().availableProcessors();
-            nthreads = nprocs > 1 ? nprocs - 1 : 1;
+            config.nthreads = nprocs > 1 ? nprocs - 1 : 1;
         }
-        if (nthreads > 1) {
+        if (config.nthreads > 1) {
             this.entryMapping = new ConcurrentHashMap<>();
         }
-        if (isDryRunning) {
+        if (config.isDryRunning) {
             source.setDryRunning(true);
             target.setDryRunning(true);
         }
-        if (!cacheLevel.isEmpty()) {
+        if (!config.cacheLevel.isEmpty()) {
             cacheProvider = new SQLiteCacheProvider(targetRepo);
-            if (cacheLevel.contains(CacheLevel.commit)) {
+            if (config.cacheLevel.contains(CacheLevel.commit)) {
                 log.info("Stored mapping (commit-mapping) is available");
                 commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping(), !cacheProvider.isInitial(), true);
                 refEntryMapping = new Cache<>(refEntryMapping, cacheProvider.getRefEntryMapping(), !cacheProvider.isInitial(), true);
             }
-            if (cacheLevel.contains(CacheLevel.blob) || cacheLevel.contains(CacheLevel.tree)) {
+            if (config.cacheLevel.contains(CacheLevel.blob) || config.cacheLevel.contains(CacheLevel.tree)) {
                 log.info("Stored mapping (entry-mapping) is available");
                 Map<Entry, EntrySet> storedEntryMapping = cacheProvider.getEntryMapping();
-                if (!cacheLevel.contains(CacheLevel.tree)) {
+                if (!config.cacheLevel.contains(CacheLevel.tree)) {
                     log.info("Stored mapping (entry-mapping): blob-only filtering");
                     storedEntryMapping = Cache.Filter.apply(e -> !e.isTree(), storedEntryMapping);
-                } else if (!cacheLevel.contains(CacheLevel.blob)) {
+                } else if (!config.cacheLevel.contains(CacheLevel.blob)) {
                     log.info("Stored mapping (entry-mapping): tree-only filtering");
                     storedEntryMapping = Cache.Filter.apply(Entry::isTree, storedEntryMapping);
                 }
@@ -166,13 +150,13 @@ public class RepositoryRewriter implements RewriterCommand {
      * Rewrites all root trees.
      */
     protected void rewriteRootTrees(final Context c) {
-        if (nthreads <= 1) {
+        if (config.nthreads <= 1) {
             // This will be done in each rewriteCommit() in non-parallel mode.
             return;
         }
 
         final Map<Long, Context> cxts = new ConcurrentHashMap<>();
-        final ExecutorService pool = Executors.newFixedThreadPool(nthreads);
+        final ExecutorService pool = Executors.newFixedThreadPool(config.nthreads);
         try (final RevWalk walk = prepareRevisionWalk(c)) {
             for (final RevCommit commit : walk) {
                 pool.execute(() -> {
@@ -272,7 +256,7 @@ public class RepositoryRewriter implements RewriterCommand {
         final PersonIdent committer = rewriteCommitter(commit.getCommitterIdent(), uc);
         final String msg = rewriteCommitMessage(commit.getFullMessage(), uc);
         ObjectId newId;
-        if (isRewritingExtraAttributes) {
+        if (config.isRewritingExtraAttributes) {
             final Charset enc = rewriteEncoding(commit.getEncoding(), uc);
             final GpgSignature sig = rewriteSignature(commit.getRawGpgSignature(), uc);
             newId = target.writeCommit(parentIds, treeId, author, committer, enc, sig, msg, uc);
@@ -294,14 +278,14 @@ public class RepositoryRewriter implements RewriterCommand {
      * Returns a note for a commit.
      */
     protected String getForwardNote(final ObjectId newCommitId, @SuppressWarnings("unused") final Context c) {
-        return isAddingForwardNotes ? newCommitId.name() : null;
+        return config.isAddingForwardNotes ? newCommitId.name() : null;
     }
 
     /**
      * Returns a note for a commit.
      */
     protected String getBackwardNote(final ObjectId oldCommitId, @SuppressWarnings("unused") final Context c) {
-        return isAddingBackwardNotes ? oldCommitId.name() : null;
+        return config.isAddingBackwardNotes ? oldCommitId.name() : null;
     }
 
     /**
