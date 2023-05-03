@@ -174,6 +174,13 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
         final File target = conf.output != null ? conf.output.target : conf.source;
 
+        if (rewriters.size() > 1) {
+            try (final FileRepository repo = createRepository(target, conf.isBare, true)) {
+                // create unless exist
+                log.debug("Target repo: {}", repo.getDirectory());
+            }
+        }
+
         for (int i = 0; i < rewriters.size(); i++) {
             final File src = i == 0 ? conf.source : createIntermediateRepositoryName(target, i);
             final File dst = i == rewriters.size() - 1 ? target : createIntermediateRepositoryName(target, i + 1);
