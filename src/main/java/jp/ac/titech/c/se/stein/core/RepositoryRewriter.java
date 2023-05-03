@@ -77,10 +77,6 @@ public class RepositoryRewriter implements RewriterCommand {
         source = new RepositoryAccess(sourceRepo);
         target = new RepositoryAccess(targetRepo);
         isOverwriting = sourceRepo == targetRepo;
-        if (config.nthreads == 0) {
-            final int nprocs = Runtime.getRuntime().availableProcessors();
-            config.nthreads = nprocs > 1 ? nprocs - 1 : 1;
-        }
         if (config.nthreads > 1) {
             this.entryMapping = new ConcurrentHashMap<>();
         }

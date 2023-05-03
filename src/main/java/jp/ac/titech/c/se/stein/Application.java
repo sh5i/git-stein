@@ -64,8 +64,16 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
             public boolean isCleaningEnabled;
         }
 
+        @SuppressWarnings("unused")
         @Option(names = { "-p", "--parallel" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = MIDDLE,
                 fallbackValue = "0")
+        void setNumberOfThreads(final int nthreads) {
+            this.nthreads = nthreads;
+            if (nthreads == 0) {
+                final int nprocs = Runtime.getRuntime().availableProcessors();
+                this.nthreads = nprocs > 1 ? nprocs - 1 : 1;
+            }
+        }
         public int nthreads = 1;
 
         @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = MIDDLE)
