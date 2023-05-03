@@ -156,13 +156,13 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
             final Instant start = Instant.now();
             rewriter.rewrite(c);
             final Instant finish = Instant.now();
-            log.info("Finished rewriting. Runtime: {} ms", Duration.between(start, finish).toMillis());
+            log.info("Completed rewriting in {} ms", Duration.between(start, finish).toMillis());
             if (conf.isPackingEnabled) {
-                log.info("Packing objects...");
+                log.info("Packing objects in {}...", target.getDirectory());
                 new PorcelainAPI(target).repack();
             }
             if (!conf.isBare && index == rewriters.size() - 1) {
-                log.info("Checking out the HEAD...");
+                log.info("Checking out HEAD of {}...", target.getDirectory());
                 new PorcelainAPI(target).checkout();
             }
         });
@@ -276,7 +276,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
      */
     public static void loadCommands(final CommandLine cmdline, final String pkg) {
         for (final Class<? extends RewriterCommand> c : Loader.enumerateCommands(pkg, true)) {
-            log.info("Found command: {}", c.getName());
+            log.debug("Register command: {}", c.getName());
             cmdline.addSubcommand(c);
         }
     }
