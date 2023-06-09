@@ -5,7 +5,7 @@ import jp.ac.titech.c.se.stein.util.Loader;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
-@Command(name = "External", aliases = {"ext"}, description = "Run external rewriter")
+@Command(name = "external", aliases = {"ext"}, description = "Run external rewriter")
 public class External implements RepositoryRewriter.Factory {
     @Option(names = "--class", paramLabel = "<class>", description = "rewriter class")
     Class<? extends RepositoryRewriter> klass;
