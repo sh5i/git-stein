@@ -9,6 +9,7 @@ import picocli.CommandLine.Command;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -71,6 +72,7 @@ public class Loader {
                     (isRecursive ? cp.getTopLevelClassesRecursive(pkg) : cp.getTopLevelClasses(pkg)).stream()
                             .map(info -> (Class<? extends RewriterCommand>) info.load())
                             .filter(c -> c.isAnnotationPresent(Command.class))
+                            .sorted(Comparator.comparing(c -> c.getAnnotation(Command.class).name()))
                             .collect(Collectors.toList());
             return result;
         } catch (final IOException e) {
