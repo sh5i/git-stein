@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import javax.annotation.Nonnull;
 import java.io.*;
 import java.nio.file.Path;
 import java.util.*;
@@ -121,7 +122,7 @@ public class Historage extends Extractor {
                 .thenComparing(LanguageObject::getSignature);
 
         @Override
-        public int compareTo(final LanguageObject other) {
+        public int compareTo(@Nonnull final LanguageObject other) {
             return COMPARATOR.compare(this, other);
         }
     }
