@@ -14,7 +14,6 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.RefRename;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.TagBuilder;
@@ -51,7 +50,7 @@ public class RepositoryAccess {
 
     public RepositoryAccess(final Repository repo) {
         this.repo = repo;
-        this.defaultNotes = readNote(Context.init());
+        this.defaultNotes = readNote();
     }
 
     // walk
@@ -59,7 +58,7 @@ public class RepositoryAccess {
     /**
      * Returns a RevWalk object.
      */
-    public RevWalk walk(@SuppressWarnings("unused") final Context c) {
+    public RevWalk walk() {
         final RevWalk walk = new RevWalk(repo);
         walk.sort(RevSort.TOPO, true);
         walk.sort(RevSort.REVERSE, true);
@@ -69,31 +68,31 @@ public class RepositoryAccess {
     // Retrieving and checking objects
 
     /** Retrieve Ref object of given name. */
-    public Ref getRef(final String name, final Context c) {
-        return Try.io(c, () -> repo.getRefDatabase().findRef(name));
+    public Ref getRef(final String name) {
+        return Try.io(() -> repo.getRefDatabase().findRef(name));
     }
 
     /**
      * Retrieves all Ref objects.
      */
-    public List<Ref> getRefs(final Context c) {
-        return Try.io(c, () -> repo.getRefDatabase().getRefs());
+    public List<Ref> getRefs() {
+        return Try.io(() -> repo.getRefDatabase().getRefs());
     }
 
     /**
      * Specifies the target object that the given ref indicates.
      */
-    public ObjectId getRefTarget(final Ref ref, final Context c) {
-        final Ref peeled = Try.io(c, () -> repo.getRefDatabase().peel(ref));
+    public ObjectId getRefTarget(final Ref ref) {
+        final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
         return peeled.getPeeledObjectId() != null ? peeled.getPeeledObjectId() : ref.getObjectId();
     }
 
     /**
      * Specifies the type of the given object.
      */
-    public int getObjectType(final ObjectId id, final Context c) {
+    public int getObjectType(final ObjectId id) {
         try (final RevWalk walk = new RevWalk(repo)) {
-            final RevObject object = Try.io(c, () -> walk.parseAny(id));
+            final RevObject object = Try.io(() -> walk.parseAny(id));
             return object.getType();
         }
     }
@@ -101,26 +100,26 @@ public class RepositoryAccess {
     /**
      * Extracts a rev object.
      */
-    public AnyObjectId parseAny(final ObjectId id, final Context c) {
+    public AnyObjectId parseAny(final ObjectId id) {
         try (final RevWalk walk = new RevWalk(repo)) {
-            return Try.io(c, () -> walk.parseAny(id));
+            return Try.io(() -> walk.parseAny(id));
         }
     }
 
     /**
      * Extracts a tag object.
      */
-    public RevTag parseTag(final ObjectId id, final Context c) {
+    public RevTag parseTag(final ObjectId id) {
         try (final RevWalk walk = new RevWalk(repo)) {
-            return Try.io(c, () -> walk.parseTag(id));
+            return Try.io(() -> walk.parseTag(id));
         }
     }
 
     /**
      * Tests whether the given ref indicates a tag.
      */
-    public boolean isTag(final Ref ref, final Context c) {
-        final Ref peeled = Try.io(c, () -> repo.getRefDatabase().peel(ref));
+    public boolean isTag(final Ref ref) {
+        final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
         return peeled.getPeeledObjectId() != null;
     }
 
@@ -129,9 +128,9 @@ public class RepositoryAccess {
     /**
      * Reads a tree object.
      */
-    public List<Entry> readTree(final ObjectId treeId, final String path, final Context c) {
+    public List<Entry> readTree(final ObjectId treeId, final String path) {
         final List<Entry> result = new ArrayList<>();
-        Try.io(c, () -> {
+        Try.io(() -> {
             try (final TreeWalk walk = new TreeWalk(repo)) {
                 walk.addTree(treeId);
                 walk.setRecursive(false);
@@ -146,18 +145,18 @@ public class RepositoryAccess {
     /**
      * Writes tree entries to a tree object.
      */
-    public ObjectId writeTree(final Collection<Entry> entries, final Context c) {
+    public ObjectId writeTree(final Collection<Entry> entries, final Context writingContext) {
         final TreeFormatter f = new TreeFormatter();
-        resolveNameConflicts(entries, c).stream()
+        resolveNameConflicts(entries).stream()
                 .sorted(Comparator.comparing(Entry::generateSortKey))
                 .forEach(e -> f.append(e.name, FileMode.fromBits(e.mode), e.id));
-        return insert(ins -> isDryRunning ? ins.idFor(f) : ins.insert(f), c);
+        return insert(ins -> isDryRunning ? ins.idFor(f) : ins.insert(f), writingContext);
     }
 
     /**
      * Resolve name conflicts.
      */
-    public List<Entry> resolveNameConflicts(final Collection<Entry> entries, final Context c) {
+    public List<Entry> resolveNameConflicts(final Collection<Entry> entries) {
         final Map<String, Integer> counter = new HashMap<>();
         final List<Entry> result = new ArrayList<>();
         for (final Entry e : entries) {
@@ -165,10 +164,10 @@ public class RepositoryAccess {
                 // Find a possible filename with a number suffix
                 int suffix = counter.get(e.name) + 1;
                 while (counter.containsKey(e.name + "_" + suffix)) {
-                    log.debug("{}_{} was already used {}", e.name, suffix, c);
+                    log.debug("{}_{} was already used", e.name, suffix);
                     suffix++;
                 }
-                log.debug("Entry occurred twice: {}, used {}_{} for {} instead {}", e.getPath(), e.name, suffix, e.id.name(), c);
+                log.debug("Entry occurred twice: {}, used {}_{} for {} instead", e.getPath(), e.name, suffix, e.id.name());
                 final Entry newEntry = new Entry(e.mode, e.name + "_" + suffix, e.id, e.directory);
                 counter.put(e.name, suffix);
                 counter.put(newEntry.name, 1);
@@ -184,29 +183,29 @@ public class RepositoryAccess {
     /**
      * Reads a blob object.
      */
-    public byte[] readBlob(final ObjectId blobId, final Context c) {
-        return Try.io(c, () -> repo.getObjectDatabase().open(blobId, Constants.OBJ_BLOB).getBytes());
+    public byte[] readBlob(final ObjectId blobId) {
+        return Try.io(() -> repo.getObjectDatabase().open(blobId, Constants.OBJ_BLOB).getBytes());
     }
 
     /**
      * Writes data to a blob object.
      */
-    public ObjectId writeBlob(final byte[] data, final Context c) {
-        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_BLOB, data) : ins.insert(Constants.OBJ_BLOB, data), c);
+    public ObjectId writeBlob(final byte[] data, final Context writingContext) {
+        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_BLOB, data) : ins.insert(Constants.OBJ_BLOB, data), writingContext);
     }
 
     /**
      * Computes the size of a blob object.
      */
-    public long getBlobSize(final ObjectId blobId, final Context c) {
-        return Try.io(c, () -> repo.getObjectDatabase().open(blobId, Constants.OBJ_BLOB).getSize());
+    public long getBlobSize(final ObjectId blobId) {
+        return Try.io(() -> repo.getObjectDatabase().open(blobId, Constants.OBJ_BLOB).getSize());
     }
 
     /**
      * Writes a commit object.
      */
     public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer,
-            final Charset encoding, final GpgSignature signature, final String message, final Context c) {
+            final Charset encoding, final GpgSignature signature, final String message, final Context writingContext) {
         final CommitBuilder builder = new CommitBuilder();
         builder.setParentIds(parentIds);
         builder.setTreeId(treeId);
@@ -219,11 +218,11 @@ public class RepositoryAccess {
             builder.setGpgSignature(signature);
         }
         builder.setMessage(message);
-        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder), c);
+        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder), writingContext);
     }
 
-    public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer, final String message, final Context c) {
-        return writeCommit(parentIds, treeId, author, committer, null, null, message, c);
+    public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer, final String message, final Context writingContext) {
+        return writeCommit(parentIds, treeId, author, committer, null, null, message, writingContext);
     }
 
     // Notes
@@ -231,16 +230,16 @@ public class RepositoryAccess {
     /**
      * Add a note to the default notes.
      */
-    public void addNote(final ObjectId commitId, final String note, final Context c) {
-        addNote(defaultNotes, commitId, note, c);
+    public void addNote(final ObjectId commitId, final String note, final Context writingContext) {
+        addNote(defaultNotes, commitId, note, writingContext);
     }
 
     /**
      * Add a note to notes.
      */
-    public void addNote(final NoteMap notes, final ObjectId commitId, final String note, final Context c) {
+    public void addNote(final NoteMap notes, final ObjectId commitId, final String note, final Context writingContext) {
         if (note != null) {
-            final ObjectId blob = writeBlob(note.getBytes(), c);
+            final ObjectId blob = writeBlob(note.getBytes(), writingContext);
             Try.io(() -> notes.set(commitId, blob));
         }
     }
@@ -248,54 +247,54 @@ public class RepositoryAccess {
     /**
      * Writes default notes if at least one exists.
      */
-    public void writeNotes(final Context c) {
+    public void writeNotes(final Context writingContext) {
         if (defaultNotes.iterator().hasNext()) {
-            writeNotes(defaultNotes, c);
+            writeNotes(defaultNotes, writingContext);
         }
     }
 
     /**
      * Writes notes.
      */
-    public void writeNotes(final NoteMap notes, final Context c) {
-        writeNotes(notes, Constants.R_NOTES_COMMITS, c);
+    public void writeNotes(final NoteMap notes, final Context writingContext) {
+        writeNotes(notes, Constants.R_NOTES_COMMITS, writingContext);
     }
 
-    public void writeNotes(final NoteMap notes, final String ref, final Context c) {
-        final ObjectId treeId = isDryRunning ? ObjectId.zeroId() : insert(notes::writeTree, c);
+    public void writeNotes(final NoteMap notes, final String ref, final Context writingContext) {
+        final ObjectId treeId = isDryRunning ? ObjectId.zeroId() : insert(notes::writeTree, writingContext);
         // TODO building PersonIdent better.
         final PersonIdent ident = new PersonIdent(repo);
         final String message = "Notes added by 'git notes add'";
-        final ObjectId commit = writeCommit(NO_PARENTS, treeId, ident, ident, message, c);
+        final ObjectId commit = writeCommit(NO_PARENTS, treeId, ident, ident, message, writingContext);
 
-        applyRefUpdate(new RefEntry(ref, commit), c);
+        applyRefUpdate(new RefEntry(ref, commit));
 
     }
 
-    public void eachNote(final NoteMap notes, final BiConsumer<ObjectId, byte[]> f, final Context c) {
+    public void eachNote(final NoteMap notes, final BiConsumer<ObjectId, byte[]> f) {
         for (final Note note : notes) {
             final ObjectId id = ObjectId.fromString(note.getName());
-            final byte[] body = readBlob(note.getData(), c);
+            final byte[] body = readBlob(note.getData());
             f.accept(id, body);
         }
     }
 
-    public void eachNote(final BiConsumer<ObjectId, byte[]> f, final Context c) {
-        eachNote(defaultNotes, f, c);
+    public void eachNote(final BiConsumer<ObjectId, byte[]> f) {
+        eachNote(defaultNotes, f);
     }
 
-    public NoteMap readNote(final Context c) {
-        return readNote(Constants.R_NOTES_COMMITS, c);
+    public NoteMap readNote() {
+        return readNote(Constants.R_NOTES_COMMITS);
     }
 
-    public NoteMap readNote(final String noteRef, final Context c) {
-        final Ref targetRef = getRef(noteRef, c);
+    public NoteMap readNote(final String noteRef) {
+        final Ref targetRef = getRef(noteRef);
         if (targetRef == null) {
             return NoteMap.newEmptyMap();
         }
-        return Try.io(c, () -> {
+        return Try.io(() -> {
             try (final RevWalk walk = new RevWalk(repo)) {
-                final RevCommit noteCommit = walk.parseCommit(getRefTarget(targetRef, c));
+                final RevCommit noteCommit = walk.parseCommit(getRefTarget(targetRef));
                 return NoteMap.read(walk.getObjectReader(), noteCommit);
             }
         });
@@ -304,7 +303,7 @@ public class RepositoryAccess {
     /**
      * Writes a tag object.
      */
-    public ObjectId writeTag(final ObjectId objectId, final int type, final String tag, final PersonIdent tagger, final String message, final Context c) {
+    public ObjectId writeTag(final ObjectId objectId, final int type, final String tag, final PersonIdent tagger, final String message, final Context writingContext) {
         final TagBuilder builder = new TagBuilder();
         builder.setObjectId(objectId, type);
         builder.setTag(tag);
@@ -312,7 +311,7 @@ public class RepositoryAccess {
             builder.setTagger(tagger);
         }
         builder.setMessage(message);
-        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_TAG, builder.build()) : ins.insert(builder), c);
+        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_TAG, builder.build()) : ins.insert(builder), writingContext);
     }
 
     // Ref manipulation
@@ -320,11 +319,11 @@ public class RepositoryAccess {
     /**
      * Applies ref update.
      */
-    public void applyRefUpdate(final RefEntry entry, final Context c) {
+    public void applyRefUpdate(final RefEntry entry) {
         if (isDryRunning) {
             return;
         }
-        Try.io(c, () -> {
+        Try.io(() -> {
             final RefUpdate cmd = repo.getRefDatabase().newUpdate(entry.name, false);
             cmd.setForceUpdate(true);
             if (entry.isSymbolic()) {
@@ -339,11 +338,11 @@ public class RepositoryAccess {
     /**
      * Applies ref delete.
      */
-    public void applyRefDelete(final RefEntry entry, final Context c) {
+    public void applyRefDelete(final RefEntry entry) {
         if (isDryRunning) {
             return;
         }
-        Try.io(c, () -> {
+        Try.io(() -> {
             final RefUpdate cmd = repo.getRefDatabase().newUpdate(entry.name, false);
             cmd.setForceUpdate(true);
             cmd.delete();
@@ -353,14 +352,11 @@ public class RepositoryAccess {
     /**
      * Applies ref rename.
      */
-    public void applyRefRename(final String name, final String newName, final Context c) {
+    public void applyRefRename(final String name, final String newName) {
         if (isDryRunning) {
             return;
         }
-        Try.io(c, () -> {
-            final RefRename cmd = repo.getRefDatabase().newRename(name, newName);
-            cmd.rename();
-        });
+        Try.io(() -> repo.getRefDatabase().newRename(name, newName).rename());
     }
 
     // Handling ObjectInserter
@@ -368,7 +364,7 @@ public class RepositoryAccess {
     /**
      * Opens and provides an object inserter.
      */
-    public void openInserter(final Consumer<ObjectInserter> f, @SuppressWarnings("unused") final Context c) {
+    public void openInserter(final Consumer<ObjectInserter> f) {
         try (final ObjectInserter ins = repo.newObjectInserter()) {
             f.accept(ins);
         }
@@ -377,15 +373,15 @@ public class RepositoryAccess {
     /**
      * Generates an object inserter.
      */
-    public ObjectInserter getInserter(@SuppressWarnings("unused") final Context c) {
+    public ObjectInserter getInserter() {
         return repo.newObjectInserter();
     }
 
     /**
      * Inserts objects using a prepared object inserter.
      */
-    public <R> R insert(final IOThrowableFunction<ObjectInserter, R> f, final Context c) {
-        final ObjectInserter inserterContext = c.getInserter();
+    public <R> R insert(final IOThrowableFunction<ObjectInserter, R> f, final Context writingContext) {
+        final ObjectInserter inserterContext = writingContext.getInserter();
         if (inserterContext != null) {
             return Try.io(f).apply(inserterContext);
         }

@@ -130,7 +130,6 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected void rewriteCommits(final Context c) {
         rewriteRootTrees(c);
-
         target.openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
             try (final RevWalk walk = prepareRevisionWalk(uc)) {
@@ -139,7 +138,7 @@ public class RepositoryRewriter implements RewriterCommand {
                     commit.disposeBody();
                 }
             }
-        }, c);
+        });
     }
 
     /**
@@ -157,7 +156,7 @@ public class RepositoryRewriter implements RewriterCommand {
             for (final RevCommit commit : walk) {
                 pool.execute(() -> {
                     final long id = Thread.currentThread().getId();
-                    final Context uc = cxts.computeIfAbsent(id, k -> c.with(Key.inserter, target.getInserter(c)));
+                    final Context uc = cxts.computeIfAbsent(id, k -> c.with(Key.inserter, target.getInserter()));
                     final Context uuc = uc.with(Key.rev, commit, Key.commit, commit);
                     rewriteRootTree(commit.getTree().getId(), uuc);
                     commit.disposeBody();
@@ -183,7 +182,7 @@ public class RepositoryRewriter implements RewriterCommand {
         final Collection<ObjectId> uninterestings = collectUninterestings(c);
         final Collection<ObjectId> starts = collectStarts(c);
 
-        final RevWalk walk = source.walk(c);
+        final RevWalk walk = source.walk();
         Try.io(c, () -> {
             for (final ObjectId id : starts) {
                 walk.markStart(walk.parseCommit(id));
@@ -200,10 +199,10 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected Collection<ObjectId> collectStarts(final Context c) {
         final List<ObjectId> result = new ArrayList<>();
-        for (final Ref ref : source.getRefs(c)) {
+        for (final Ref ref : source.getRefs()) {
             if (confirmStartRef(ref, c)) {
-                final ObjectId commitId = source.getRefTarget(ref, c);
-                if (source.getObjectType(commitId, c) == Constants.OBJ_COMMIT) {
+                final ObjectId commitId = source.getRefTarget(ref);
+                if (source.getObjectType(commitId) == Constants.OBJ_COMMIT) {
                     log.debug("Ref {}: added as a start point (commit: {})", ref.getName(), commitId.name());
                     result.add(commitId);
                 } else {
@@ -353,7 +352,7 @@ public class RepositoryRewriter implements RewriterCommand {
         final String dir = isPathSensitive ? path : null;
 
         final List<Entry> entries = new ArrayList<>();
-        for (final Entry e : source.readTree(treeId, dir, uc)) {
+        for (final Entry e : source.readTree(treeId, dir)) {
             final EntrySet rewritten = getEntry(e, uc);
             rewritten.registerTo(entries);
         }
@@ -371,7 +370,7 @@ public class RepositoryRewriter implements RewriterCommand {
         if (isOverwriting) {
             return blobId;
         }
-        final ObjectId newId = target.writeBlob(source.readBlob(blobId, c), c);
+        final ObjectId newId = target.writeBlob(source.readBlob(blobId), c);
         if (log.isDebugEnabled() && !newId.equals(blobId)) {
             log.debug("Rewrite blob: {} -> {} {}", blobId.name(), newId.name(), c);
         }
@@ -451,7 +450,7 @@ public class RepositoryRewriter implements RewriterCommand {
      * Updates ref objects.
      */
     protected void updateRefs(final Context c) {
-        for (final Ref ref : source.getRefs(c)) {
+        for (final Ref ref : source.getRefs()) {
             if (confirmUpdateRef(ref, c)) {
                 updateRef(ref, c);
             }
@@ -491,7 +490,7 @@ public class RepositoryRewriter implements RewriterCommand {
             // delete
             if (isOverwriting) {
                 log.debug("Delete ref: {} {}", oldEntry, c);
-                target.applyRefDelete(oldEntry, uc);
+                target.applyRefDelete(oldEntry);
             }
             return;
         }
@@ -500,7 +499,7 @@ public class RepositoryRewriter implements RewriterCommand {
             // rename
             if (isOverwriting) {
                 log.debug("Rename ref: {} -> {} {}", oldEntry.name, newEntry.name, c);
-                target.applyRefRename(oldEntry.name, newEntry.name, uc);
+                target.applyRefRename(oldEntry.name, newEntry.name);
             }
         }
 
@@ -510,7 +509,7 @@ public class RepositoryRewriter implements RewriterCommand {
         if (!isOverwriting || !linkEquals || !idEquals) {
             // update
             log.debug("Update ref: {} -> {} {}", oldEntry, newEntry, c);
-            target.applyRefUpdate(newEntry, uc);
+            target.applyRefUpdate(newEntry);
         }
     }
 
@@ -527,7 +526,7 @@ public class RepositoryRewriter implements RewriterCommand {
             return new RefEntry(newName, newTarget);
         } else {
             final String newName = rewriteRefName(entry.name, c);
-            final int type = source.getObjectType(entry.id, c);
+            final int type = source.getObjectType(entry.id);
             final ObjectId newObjectId = rewriteRefObject(entry.id, type, c);
             return newObjectId == ZERO ? RefEntry.EMPTY : new RefEntry(newName, newObjectId);
         }
@@ -540,7 +539,7 @@ public class RepositoryRewriter implements RewriterCommand {
         switch (type) {
         case Constants.OBJ_TAG:
             final ObjectId newTagId = tagMapping.get(id);
-            return newTagId != null ? newTagId : rewriteTag(source.parseTag(id, c), c);
+            return newTagId != null ? newTagId : rewriteTag(source.parseTag(id), c);
 
         case Constants.OBJ_COMMIT:
             final ObjectId newCommitId = commitMapping.get(id);
@@ -565,7 +564,7 @@ public class RepositoryRewriter implements RewriterCommand {
         final ObjectId oldId = tag.getId();
 
         final ObjectId oldObjectId = tag.getObject().getId();
-        final int type = source.getObjectType(oldObjectId, c);
+        final int type = source.getObjectType(oldObjectId);
         final ObjectId newObjectId = rewriteRefObject(oldObjectId, type, uc);
         if (newObjectId == ZERO) {
             log.debug("Delete tag {} due to its object to be deleted {}", oldId, c);
