@@ -354,7 +354,7 @@ public class RepositoryRewriter implements RewriterCommand {
         final List<HashEntry> entries = new ArrayList<>();
         for (final HashEntry e : source.readTree(treeId, dir)) {
             final ColdEntry rewritten = getEntry(e, uc);
-            rewritten.registerTo(entries);
+            rewritten.stream().forEach(entries::add);
         }
         final ObjectId newId = entries.isEmpty() ? ZERO : target.writeTree(entries, uc);
         if (log.isDebugEnabled() && !newId.equals(treeId)) {

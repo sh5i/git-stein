@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.core;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -14,7 +15,7 @@ import org.eclipse.jgit.lib.ObjectId;
  * Abstract tree entry.
  */
 public interface ColdEntry extends Serializable {
-    void registerTo(List<HashEntry> out);
+    Stream<HashEntry> stream();
 
     Empty EMPTY = new Empty();
 
@@ -71,8 +72,8 @@ public interface ColdEntry extends Serializable {
         }
 
         @Override
-        public void registerTo(final List<HashEntry> out) {
-            out.add(this);
+        public Stream<HashEntry> stream() {
+            return Stream.of(this);
         }
 
         @Override
@@ -105,8 +106,8 @@ public interface ColdEntry extends Serializable {
         }
 
         @Override
-        public void registerTo(final List<HashEntry> out) {
-            out.addAll(entries);
+        public Stream<HashEntry> stream() {
+            return entries.stream();
         }
     }
 
@@ -119,6 +120,8 @@ public interface ColdEntry extends Serializable {
         private Empty() {}
 
         @Override
-        public void registerTo(final List<HashEntry> out) {}
+        public Stream<HashEntry> stream() {
+            return Stream.empty();
+        }
     }
 }
