@@ -13,7 +13,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
 
-import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
+import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
 
 public class Editor {
     protected final RepositoryAccess ra;
@@ -79,12 +79,12 @@ public class Editor {
     }
 
     public class TreeNode extends Node {
-        protected final Map<String, Entry> entries = new HashMap<>();
+        protected final Map<String, HashEntry> entries = new HashMap<>();
 
         public TreeNode(final ObjectId id) {
             super(id);
             if (id != null) {
-                for (final Entry e : ra.readTree(id, null, c)) {
+                for (final HashEntry e : ra.readTree(id, null, c)) {
                     entries.put(e.name, e);
                 }
             }
@@ -116,12 +116,12 @@ public class Editor {
         }
 
         protected BlobNode getBlob(final String name, final boolean create) {
-            Entry e = entries.get(name);
+            HashEntry e = entries.get(name);
             if (e == null) {
                 if (!create) {
                     throw new IllegalStateException("No entry");
                 }
-                e = new Entry(FileMode.REGULAR_FILE.getBits(), name, null);
+                e = new HashEntry(FileMode.REGULAR_FILE.getBits(), name, null);
                 entries.put(name, e);
             } else {
                 if (e.isTree()) {
@@ -137,12 +137,12 @@ public class Editor {
         }
 
         protected TreeNode getTree(final String name, final boolean create) {
-            Entry e = entries.get(name);
+            HashEntry e = entries.get(name);
             if (e == null) {
                 if (!create) {
                     throw new IllegalStateException("No entry");
                 }
-                e = new Entry(FileMode.TREE.getBits(), name, null);
+                e = new HashEntry(FileMode.TREE.getBits(), name, null);
                 entries.put(name, e);
             } else {
                 if (!e.isTree()) {

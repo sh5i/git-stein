@@ -9,7 +9,7 @@ import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.util.sha1.SHA1;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
+import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 
@@ -76,7 +76,7 @@ public class Anonymize extends RepositoryRewriter {
 
     @Override
     public String rewriteName(final String name, final Context c) {
-        final Entry entry = c.getEntry();
+        final HashEntry entry = c.getEntry();
         if (entry.isTree()) {
             return treeNameMap.convert(name);
         } else {

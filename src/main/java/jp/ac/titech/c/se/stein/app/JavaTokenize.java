@@ -12,7 +12,7 @@ import org.eclipse.jdt.core.compiler.InvalidInputException;
 import org.eclipse.jgit.lib.ObjectId;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
+import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -54,11 +54,11 @@ public class JavaTokenize extends RepositoryRewriter {
 
     @Override
     protected ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
-        final Entry entry = c.getEntry();
+        final HashEntry entry = c.getEntry();
         if (!entry.name.toLowerCase().endsWith(".java")) {
             return super.rewriteBlob(blobId, c);
         }
-        final String text = SourceText.of(source.readBlob(blobId, c)).getContent();
+        final String text = SourceText.of(source.readBlob(blobId)).getContent();
         final String converted = isDecoding ? decode(text) : encode(text);
         final ObjectId newId = target.writeBlob(converted.getBytes(StandardCharsets.UTF_8), c);
         log.debug("Rewrite blob: {} -> {} {}", blobId.name(), newId.name(), c);

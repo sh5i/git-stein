@@ -9,7 +9,7 @@ import com.j256.ormlite.logger.Slf4jLoggingLogBackend;
 import com.j256.ormlite.misc.TransactionManager;
 import com.j256.ormlite.table.DatabaseTable;
 import com.j256.ormlite.table.TableUtils;
-import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
+import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.slf4j.Logger;
@@ -102,9 +102,9 @@ public class SQLiteCacheProvider {
         return new MapAdapter<>(commitDao, CommitRow::new, m, m);
     }
 
-    public Map<Entry, EntrySet> getEntryMapping() {
-        final Marshaler<Entry> km = new Marshaler.JavaSerializerMarshaler<>();
-        final Marshaler<EntrySet> vm = new Marshaler.JavaSerializerMarshaler<>();
+    public Map<HashEntry, ColdEntry> getEntryMapping() {
+        final Marshaler<HashEntry> km = new Marshaler.JavaSerializerMarshaler<>();
+        final Marshaler<ColdEntry> vm = new Marshaler.JavaSerializerMarshaler<>();
         return new MapAdapter<>(entryDao, EntryRow::new, km, vm);
     }
 

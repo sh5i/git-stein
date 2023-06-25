@@ -207,8 +207,8 @@ public class Context implements Map<Context.Key, Object> {
     /**
      * Returns the entry object in the context.
      */
-    public EntrySet.Entry getEntry() {
-        return (EntrySet.Entry) get(Key.entry);
+    public ColdEntry.HashEntry getEntry() {
+        return (ColdEntry.HashEntry) get(Key.entry);
     }
 
     /**

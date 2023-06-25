@@ -6,7 +6,6 @@ import java.util.List;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
@@ -14,17 +13,17 @@ import org.eclipse.jgit.lib.ObjectId;
 /**
  * Abstract tree entry.
  */
-public interface EntrySet extends Serializable {
-    void registerTo(List<Entry> out);
+public interface ColdEntry extends Serializable {
+    void registerTo(List<HashEntry> out);
 
-    EmptySet EMPTY = new EmptySet();
+    Empty EMPTY = new Empty();
 
     /**
      * A normal tree entry.
      */
     @RequiredArgsConstructor
     @EqualsAndHashCode
-    class Entry implements EntrySet, Comparable<Entry> {
+    class HashEntry implements ColdEntry, Comparable<HashEntry> {
         private static final long serialVersionUID = 1L;
 
         public final int mode;
@@ -38,7 +37,7 @@ public interface EntrySet extends Serializable {
         @EqualsAndHashCode.Exclude
         public transient Object data;
 
-        public Entry(final int mode, final String name, final ObjectId id) {
+        public HashEntry(final int mode, final String name, final ObjectId id) {
             this(mode, name, id, null);
         }
 
@@ -72,12 +71,12 @@ public interface EntrySet extends Serializable {
         }
 
         @Override
-        public void registerTo(final List<Entry> out) {
+        public void registerTo(final List<HashEntry> out) {
             out.add(this);
         }
 
         @Override
-        public int compareTo(final Entry other) {
+        public int compareTo(final HashEntry other) {
             return generateSortKey().compareTo(other.generateSortKey());
         }
     }
@@ -86,13 +85,13 @@ public interface EntrySet extends Serializable {
      * A set of multiple tree entries.
      */
     @EqualsAndHashCode
-    class EntryList implements EntrySet {
+    class HashEntrySet implements ColdEntry {
         private static final long serialVersionUID = 1L;
 
         @Getter
-        private final List<Entry> entries = new ArrayList<>();
+        private final List<HashEntry> entries = new ArrayList<>();
 
-        public void add(final Entry entry) {
+        public void add(final HashEntry entry) {
             entries.add(entry);
         }
 
@@ -106,7 +105,7 @@ public interface EntrySet extends Serializable {
         }
 
         @Override
-        public void registerTo(final List<Entry> out) {
+        public void registerTo(final List<HashEntry> out) {
             out.addAll(entries);
         }
     }
@@ -114,12 +113,12 @@ public interface EntrySet extends Serializable {
     /**
      * An empty set of tree entries.
      */
-    class EmptySet implements EntrySet {
+    class Empty implements ColdEntry {
         private static final long serialVersionUID = 1L;
 
-        private EmptySet() {}
+        private Empty() {}
 
         @Override
-        public void registerTo(final List<Entry> out) {}
+        public void registerTo(final List<HashEntry> out) {}
     }
 }

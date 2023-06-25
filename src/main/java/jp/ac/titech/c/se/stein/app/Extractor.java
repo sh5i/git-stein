@@ -1,9 +1,9 @@
 package jp.ac.titech.c.se.stein.app;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.EntrySet;
-import jp.ac.titech.c.se.stein.core.EntrySet.Entry;
-import jp.ac.titech.c.se.stein.core.EntrySet.EntryList;
+import jp.ac.titech.c.se.stein.core.ColdEntry;
+import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
+import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntrySet;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import lombok.Value;
@@ -25,17 +25,17 @@ public abstract class Extractor extends RepositoryRewriter {
     protected boolean requiresIrrelevances = true;
 
     @Override
-    public EntrySet rewriteEntry(final Entry entry, final Context c) {
+    public ColdEntry rewriteEntry(final HashEntry entry, final Context c) {
         if (!entry.isFile()) {
             return super.rewriteEntry(entry, c);
         }
         if (!accept(entry.name.toLowerCase())) {
-            return requiresIrrelevances ? super.rewriteEntry(entry, c) : EntrySet.EMPTY;
+            return requiresIrrelevances ? super.rewriteEntry(entry, c) : ColdEntry.EMPTY;
         }
 
-        final EntryList result = new EntryList();
+        final HashEntrySet result = new HashEntrySet();
         if (requiresOriginals) {
-            result.add((Entry) super.rewriteEntry(entry, c));
+            result.add((HashEntry) super.rewriteEntry(entry, c));
         }
 
         final SourceText text = SourceText.ofNormalized(source.readBlob(entry.id, c));
@@ -44,7 +44,7 @@ public abstract class Extractor extends RepositoryRewriter {
             for (final Module m : modules) {
                 final ObjectId newId = target.writeBlob(m.getRawContent(), c);
                 log.debug("Generate module: {} (`{}...`) [{}] from {} {}", m.getFilename(), StringUtils.left(m.getContent().trim(), 8), newId.name(), entry, c);
-                result.add(new Entry(entry.mode, m.getFilename(), newId, entry.directory));
+                result.add(new HashEntry(entry.mode, m.getFilename(), newId, entry.directory));
             }
             log.debug("Rewrite entry: {} -> %d entries {} {}", entry, result.size(), c);
         }
@@ -53,7 +53,7 @@ public abstract class Extractor extends RepositoryRewriter {
 
     protected abstract boolean accept(final String filename);
 
-    protected abstract Collection<? extends Module> generate(final Entry entry, final SourceText text, final Context c);
+    protected abstract Collection<? extends Module> generate(final HashEntry entry, final SourceText text, final Context c);
 
     public static String digest(final String name, final int length) {
         final SHA1 sha1 = SHA1.newInstance();
