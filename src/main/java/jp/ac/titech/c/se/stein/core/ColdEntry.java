@@ -8,7 +8,6 @@ import java.util.stream.Stream;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 
 /**
@@ -17,6 +16,12 @@ import org.eclipse.jgit.lib.ObjectId;
 public interface ColdEntry extends Serializable {
     Stream<HashEntry> stream();
 
+    int size();
+
+    default boolean isEmpty() {
+        return size() == 0;
+    }
+
     Empty EMPTY = new Empty();
 
     /**
@@ -24,15 +29,19 @@ public interface ColdEntry extends Serializable {
      */
     @RequiredArgsConstructor
     @EqualsAndHashCode
-    class HashEntry implements ColdEntry, Comparable<HashEntry> {
+    class HashEntry implements ColdEntry, SingleEntry {
         private static final long serialVersionUID = 1L;
 
+        @Getter
         public final int mode;
 
+        @Getter
         public final String name;
 
+        @Getter
         public final ObjectId id;
 
+        @Getter
         public final String directory;
 
         @EqualsAndHashCode.Exclude
@@ -42,33 +51,9 @@ public interface ColdEntry extends Serializable {
             this(mode, name, id, null);
         }
 
-        public String getPath() {
-            return directory != null ? directory + "/" + name : name;
-        }
-
         @Override
         public String toString() {
             return String.format("<Entry:%o %s %s>", mode, getPath(), id.name());
-        }
-
-        public boolean isTree() {
-            return FileMode.TREE.equals(mode);
-        }
-
-        public boolean isLink() {
-            return FileMode.GITLINK.equals(mode);
-        }
-
-        public boolean isFile() {
-            return !isTree() && !isLink();
-        }
-
-        public boolean isRoot() {
-            return isTree() && name.equals("");
-        }
-
-        public String generateSortKey() {
-            return isTree() ? name + "/" : name;
         }
 
         @Override
@@ -77,8 +62,8 @@ public interface ColdEntry extends Serializable {
         }
 
         @Override
-        public int compareTo(final HashEntry other) {
-            return generateSortKey().compareTo(other.generateSortKey());
+        public int size() {
+            return 1;
         }
     }
 
@@ -96,6 +81,12 @@ public interface ColdEntry extends Serializable {
             entries.add(entry);
         }
 
+        @Override
+        public Stream<HashEntry> stream() {
+            return entries.stream();
+        }
+
+        @Override
         public int size() {
             return entries.size();
         }
@@ -105,10 +96,6 @@ public interface ColdEntry extends Serializable {
             return entries.toString();
         }
 
-        @Override
-        public Stream<HashEntry> stream() {
-            return entries.stream();
-        }
     }
 
     /**
@@ -122,6 +109,11 @@ public interface ColdEntry extends Serializable {
         @Override
         public Stream<HashEntry> stream() {
             return Stream.empty();
+        }
+
+        @Override
+        public int size() {
+            return 0;
         }
     }
 }

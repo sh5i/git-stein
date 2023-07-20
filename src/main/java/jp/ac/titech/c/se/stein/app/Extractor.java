@@ -38,7 +38,7 @@ public abstract class Extractor extends RepositoryRewriter {
             result.add((HashEntry) super.rewriteEntry(entry, c));
         }
 
-        final SourceText text = SourceText.ofNormalized(source.readBlob(entry.id, c));
+        final SourceText text = SourceText.ofNormalized(source.readBlob(entry.id));
         final Collection<? extends Module> modules = generate(entry, text, c);
         if (!modules.isEmpty()) {
             for (final Module m : modules) {

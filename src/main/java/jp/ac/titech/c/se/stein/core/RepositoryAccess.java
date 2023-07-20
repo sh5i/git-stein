@@ -148,7 +148,7 @@ public class RepositoryAccess {
     public ObjectId writeTree(final Collection<HashEntry> entries, final Context writingContext) {
         final TreeFormatter f = new TreeFormatter();
         resolveNameConflicts(entries).stream()
-                .sorted(Comparator.comparing(HashEntry::generateSortKey))
+                .sorted(Comparator.comparing(HashEntry::sortKey))
                 .forEach(e -> f.append(e.name, FileMode.fromBits(e.mode), e.id));
         return insert(ins -> isDryRunning ? ins.idFor(f) : ins.insert(f), writingContext);
     }

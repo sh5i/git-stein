@@ -84,7 +84,7 @@ public class Editor {
         public TreeNode(final ObjectId id) {
             super(id);
             if (id != null) {
-                for (final HashEntry e : ra.readTree(id, null, c)) {
+                for (final HashEntry e : ra.readTree(id, null)) {
                     entries.put(e.name, e);
                 }
             }
@@ -175,7 +175,7 @@ public class Editor {
 
         public byte[] getRaw() {
             if (body == null) {
-                body = ra.readBlob(id, c);
+                body = ra.readBlob(id);
             }
             return body;
         }

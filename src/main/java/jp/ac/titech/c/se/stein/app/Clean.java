@@ -79,7 +79,7 @@ public class Clean extends RepositoryRewriter {
             }
         }
         if (maxSize >= 0) {
-            final long size = source.getBlobSize(blobId, c);
+            final long size = source.getBlobSize(blobId);
             if ((size >= maxSize) ^ invertMatch) {
                 log.debug("remove {}: size ({}; {}B) {}exceeded {}", blobId.name(), FileUtils.byteCountToDisplaySize(size), size, invertMatch ? "not " : "", c);
                 return RepositoryRewriter.ZERO;

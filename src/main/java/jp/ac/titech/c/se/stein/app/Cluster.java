@@ -68,12 +68,12 @@ public class Cluster extends RepositoryRewriter {
         target.openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
 
-            try (final RevWalk walk = source.walk(c)) {
+            try (final RevWalk walk = source.walk()) {
                 for (final Vertex v : graph) {
                     rewriteCommit(Try.io(() -> walk.parseCommit(v.id)), uc);
                 }
             }
-        }, c);
+        });
 
         for (final Map.Entry<ObjectId, ObjectId> e : alternateMapping.entrySet()) {
             final ObjectId merged = e.getKey();
