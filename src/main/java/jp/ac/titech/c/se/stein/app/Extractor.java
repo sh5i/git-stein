@@ -30,7 +30,7 @@ public abstract class Extractor extends RepositoryRewriter {
             return super.rewriteEntry(entry, c);
         }
         if (!accept(entry.name.toLowerCase())) {
-            return requiresIrrelevances ? super.rewriteEntry(entry, c) : ColdEntry.EMPTY;
+            return requiresIrrelevances ? super.rewriteEntry(entry, c) : ColdEntry.empty();
         }
 
         final HashEntrySet result = new HashEntrySet();

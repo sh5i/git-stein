@@ -2,11 +2,13 @@ package jp.ac.titech.c.se.stein.core;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.eclipse.jgit.lib.ObjectId;
 
@@ -18,11 +20,25 @@ public interface ColdEntry extends Serializable {
 
     int size();
 
-    default boolean isEmpty() {
-        return size() == 0;
+    default ColdEntry pack() {
+        return size() == 1 ? ((HashEntrySet) this).getEntries().get(0) : this;
     }
 
-    Empty EMPTY = new Empty();
+    static HashEntry of(int mode, String name, ObjectId id) {
+        return new HashEntry(mode, name, id, null);
+    }
+
+    static HashEntry of(int mode, String name, ObjectId id, String directory) {
+        return new HashEntry(mode, name, id, directory);
+    }
+
+    static HashEntrySet of(Collection<HashEntry> entries) {
+        return new HashEntrySet(entries);
+    }
+
+    static Empty empty() {
+        return new Empty();
+    }
 
     /**
      * A normal tree entry.
@@ -47,10 +63,6 @@ public interface ColdEntry extends Serializable {
         @EqualsAndHashCode.Exclude
         public transient Object data;
 
-        public HashEntry(final int mode, final String name, final ObjectId id) {
-            this(mode, name, id, null);
-        }
-
         @Override
         public String toString() {
             return String.format("<Entry:%o %s %s>", mode, getPath(), id.name());
@@ -70,12 +82,17 @@ public interface ColdEntry extends Serializable {
     /**
      * A set of multiple tree entries.
      */
+    @NoArgsConstructor
     @EqualsAndHashCode
     class HashEntrySet implements ColdEntry {
         private static final long serialVersionUID = 1L;
 
         @Getter
         private final List<HashEntry> entries = new ArrayList<>();
+
+        public HashEntrySet(Collection<HashEntry> entries) {
+            this.entries.addAll(entries);
+        }
 
         public void add(final HashEntry entry) {
             entries.add(entry);
@@ -95,11 +112,10 @@ public interface ColdEntry extends Serializable {
         public String toString() {
             return entries.toString();
         }
-
     }
 
     /**
-     * An empty set of tree entries.
+     * An empty set of hash entries.
      */
     class Empty implements ColdEntry {
         private static final long serialVersionUID = 1L;
