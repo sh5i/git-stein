@@ -333,10 +333,33 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected ColdEntry rewriteEntry(final HashEntry entry, final Context c) {
         final Context uc = c.with(Key.entry, entry);
+        switch (entry.getType()) {
+            case BLOB:
+                return rewriteBlobEntry(entry, uc);
+            case TREE:
+                return rewriteTreeEntry(entry, uc);
+            case LINK:
+                return rewriteLinkEntry(entry, uc);
+            default:
+                assert false;
+                return null;
+        }
+    }
 
-        final ObjectId newId = entry.isLink() ? rewriteLink(entry.id, uc)
-                             : entry.isTree() ? rewriteTree(entry.id, uc)
-                             :                  rewriteBlob(entry.id, uc);
+    protected ColdEntry rewriteBlobEntry(HashEntry entry, Context uc) {
+        final ObjectId newId = rewriteBlob(entry.id, uc);
+        final String newName = rewriteName(entry.name, uc);
+        return newId == ZERO ? ColdEntry.EMPTY : new HashEntry(entry.mode, newName, newId, entry.directory);
+    }
+
+    protected ColdEntry rewriteTreeEntry(HashEntry entry, Context uc) {
+        final ObjectId newId = rewriteTree(entry.id, uc);
+        final String newName = rewriteName(entry.name, uc);
+        return newId == ZERO ? ColdEntry.EMPTY : new HashEntry(entry.mode, newName, newId, entry.directory);
+    }
+
+    protected ColdEntry rewriteLinkEntry(HashEntry entry, Context uc) {
+        final ObjectId newId = rewriteLink(entry.id, uc);
         final String newName = rewriteName(entry.name, uc);
         return newId == ZERO ? ColdEntry.EMPTY : new HashEntry(entry.mode, newName, newId, entry.directory);
     }

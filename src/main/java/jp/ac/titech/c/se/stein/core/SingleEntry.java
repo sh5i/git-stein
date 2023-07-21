@@ -35,6 +35,16 @@ public interface SingleEntry extends Comparable<SingleEntry> {
         return !isTree() && !isLink();
     }
 
+    default Type getType() {
+        if (isTree()) {
+            return Type.TREE;
+        } else if (isLink()) {
+            return Type.LINK;
+        } else {
+            return Type.BLOB;
+        }
+    }
+
     default boolean isRoot() {
         return isTree() && getName().equals("");
     }
