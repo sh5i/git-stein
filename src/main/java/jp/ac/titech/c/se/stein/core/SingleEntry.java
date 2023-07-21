@@ -7,6 +7,10 @@ import org.eclipse.jgit.lib.ObjectId;
  * Abstract tree entry.
  */
 public interface SingleEntry extends Comparable<SingleEntry> {
+    enum Type {
+        BLOB, TREE, LINK
+    }
+
     int getMode();
 
     String getName();
@@ -27,7 +31,7 @@ public interface SingleEntry extends Comparable<SingleEntry> {
         return FileMode.GITLINK.equals(getMode());
     }
 
-    default boolean isFile() {
+    default boolean isBlob() {
         return !isTree() && !isLink();
     }
 

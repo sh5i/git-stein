@@ -26,7 +26,7 @@ public abstract class Extractor extends RepositoryRewriter {
 
     @Override
     public ColdEntry rewriteEntry(final HashEntry entry, final Context c) {
-        if (!entry.isFile()) {
+        if (!entry.isBlob()) {
             return super.rewriteEntry(entry, c);
         }
         if (!accept(entry.name.toLowerCase())) {
