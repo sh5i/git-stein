@@ -52,6 +52,8 @@ public interface HotEntry {
     abstract class SingleHotEntry implements HotEntry, SingleEntry {
         public abstract byte[] getBlob();
 
+        public abstract long getBlobSize();
+
         @Override
         public Stream<? extends SingleHotEntry> stream() {
             return Stream.of(this);
@@ -65,6 +67,14 @@ public interface HotEntry {
         @Override
         public HashEntry fold(RepositoryAccess target, Context c) {
             return ColdEntry.of(getMode(), getName(), target.writeBlob(getBlob(), c), getDirectory());
+        }
+
+        public NewFileEntry rename(final String newName) {
+            return HotEntry.of(getMode(), newName, getBlob(), getDirectory());
+        }
+
+        public NewFileEntry update(final byte[] newBlob) {
+            return HotEntry.of(getMode(), getName(), newBlob, getDirectory());
         }
     }
 
@@ -86,6 +96,11 @@ public interface HotEntry {
                 blob = source.readBlob(entry.id);
             }
             return blob;
+        }
+
+        @Override
+        public long getBlobSize() {
+            return blob != null ? blob.length : source.getBlobSize(entry.id);
         }
 
         @Override
@@ -112,6 +127,12 @@ public interface HotEntry {
         @Getter
         private final String directory;
 
+        @Override
+        public long getBlobSize() {
+            return blob.length;
+        }
+
+        @Override
         public ObjectId getId() {
             log.warn("Getting Object ID for NewFileEntry requires hash computation");
             try (ObjectInserter inserter = new ObjectInserter.Formatter()) {

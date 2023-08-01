@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.app;
 
 import java.io.File;
 
+import jp.ac.titech.c.se.stein.core.HotEntry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
@@ -68,23 +69,23 @@ public class Clean extends RepositoryRewriter {
     }
 
     @Override
-    protected ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
+    protected HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
         if (filters.length > 0) {
-            final File name = new File(c.getEntry().name);
+            final File name = new File(entry.getName());
             for (final IOFileFilter f : filters) {
                 if (f.accept(name) ^ invertMatch) {
-                    log.debug("remove {}: name ({}) {}matched {}", blobId.name(), name, invertMatch ? "not " : "", c);
-                    return RepositoryRewriter.ZERO;
+                    log.debug("remove {}: name {}matched {}", entry, invertMatch ? "not " : "", c);
+                    return HotEntry.empty();
                 }
             }
         }
         if (maxSize >= 0) {
-            final long size = source.getBlobSize(blobId);
+            final long size = entry.getBlobSize();
             if ((size >= maxSize) ^ invertMatch) {
-                log.debug("remove {}: size ({}; {}B) {}exceeded {}", blobId.name(), FileUtils.byteCountToDisplaySize(size), size, invertMatch ? "not " : "", c);
-                return RepositoryRewriter.ZERO;
+                log.debug("remove {}: size ({}; {}B) {}exceeded {}", entry, FileUtils.byteCountToDisplaySize(size), size, invertMatch ? "not " : "", c);
+                return HotEntry.empty();
             }
         }
-        return super.rewriteBlob(blobId, c);
+        return entry;
     }
 }

@@ -3,8 +3,8 @@ package jp.ac.titech.c.se.stein.app;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import jp.ac.titech.c.se.stein.core.HotEntry;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.util.sha1.SHA1;
 
@@ -70,8 +70,10 @@ public class Anonymize extends RepositoryRewriter {
     }
 
     @Override
-    public ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
-        return target.writeBlob(blobId.name().getBytes(), c);
+    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+        return entry
+                .update(entry.getId().name().getBytes())
+                .rename(blobNameMap.convert(entry.getName()));
     }
 
     @Override
@@ -79,9 +81,8 @@ public class Anonymize extends RepositoryRewriter {
         final HashEntry entry = c.getEntry();
         if (entry.isTree()) {
             return treeNameMap.convert(name);
-        } else {
-            return blobNameMap.convert(name);
         }
+        return name;
     }
 
     @Override

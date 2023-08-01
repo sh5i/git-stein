@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.app;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import lombok.AllArgsConstructor;
@@ -33,7 +34,6 @@ import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 import org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -88,8 +88,8 @@ public class JavaHistorage extends Extractor {
     }
 
     @Override
-    protected Collection<Module> generate(final HashEntry entry, final SourceText text, final Context c) {
-        return new ModuleGenerator(entry.name, text).generate();
+    protected Collection<Module> generate(final HotEntry.SingleHotEntry entry, final SourceText text, final Context c) {
+        return new ModuleGenerator(entry.getName(), text).generate();
     }
 
     @AllArgsConstructor

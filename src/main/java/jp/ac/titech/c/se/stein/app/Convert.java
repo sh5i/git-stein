@@ -4,14 +4,13 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import jp.ac.titech.c.se.stein.core.HotEntry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOCase;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
-import org.eclipse.jgit.lib.ObjectId;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -49,19 +48,18 @@ public class Convert extends RepositoryRewriter {
     protected boolean isExcluding;
 
     @Override
-    protected ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
-        final HashEntry e = c.getEntry();
-        if (filter != null && !filter.accept(new File(e.name))) {
-            return isExcluding ? RepositoryRewriter.ZERO : super.rewriteBlob(blobId, c);
+    protected HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+        if (filter != null && !filter.accept(new File(entry.getName()))) {
+            return isExcluding ? HotEntry.empty() : entry;
         }
-        final byte[] blob = source.readBlob(blobId);
-        final byte[] converted = endpoint != null ? convertViaHttp(e.name, blob, c) :
-                                 cmdline != null  ? convertViaProcess(e.name, blob, c) :
+        final byte[] blob = entry.getBlob();
+        final byte[] converted = endpoint != null ? convertViaHttp(entry.getName(), blob, c) :
+                                 cmdline != null  ? convertViaProcess(blob, c) :
                                  blob;
-        return target.writeBlob(converted, c);
+        return entry.update(converted);
     }
 
-    protected byte[] convertViaProcess(final String filename, final byte[] content, final Context c) {
+    protected byte[] convertViaProcess(final byte[] content, final Context c) {
         try {
             final Process proc = new ProcessBuilder()
                     .command(cmdline)

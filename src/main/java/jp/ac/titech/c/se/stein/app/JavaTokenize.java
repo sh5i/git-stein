@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.app;
 
 import java.nio.charset.StandardCharsets;
 
+import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jdt.core.JavaCore;
@@ -9,10 +10,8 @@ import org.eclipse.jdt.core.ToolFactory;
 import org.eclipse.jdt.core.compiler.IScanner;
 import org.eclipse.jdt.core.compiler.ITerminalSymbols;
 import org.eclipse.jdt.core.compiler.InvalidInputException;
-import org.eclipse.jgit.lib.ObjectId;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -53,15 +52,13 @@ public class JavaTokenize extends RepositoryRewriter {
     }
 
     @Override
-    protected ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
-        final HashEntry entry = c.getEntry();
-        if (!entry.name.toLowerCase().endsWith(".java")) {
-            return super.rewriteBlob(blobId, c);
+    protected HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+        if (!entry.getName().toLowerCase().endsWith(".java")) {
+            return entry;
         }
-        final String text = SourceText.of(source.readBlob(blobId)).getContent();
+        final String text = SourceText.of(entry.getBlob()).getContent();
         final String converted = isDecoding ? decode(text) : encode(text);
-        final ObjectId newId = target.writeBlob(converted.getBytes(StandardCharsets.UTF_8), c);
-        log.debug("Rewrite blob: {} -> {} {}", blobId.name(), newId.name(), c);
-        return newId;
+        final byte[] newBlob = converted.getBytes(StandardCharsets.UTF_8);
+        return entry.update(newBlob);
     }
 }

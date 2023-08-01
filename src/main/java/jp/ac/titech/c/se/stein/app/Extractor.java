@@ -1,11 +1,6 @@
 package jp.ac.titech.c.se.stein.app;
 
-import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.ColdEntry;
-import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
-import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntrySet;
-import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
-import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.core.*;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -25,26 +20,23 @@ public abstract class Extractor extends RepositoryRewriter {
     protected boolean requiresIrrelevances = true;
 
     @Override
-    public ColdEntry rewriteEntry(final HashEntry entry, final Context c) {
-        if (!entry.isBlob()) {
-            return super.rewriteEntry(entry, c);
-        }
-        if (!accept(entry.name.toLowerCase())) {
-            return requiresIrrelevances ? super.rewriteEntry(entry, c) : ColdEntry.empty();
+    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+        if (!accept(entry.getName().toLowerCase())) {
+            return requiresIrrelevances ? entry : HotEntry.empty();
         }
 
-        final HashEntrySet result = new HashEntrySet();
+        final HotEntry.EntrySet result = new HotEntry.EntrySet();
         if (requiresOriginals) {
-            result.add((HashEntry) super.rewriteEntry(entry, c));
+            result.add(entry);
         }
 
-        final SourceText text = SourceText.ofNormalized(source.readBlob(entry.id));
+        final SourceText text = SourceText.ofNormalized(entry.getBlob());
         final Collection<? extends Module> modules = generate(entry, text, c);
         if (!modules.isEmpty()) {
             for (final Module m : modules) {
-                final ObjectId newId = target.writeBlob(m.getRawContent(), c);
-                log.debug("Generate module: {} (`{}...`) [{}] from {} {}", m.getFilename(), StringUtils.left(m.getContent().trim(), 8), newId.name(), entry, c);
-                result.add(new HashEntry(entry.mode, m.getFilename(), newId, entry.directory));
+                final byte[] newBlob = m.getRawContent();
+                log.debug("Generate module: {} (`{}...`) from {} {}", m.getFilename(), StringUtils.left(m.getContent().trim(), 8), entry, c);
+                result.add(HotEntry.of(entry.getMode(), m.getFilename(), newBlob, entry.getDirectory()));
             }
             log.debug("Rewrite entry: {} -> %d entries {} {}", entry, result.size(), c);
         }
@@ -53,7 +45,7 @@ public abstract class Extractor extends RepositoryRewriter {
 
     protected abstract boolean accept(final String filename);
 
-    protected abstract Collection<? extends Module> generate(final HashEntry entry, final SourceText text, final Context c);
+    protected abstract Collection<? extends Module> generate(final HotEntry.SingleHotEntry entry, final SourceText text, final Context c);
 
     public static String digest(final String name, final int length) {
         final SHA1 sha1 = SHA1.newInstance();

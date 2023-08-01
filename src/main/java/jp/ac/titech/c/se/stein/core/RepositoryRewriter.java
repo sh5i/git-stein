@@ -385,20 +385,6 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     /**
-     * Rewrites a blob object.
-     */
-    protected ObjectId rewriteBlob(final ObjectId blobId, final Context c) {
-        if (isOverwriting) {
-            return blobId;
-        }
-        final ObjectId newId = target.writeBlob(source.readBlob(blobId), c);
-        if (log.isDebugEnabled() && !newId.equals(blobId)) {
-            log.debug("Rewrite blob: {} -> {} {}", blobId.name(), newId.name(), c);
-        }
-        return newId;
-    }
-
-    /**
      * Rewrites a commit link.
      */
     protected ObjectId rewriteLink(final ObjectId commitId, @SuppressWarnings("unused") final Context c) {

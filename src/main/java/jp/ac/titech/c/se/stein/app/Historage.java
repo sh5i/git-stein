@@ -3,7 +3,6 @@ package jp.ac.titech.c.se.stein.app;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import jp.ac.titech.c.se.stein.core.*;
-import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import jp.ac.titech.c.se.stein.util.TemporaryFile;
 import lombok.Getter;
@@ -34,9 +33,9 @@ public class Historage extends Extractor {
     }
 
     @Override
-    protected Collection<? extends Module> generate(final HashEntry entry, final SourceText text, final Context c) {
+    protected Collection<? extends Module> generate(final HotEntry.SingleHotEntry entry, final SourceText text, final Context c) {
         try {
-            return new CtagsRunner(entry.name, text, c).generate();
+            return new CtagsRunner(entry.getName(), text, c).generate();
         } catch (final IOException e) {
             log.error("IOException: {} {}", e, c);
             return Collections.emptyList();
