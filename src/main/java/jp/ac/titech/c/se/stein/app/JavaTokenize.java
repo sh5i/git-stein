@@ -12,7 +12,6 @@ import org.eclipse.jdt.core.compiler.ITerminalSymbols;
 import org.eclipse.jdt.core.compiler.InvalidInputException;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 

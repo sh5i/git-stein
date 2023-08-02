@@ -11,7 +11,6 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
