@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import jp.ac.titech.c.se.stein.core.HotEntry;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.util.sha1.SHA1;
@@ -14,6 +15,7 @@ import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 
 @Slf4j
+@ToString
 @Command(name = "anonymize", description = "Anonymize filenames and contents")
 public class Anonymize extends RepositoryRewriter {
     public static class NameMap {

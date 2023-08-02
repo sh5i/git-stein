@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -26,6 +27,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Slf4j
+@ToString
 @Command(name = "cluster", description = "Cluster and merge commits")
 public class Cluster extends RepositoryRewriter {
     @Option(names = "--recipe", paramLabel = "<file>", description = "recipe JSON",

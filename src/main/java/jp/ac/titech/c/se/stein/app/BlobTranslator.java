@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.app;
 
 import jp.ac.titech.c.se.stein.core.*;
 import lombok.Getter;
+import lombok.ToString;
 
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -14,7 +15,8 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
         return new Rewriter(this);
     }
 
-    class Rewriter extends RepositoryRewriter {
+    @ToString
+    class Single extends RepositoryRewriter {
         @Getter
         private final BlobTranslator translator;
 
@@ -28,6 +30,7 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
         }
     }
 
+    @ToString
     class Composite extends RepositoryRewriter {
         BlobTranslator[] translators;
 

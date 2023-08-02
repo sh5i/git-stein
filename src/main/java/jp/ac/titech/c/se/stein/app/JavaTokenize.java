@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 
 import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.ToolFactory;
@@ -16,6 +17,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Slf4j
+@ToString
 @Command(name = "java-tokenize", description = "Encode/decode Java source files to/from linetoken format")
 public class JavaTokenize implements BlobTranslator {
     @Option(names = "--decode", description = "decode tokenlines")

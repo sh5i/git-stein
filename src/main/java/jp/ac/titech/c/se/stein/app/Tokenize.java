@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.app;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine.Command;
 
@@ -11,6 +12,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
+@ToString
 @Command(name = "tokenize", description = "Encode source files to linetoken format")
 public class Tokenize implements BlobTranslator {
     protected static final Pattern TOKEN = Pattern.compile(String.join("|",

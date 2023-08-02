@@ -5,6 +5,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 import jp.ac.titech.c.se.stein.core.HotEntry;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOCase;
 import org.apache.commons.io.IOUtils;
@@ -15,6 +16,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Slf4j
+@ToString
 @Command(name = "convert", description = "Convert files via external HTTP API endpoint or command")
 public class Convert implements BlobTranslator {
     @Option(names = "--endpoint", paramLabel = "<url>", description = "HTTP Web API endpoint")

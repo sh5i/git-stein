@@ -650,6 +650,11 @@ public class RepositoryRewriter implements RewriterCommand {
         return result;
     }
 
+    @Override
+    public String toString() {
+        return getClass().getName();
+    }
+
     public interface Factory extends RewriterCommand {
         RepositoryRewriter create();
     }

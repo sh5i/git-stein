@@ -2,9 +2,11 @@ package jp.ac.titech.c.se.stein.app;
 
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.util.Loader;
+import lombok.ToString;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
+@ToString
 @Command(name = "external", aliases = {"ext"}, description = "Run external rewriter")
 public class External implements RepositoryRewriter.Factory {
     @Option(names = "--class", paramLabel = "<class>", description = "rewriter class")

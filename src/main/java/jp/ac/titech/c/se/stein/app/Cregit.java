@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.app;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
@@ -19,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @Slf4j
+@ToString
 @Command(name = "cregit", description = "cregit format via srcML")
 public class Cregit implements BlobTranslator {
     public static final String CREGIT_VERSION = "0.0.1";

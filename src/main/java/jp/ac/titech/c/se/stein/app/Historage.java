@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
  * A Historage generator using universal-ctags.
  */
 @Slf4j
+@ToString
 @Command(name = "historage", aliases = "historinc", description = "Generate finer-grained modules")
 public class Historage extends Extractor {
     @Option(names = "--ctags", description = "ctags command used")

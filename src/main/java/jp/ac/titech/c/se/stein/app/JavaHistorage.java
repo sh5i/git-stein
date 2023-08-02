@@ -8,6 +8,7 @@ import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jdt.core.JavaCore;
@@ -44,6 +45,7 @@ import picocli.CommandLine.Option;
  * @see <a href="https://github.com/kusumotolab/FinerGit">FinerGit</a>
  */
 @Slf4j
+@ToString
 @Command(name = "java-historage", description = "Generate finer-grained Java modules")
 public class JavaHistorage extends Extractor {
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")

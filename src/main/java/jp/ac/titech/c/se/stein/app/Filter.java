@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.app;
 import java.io.File;
 
 import jp.ac.titech.c.se.stein.core.HotEntry;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
@@ -14,6 +15,7 @@ import picocli.CommandLine.ITypeConverter;
 import picocli.CommandLine.Option;
 
 @Slf4j
+@ToString
 @Command(name = "filter", description = "Remove blob files")
 public class Filter implements BlobTranslator {
     @Option(names = "--name", paramLabel = "<glob>", description = "remove files that matches the pattern",
