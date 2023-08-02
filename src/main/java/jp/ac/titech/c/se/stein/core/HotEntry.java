@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -43,6 +44,14 @@ public interface HotEntry {
 
     static NewFileEntry of(int mode, String name, byte[] blob, String directory) {
         return new NewFileEntry(mode, name, blob, directory);
+    }
+
+    static EntrySet of(Collection<SingleHotEntry> entries) {
+        return new EntrySet(entries);
+    }
+
+    static EntrySet set() {
+        return new EntrySet();
     }
 
     static Empty empty() {
@@ -153,6 +162,12 @@ public interface HotEntry {
         @Getter
         private final List<SingleHotEntry> entries = new ArrayList<>();
 
+        EntrySet() {}
+
+        EntrySet(final Collection<SingleHotEntry> entries) {
+            this.entries.addAll(entries);
+        }
+
         public void add(final SingleHotEntry entry) {
             entries.add(entry);
         }
@@ -182,7 +197,7 @@ public interface HotEntry {
     }
 
     class Empty implements HotEntry {
-        private Empty() {}
+        Empty() {}
 
         @Override
         public Stream<SingleHotEntry> stream() {

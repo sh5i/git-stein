@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @Slf4j
-public abstract class Extractor extends RepositoryRewriter {
+public abstract class Extractor implements BlobTranslator {
     @Option(names = "--no-original", negatable = true, description = "[ex]/include original files")
     protected boolean requiresOriginals = true;
 
@@ -25,7 +25,7 @@ public abstract class Extractor extends RepositoryRewriter {
             return requiresIrrelevances ? entry : HotEntry.empty();
         }
 
-        final HotEntry.EntrySet result = new HotEntry.EntrySet();
+        final HotEntry.EntrySet result = HotEntry.set();
         if (requiresOriginals) {
             result.add(entry);
         }

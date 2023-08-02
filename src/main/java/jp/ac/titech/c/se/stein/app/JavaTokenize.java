@@ -18,7 +18,7 @@ import picocli.CommandLine.Option;
 
 @Slf4j
 @Command(name = "java-tokenize", description = "Encode/decode Java source files to/from linetoken format")
-public class JavaTokenize extends RepositoryRewriter {
+public class JavaTokenize implements BlobTranslator {
     @Option(names = "--decode", description = "decode tokenlines")
     protected boolean isDecoding = false;
 
@@ -52,7 +52,7 @@ public class JavaTokenize extends RepositoryRewriter {
     }
 
     @Override
-    protected HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
         if (!entry.getName().toLowerCase().endsWith(".java")) {
             return entry;
         }

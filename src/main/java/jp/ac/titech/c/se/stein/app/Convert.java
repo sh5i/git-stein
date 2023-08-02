@@ -17,7 +17,7 @@ import picocli.CommandLine.Option;
 
 @Slf4j
 @Command(name = "convert", description = "Convert files via external HTTP API endpoint or command")
-public class Convert extends RepositoryRewriter {
+public class Convert implements BlobTranslator {
     @Option(names = "--endpoint", paramLabel = "<url>", description = "HTTP Web API endpoint")
     protected URL endpoint;
 
@@ -48,7 +48,7 @@ public class Convert extends RepositoryRewriter {
     protected boolean isExcluding;
 
     @Override
-    protected HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
         if (filter != null && !filter.accept(new File(entry.getName()))) {
             return isExcluding ? HotEntry.empty() : entry;
         }

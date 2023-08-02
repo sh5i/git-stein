@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
-import org.eclipse.jgit.lib.ObjectId;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
@@ -17,7 +16,7 @@ import picocli.CommandLine.Option;
 
 @Slf4j
 @Command(name = "clean", description = "Remove blob files")
-public class Clean extends RepositoryRewriter {
+public class Clean implements BlobTranslator {
     @Option(names = "--name", paramLabel = "<glob>", description = "remove files that matches the pattern",
             arity = "0..*", converter = FilterConverter.class)
     protected IOFileFilter[] filters;
@@ -69,7 +68,7 @@ public class Clean extends RepositoryRewriter {
     }
 
     @Override
-    protected HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
         if (filters.length > 0) {
             final File name = new File(entry.getName());
             for (final IOFileFilter f : filters) {

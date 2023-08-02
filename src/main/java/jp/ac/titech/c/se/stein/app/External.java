@@ -13,6 +13,7 @@ public class External implements RepositoryRewriter.Factory {
     @Option(names = "--args", split = " ", paramLabel="<args>", description = "rewriter arguments")
     String[] args;
 
+    @Override
     public RepositoryRewriter create() {
         final RepositoryRewriter result = (RepositoryRewriter) Loader.newInstance(klass);
         new CommandLine(result)
