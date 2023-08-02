@@ -27,7 +27,7 @@ public class JavaTokenize implements BlobTranslator {
      * Encodes the given source.
      */
     public static String encode(final String source) {
-        final IScanner scanner = ToolFactory.createScanner(true, true, false, JavaCore.VERSION_18);
+        final IScanner scanner = ToolFactory.createScanner(true, true, false, JavaCore.VERSION_17);
         scanner.setSource(source.toCharArray());
         final StringBuilder buffer = new StringBuilder();
         try {

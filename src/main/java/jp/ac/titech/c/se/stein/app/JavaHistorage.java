@@ -244,12 +244,12 @@ public class JavaHistorage extends Extractor {
          * Creates a JDT ASTParser.
          */
         protected ASTParser createParser() {
-            final ASTParser parser = ASTParser.newParser(AST.getJLSLatest());
+            final ASTParser parser = ASTParser.newParser(AST.JLS17);
             @SuppressWarnings("unchecked")
             final Map<String, String> options = DefaultCodeFormatterConstants.getEclipseDefaultSettings();
-            options.put(JavaCore.COMPILER_COMPLIANCE, JavaCore.VERSION_18);
-            options.put(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, JavaCore.VERSION_18);
-            options.put(JavaCore.COMPILER_SOURCE, JavaCore.VERSION_18);
+            options.put(JavaCore.COMPILER_COMPLIANCE, JavaCore.VERSION_17);
+            options.put(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, JavaCore.VERSION_17);
+            options.put(JavaCore.COMPILER_SOURCE, JavaCore.VERSION_17);
             options.put(JavaCore.COMPILER_DOC_COMMENT_SUPPORT, JavaCore.ENABLED);
             parser.setCompilerOptions(options);
             parser.setEnvironment(null, null, null, true);
