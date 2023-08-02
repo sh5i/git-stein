@@ -9,14 +9,13 @@ import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.ITypeConverter;
 import picocli.CommandLine.Option;
 
 @Slf4j
-@Command(name = "clean", description = "Remove blob files")
-public class Clean implements BlobTranslator {
+@Command(name = "filter", description = "Remove blob files")
+public class Filter implements BlobTranslator {
     @Option(names = "--name", paramLabel = "<glob>", description = "remove files that matches the pattern",
             arity = "0..*", converter = FilterConverter.class)
     protected IOFileFilter[] filters;
