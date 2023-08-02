@@ -27,6 +27,18 @@ public class ProcessRunner implements AutoCloseable {
         this.c = c;
     }
 
+    public ProcessRunner(final String[] cmdline, final byte[] input, final Context c) throws IOException {
+        this.proc = new ProcessBuilder()
+                .command(cmdline)
+                .redirectError(ProcessBuilder.Redirect.INHERIT)
+                .start();
+        // FIXME: does not work if the target command blocks
+        proc.getOutputStream().write(input);
+        proc.getOutputStream().close();
+        this.result = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+        this.c = c;
+    }
+
     @Override
     public void close() throws IOException {
         try (final BufferedReader err = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
