@@ -8,7 +8,9 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
+import jp.ac.titech.c.se.stein.app.BlobTranslator;
 import jp.ac.titech.c.se.stein.app.Identity;
 import jp.ac.titech.c.se.stein.core.RewriterCommand;
 import jp.ac.titech.c.se.stein.util.Loader;
@@ -88,6 +90,9 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = MIDDLE)
         public boolean isRewritingExtraAttributes = false;
 
+        @Option(names = { "--no-composite" }, negatable = true, description = "compose multiple blob translators", order = MIDDLE)
+        public boolean useComposite = true;
+
         @Option(names = "--cache", split = ",", paramLabel = "<l>", description = "cache level (${COMPLETION-CANDIDATES}. default: none)", order = MIDDLE)
         public EnumSet<RepositoryRewriter.CacheLevel> cacheLevel = EnumSet.noneOf(RepositoryRewriter.CacheLevel.class);
 
@@ -157,7 +162,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         }
 
         openRepositories((source, target, rewriter, index) -> {
-            log.info("Starting rewriting [{}]: {} -> {}", rewriter.getClass().getName(), source.getDirectory(), target.getDirectory());
+            log.info("Starting rewriting [{}]: {} -> {}", rewriter, source.getDirectory(), target.getDirectory());
             rewriter.setConfig(conf);
             rewriter.initialize(source, target);
             final Context c = Context.init().with(Key.conf, conf);
@@ -263,19 +268,53 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         if (parseResult.subcommands().isEmpty()) {
             throw new ParameterException(parseResult.commandSpec().commandLine(), "No subcommands");
         }
-        for (final ParseResult pr : parseResult.subcommands()) {
-            final Object obj = pr.commandSpec().userObject();
-            if (obj instanceof RepositoryRewriter) {
-                this.rewriters.add((RepositoryRewriter) obj);
-            } else if (obj instanceof RepositoryRewriter.Factory) {
-                final RepositoryRewriter rewriter = ((RepositoryRewriter.Factory) obj).create();
-                this.rewriters.add(rewriter);
-            }
+        final List<RewriterCommand> commands = parseResult.subcommands().stream()
+                .map(pr -> (RewriterCommand) pr.commandSpec().userObject())
+                .collect(Collectors.toList());
+        if (conf.useComposite) {
+            log.debug("Optimizing rewriters...");
+            optimizeRewriters(commands);
         }
+        this.rewriters.addAll(prepareRewriters(commands));
+
         try {
             return this.call();
         } catch (final Exception e) {
             throw new ExecutionException(parseResult.commandSpec().commandLine(), "Execution failed.", e);
+        }
+    }
+
+    public List<RepositoryRewriter> prepareRewriters(final List<RewriterCommand> commands) {
+        final List<RepositoryRewriter> result = new ArrayList<>();
+        for (final RewriterCommand cmd : commands) {
+            if (cmd instanceof RepositoryRewriter) {
+                result.add((RepositoryRewriter) cmd);
+            } else if (cmd instanceof RepositoryRewriter.Factory) {
+                result.add(((RepositoryRewriter.Factory) cmd).create());
+            } else {
+                log.error("Unknown command: {}", cmd.getClass());
+            }
+        }
+        return result;
+    }
+
+    public void optimizeRewriters(final List<RewriterCommand> commands) {
+        for (int i = 0; i < commands.size(); i++) {
+            if (commands.get(i) instanceof BlobTranslator) {
+                // extract a sequence of blob translators
+                final List<BlobTranslator> translators = new ArrayList<>();
+                do {
+                    translators.add((BlobTranslator) commands.remove(i));
+                } while (i < commands.size() && commands.get(i) instanceof BlobTranslator);
+
+                // insert new rewriter
+                if (translators.size() >= 2) {
+                    log.info("Compose {} blob translators: {}", translators.size(), translators);
+                    commands.add(new BlobTranslator.Composite(translators));
+                } else {
+                    commands.add(new BlobTranslator.Single(translators.get(0)));
+                }
+            }
         }
     }
 

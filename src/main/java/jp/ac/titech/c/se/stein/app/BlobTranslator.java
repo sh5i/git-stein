@@ -4,6 +4,7 @@ import jp.ac.titech.c.se.stein.core.*;
 import lombok.Getter;
 import lombok.ToString;
 
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -12,7 +13,7 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
     HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c);
 
     default RepositoryRewriter create() {
-        return new Rewriter(this);
+        return new Single(this);
     }
 
     @ToString
@@ -20,7 +21,7 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
         @Getter
         private final BlobTranslator translator;
 
-        public Rewriter(BlobTranslator translator) {
+        public Single(BlobTranslator translator) {
             this.translator = translator;
         }
 
@@ -38,8 +39,8 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
             this.translators = translators;
         }
 
-        public Composite(BlobTranslator.Rewriter... rewriters) {
-            this(Stream.of(rewriters).map(Rewriter::getTranslator).toArray(BlobTranslator[]::new));
+        public Composite(List<BlobTranslator> translators) {
+            this(translators.toArray(new BlobTranslator[0]));
         }
 
         @Override
