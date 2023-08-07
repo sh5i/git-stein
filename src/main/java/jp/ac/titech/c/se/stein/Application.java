@@ -155,7 +155,6 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
     @Override
     public Integer call() throws Exception {
-        setLoggerLevel(Logger.ROOT_LOGGER_NAME, conf.logLevel);
         openRepositories((source, target, rewriter, index) -> {
             log.info("Starting rewriting [{}]: {} -> {}", rewriter, source.getDirectory(), target.getDirectory());
             rewriter.setConfig(conf);
@@ -257,6 +256,8 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
     @Override
     public int execute(final ParseResult parseResult) throws ExecutionException, ParameterException {
+        setLoggerLevel(Logger.ROOT_LOGGER_NAME, conf.logLevel);
+
         if (CommandLine.printHelpIfRequested(parseResult)) {
             return 0;
         }
