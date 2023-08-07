@@ -11,7 +11,6 @@ Several [bundle applications](#bundle-apps) using this framework are also availa
 ```
 $ git clone https://github.com/sh5i/git-stein.git
 $ cd git-stein
-$ cp gradle.properties-sample gradle.properties  # if you will run bundle apps
 $ ./gradlew shadowJar
 ```
 
