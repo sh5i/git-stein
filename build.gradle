@@ -68,7 +68,7 @@ jar {
 }
 
 application {
-    mainClassName = "jp.ac.titech.c.se.stein.Application"
+    mainClass = "jp.ac.titech.c.se.stein.Application"
 }
 
 publishing {
