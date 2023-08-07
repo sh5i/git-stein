@@ -88,13 +88,14 @@ shadowJar {
 
 task executableJar(dependsOn: "shadowJar") {
     // cf. https://ujun.hatenablog.com/entry/2017/09/22/010209
-    // cf. https://github.com/embulk/embulk/blob/master/build.gradle
     ext.destination = file("${buildDir}/libs/${project.name}.jar")
     doLast {
-        destination.write('')
-        destination.append('#!/bin/sh\n')
-        destination.append('jar=`which "\$0" 2>/dev/null` ; [ $? -gt 0 -a -f "$0" ] && jar="./$0"\n')
-        destination.append('exec java $java_args -jar $jar "$@" ; exit 1\n')
+        destination.write('#!/bin/sh\n')
+        destination.append('JAR=`which "$0" 2>/dev/null`; ')
+        destination.append('[ $? -gt 0 -a -f "$0" ] && JAR="./$0"; ')
+        destination.append('[ -n "$JAVA_HOME" ] && JAVA="$JAVA_HOME/bin/java" || JAVA=java; ')
+        destination.append('exec "$JAVA" $JAVA_ARGS -jar "$JAR" "$@"; ')
+        destination.append('exit 1\n')
         destination.append(shadowJar.outputs.files.singleFile.readBytes())
         destination.setExecutable(true)
     }
