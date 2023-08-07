@@ -38,7 +38,7 @@ public abstract class Extractor implements BlobTranslator {
                 log.debug("Generate module: {} (`{}...`) from {} {}", m.getFilename(), StringUtils.left(m.getContent().trim(), 8), entry, c);
                 result.add(HotEntry.of(entry.getMode(), m.getFilename(), newBlob, entry.getDirectory()));
             }
-            log.debug("Rewrite entry: {} -> %d entries {} {}", entry, result.size(), c);
+            log.debug("Rewrite entry: {} -> {} entries {}", entry, result.size(), c);
         }
         return result;
     }
