@@ -85,3 +85,17 @@ shadowJar {
         exclude(dependency('ch.qos.logback:logback-classic:.*'))
     }
 }
+
+task executableJar(dependsOn: "shadowJar") {
+    // cf. https://ujun.hatenablog.com/entry/2017/09/22/010209
+    // cf. https://github.com/embulk/embulk/blob/master/build.gradle
+    ext.destination = file("${buildDir}/libs/${project.name}.jar")
+    doLast {
+        destination.write('')
+        destination.append('#!/bin/sh\n')
+        destination.append('jar=`which "\$0" 2>/dev/null` ; [ $? -gt 0 -a -f "$0" ] && jar="./$0"\n')
+        destination.append('exec java $java_args -jar $jar "$@" ; exit 1\n')
+        destination.append(shadowJar.outputs.files.singleFile.readBytes())
+        destination.setExecutable(true)
+    }
+}

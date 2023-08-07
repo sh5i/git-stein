@@ -8,16 +8,26 @@ Several [bundle applications](#bundle-apps) using this framework are also availa
 
 
 ## Build and Run
+Build:
 ```
 $ git clone https://github.com/sh5i/git-stein.git
 $ cd git-stein
-$ ./gradlew shadowJar
+$ ./gradlew executableJar
+$ cp /path/to/git-stein/build/libs/git-stein.jar /path/to/git/exec/path/git-stein  # Add as a Git subcommand
 ```
 
+Run command:
 ```
-$ java -jar build/libs/git-stein-all.jar [general options...] path/to/source-repoo [app] [app-options...] ...
+$ java -jar build/libs/git-stein.jar [options...]
+$ build/libs/git-stein.jar [options...]   # In UNIX-like system
+$ git stein [options...]                  # When subcommand available
+```
+
+Typical runs:
+```
+$ git stein [general options...] path/to/source-repoo [app] [app-options...] ...
 # Example: Converts a Java repository to a method repository
-$ java -jar build/libs/git-stein-all.jar -o path/to/target-repo path/to/source-repo -o path/to/target-repo historage
+$ git stein -o path/to/target-repo path/to/source-repo -o path/to/target-repo historage
 ```
 
 ## General Options
