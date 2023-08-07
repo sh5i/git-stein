@@ -92,7 +92,7 @@ public class Context implements Map<Context.Key, Object> {
 
     protected String entryToString(final Map.Entry<Key, Object> e) {
         final String v = getStringValue(e.getKey(), e.getValue());
-        return v != null ? e.getKey() + ": \"" + v + '"' : null;
+        return v != null ? e.getKey() + ": " + v : null;
     }
 
     protected static String getStringValue(final Key key, final Object value) {
@@ -100,7 +100,7 @@ public class Context implements Map<Context.Key, Object> {
         case commit:
             return ((RevCommit) value).name();
         case path:
-            return (String) value;
+            return '"' + (String) value + '"';
         case entry:
             return value.toString();
         case tag:
