@@ -16,13 +16,13 @@ import picocli.CommandLine.Option;
 
 @Slf4j
 @ToString
-@Command(name = "filter", description = "Remove blob files")
-public class Filter implements BlobTranslator {
-    @Option(names = "--name", paramLabel = "<glob>", description = "remove files that matches the pattern",
-            arity = "0..*", converter = FilterConverter.class)
+@Command(name = "grep", description = "Filter blob files by name")
+public class Grep implements BlobTranslator {
+    @Option(names = "--pattern", paramLabel = "<glob>", description = "select files to keep that matches the pattern",
+            required = true, arity = "1..*", converter = FilterConverter.class)
     protected IOFileFilter[] filters;
 
-    @Option(names = { "-V", "--invert-match" }, description = "filter non-matching items")
+    @Option(names = { "-V", "--invert-match" }, description = "select non-matching items to keep")
     protected boolean invertMatch;
 
     public static class FilterConverter implements ITypeConverter<IOFileFilter> {
@@ -38,11 +38,11 @@ public class Filter implements BlobTranslator {
             final File name = new File(entry.getName());
             for (final IOFileFilter f : filters) {
                 if (f.accept(name) ^ invertMatch) {
-                    log.debug("remove {}: name {}matched {}", entry, invertMatch ? "not " : "", c);
-                    return HotEntry.empty();
+                    return entry;
                 }
             }
         }
-        return entry;
+        log.debug("remove {}: name {}matched {}", entry, invertMatch ? "" : "not ", c);
+        return HotEntry.empty();
     }
 }
