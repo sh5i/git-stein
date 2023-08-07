@@ -19,20 +19,22 @@ import picocli.CommandLine.Option;
 @Command(name = "grep", description = "Filter blob files by name")
 public class Grep implements BlobTranslator {
     @SuppressWarnings("unused")
-    @Option(names = "--pattern", paramLabel = "<glob>", description = "select files to keep that matches the pattern",
-            required = true, arity = "1..*")
-    private void setPatterns(final String[] patterns) {
-        builder.setWildcards(patterns);
+    @Option(names = "--pattern", paramLabel = "<glob;...>", description = "filename patterns for files to keep",
+            required = true, arity = "1..*", split = ";")
+    private void setPatterns(final String[] wildcards) {
+        log.info("Set grep pattern: {}", (Object) wildcards);
+        builder.setWildcards(wildcards);
         pattern = builder.get();
     }
 
     @SuppressWarnings("unused")
-    @Option(names = {"-i", "--ignore-case"}, description = "Perform case-insensitive matching")
+    @Option(names = {"-i", "--ignore-case"}, description = "perform case-insensitive matching")
     protected void setCaseInsensitive(final boolean isIgnoringCase) {
         builder.setIoCase(isIgnoringCase ? IOCase.INSENSITIVE : IOCase.SENSITIVE);
         pattern = builder.get();
     }
 
+    @ToString.Exclude
     protected WildcardFileFilter.Builder builder = WildcardFileFilter.builder();
 
     protected FileFilter pattern;
