@@ -117,10 +117,10 @@ public class Historage extends Extractor {
         public static final Comparator<LanguageObject> COMPARATOR = Comparator
                 .comparing(LanguageObject::getLine)
                 .thenComparing(LanguageObject::getEnd, Comparator.reverseOrder())
-                .thenComparing(LanguageObject::getScope)
-                .thenComparing(LanguageObject::getKind)
-                .thenComparing(LanguageObject::getName)
-                .thenComparing(LanguageObject::getSignature);
+                .thenComparing(LanguageObject::getScope, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(LanguageObject::getKind, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(LanguageObject::getName, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(LanguageObject::getSignature, Comparator.nullsLast(Comparator.naturalOrder()));
 
         @Override
         public int compareTo(@Nonnull final LanguageObject other) {
