@@ -545,22 +545,28 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected ObjectId rewriteRefObject(final ObjectId id, final int type, final Context c) {
         switch (type) {
-        case Constants.OBJ_TAG:
-            final ObjectId newTagId = tagMapping.get(id);
-            return newTagId != null ? newTagId : rewriteTag(source.parseTag(id), c);
+            case Constants.OBJ_COMMIT: // 1: commit
+                final ObjectId newCommitId = commitMapping.get(id);
+                if (newCommitId == null) {
+                    log.warn("Rewritten commit not found: {} {}", id.name(), c);
+                    return id;
+                }
+                return newCommitId;
 
-        case Constants.OBJ_COMMIT:
-            final ObjectId newCommitId = commitMapping.get(id);
-            if (newCommitId == null) {
-                log.warn("Rewritten commit not found: {} {}", id.name(), c);
+            case Constants.OBJ_BLOB: // 3: blob
+                // TODO rewriting opportunity for this blob
+                final ObjectId newBlobId = target.writeBlob(source.readBlob(id), c);
+                log.warn("Blob {} as a ref object not rewritten, just copied", id);
+                return newBlobId;
+
+            case Constants.OBJ_TAG: // 4: tag
+                final ObjectId newTagId = tagMapping.get(id);
+                return newTagId != null ? newTagId : rewriteTag(source.parseTag(id), c);
+
+            default:
+                // referring non-commit and non-tag; ignore it
+                log.warn("Ignore unknown type: {}, type = {} {}", id.name(), type, c);
                 return id;
-            }
-            return newCommitId;
-
-        default:
-            // referring non-commit and non-tag; ignore it
-            log.warn("Ignore unknown type: {}, type = {} {}", id.name(), type, c);
-            return id;
         }
     }
 
