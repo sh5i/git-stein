@@ -10,9 +10,9 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-import jp.ac.titech.c.se.stein.app.BlobTranslator;
+import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.app.Identity;
-import jp.ac.titech.c.se.stein.core.RewriterCommand;
+import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
 import jp.ac.titech.c.se.stein.util.Loader;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
@@ -25,7 +25,7 @@ import com.google.gson.Gson;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.Context.Key;
-import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import org.slf4j.event.Level;
 import picocli.CommandLine;
 import picocli.CommandLine.*;

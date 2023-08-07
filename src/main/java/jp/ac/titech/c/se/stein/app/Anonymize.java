@@ -11,7 +11,7 @@ import org.eclipse.jgit.util.sha1.SHA1;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
-import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import picocli.CommandLine.Command;
 
 @Slf4j

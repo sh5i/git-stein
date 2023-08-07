@@ -2,7 +2,7 @@ package jp.ac.titech.c.se.stein.util;
 
 import com.google.common.reflect.ClassPath;
 import jp.ac.titech.c.se.stein.Application;
-import jp.ac.titech.c.se.stein.core.RewriterCommand;
+import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
 import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine.Command;
 

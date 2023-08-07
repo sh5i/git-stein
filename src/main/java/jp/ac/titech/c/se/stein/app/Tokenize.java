@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.app;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine.Command;

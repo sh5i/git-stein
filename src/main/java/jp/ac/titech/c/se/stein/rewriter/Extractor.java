@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein.app;
+package jp.ac.titech.c.se.stein.rewriter;
 
 import jp.ac.titech.c.se.stein.core.*;
 import lombok.Value;

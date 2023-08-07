@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein.core;
+package jp.ac.titech.c.se.stein.rewriter;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
 
@@ -15,6 +15,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import jp.ac.titech.c.se.stein.core.*;
 import lombok.Setter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;

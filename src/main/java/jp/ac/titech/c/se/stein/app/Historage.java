@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.app;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import jp.ac.titech.c.se.stein.core.*;
+import jp.ac.titech.c.se.stein.rewriter.Extractor;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import jp.ac.titech.c.se.stein.util.TemporaryFile;
 import lombok.Getter;

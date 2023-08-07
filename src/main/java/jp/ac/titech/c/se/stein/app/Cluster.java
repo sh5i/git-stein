@@ -21,7 +21,7 @@ import jp.ac.titech.c.se.stein.core.CommitGraph;
 import jp.ac.titech.c.se.stein.core.CommitGraph.Vertex;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.Context.Key;
-import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.core.Try;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;

@@ -1,6 +1,6 @@
 package jp.ac.titech.c.se.stein.app;
 
-import jp.ac.titech.c.se.stein.core.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.util.Loader;
 import lombok.ToString;
 import picocli.CommandLine;
