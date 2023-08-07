@@ -6,7 +6,6 @@ import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 
@@ -23,10 +22,6 @@ public class Filter implements BlobTranslator {
             arity = "0..*", converter = FilterConverter.class)
     protected IOFileFilter[] filters;
 
-    @Option(names = "--size", paramLabel = "<num>{,K,M,G}", description = "remove files larger than the size",
-            converter = SizeConverter.class)
-    protected long maxSize = -1L;
-
     @Option(names = { "-V", "--invert-match" }, description = "filter non-matching items")
     protected boolean invertMatch;
 
@@ -34,38 +29,6 @@ public class Filter implements BlobTranslator {
         @Override
         public IOFileFilter convert(final String value) {
             return new WildcardFileFilter(value);
-        }
-    }
-
-    public static class SizeConverter implements ITypeConverter<Long> {
-        @Override
-        public Long convert(final String value) {
-            if (value.isEmpty()) {
-                throw new IllegalArgumentException("Empty value is given");
-            }
-            final int len = value.length();
-            final char unit = Character.toUpperCase(value.charAt(len - 1));
-            final String num = value.substring(0, len - 1);
-            switch (unit) {
-            case 'B':
-                return convert(num);
-            case 'K':
-                return displaySizeToByteCount(num, 1024);
-            case 'M':
-                return displaySizeToByteCount(num, 1024 * 1024);
-            case 'G':
-                return displaySizeToByteCount(num, 1024 * 1024 * 1024);
-            default:
-                return displaySizeToByteCount(value, 1);
-            }
-        }
-
-        protected long displaySizeToByteCount(final String value, final long base) {
-            if (value.contains(".")) {
-                return (long) (Double.parseDouble(value) * base);
-            } else {
-                return Long.parseLong(value) * base;
-            }
         }
     }
 
@@ -78,13 +41,6 @@ public class Filter implements BlobTranslator {
                     log.debug("remove {}: name {}matched {}", entry, invertMatch ? "not " : "", c);
                     return HotEntry.empty();
                 }
-            }
-        }
-        if (maxSize >= 0) {
-            final long size = entry.getBlobSize();
-            if ((size >= maxSize) ^ invertMatch) {
-                log.debug("remove {}: size ({}; {}B) {}exceeded {}", entry, FileUtils.byteCountToDisplaySize(size), size, invertMatch ? "not " : "", c);
-                return HotEntry.empty();
             }
         }
         return entry;
