@@ -6,6 +6,8 @@ import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.IOCase;
+import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -26,26 +28,56 @@ import java.util.*;
 public class Cregit implements BlobTranslator {
     public static final String CREGIT_VERSION = "0.0.1";
 
-    @Option(names = "--srcml", description = "srcml command used")
+    @Option(names = "--srcml", description = "srcml command path")
     protected String srcml = "srcml";
 
-    @Option(names = {"-l", "--language"}, description = "language")
-    protected String lang = "Java";
+    @SuppressWarnings("unused")
+    @Option(names = "--pattern", paramLabel = "<glob;...>", description = "filename patterns for files to convert",
+            arity = "0..*", split = ";")
+    private void setPatterns(final String... wildcards) {
+        pattern = WildcardFileFilter.builder()
+                .setIoCase(IOCase.INSENSITIVE)
+                .setWildcards(wildcards)
+                .get();
+    }
+    protected FileFilter pattern;
+
+    @SuppressWarnings("unused")
+    @Option(names = {"-l", "--lang"}, description = "language (either of C, C++, C#, Java)", required = true)
+    protected void setLanguage(final String language) {
+        this.language = language;
+        if (pattern == null) {
+            switch (language) {
+                case "C":
+                    setPatterns("*.c", "*.h");
+                    break;
+                case "C++":
+                    setPatterns("*.cpp", "*.hpp", "*.cc", "*.hh", "*.cxx", "*.hxx", "*.c", "*.h");
+                    break;
+                case "C#":
+                    setPatterns("*.cs");
+                    break;
+                case "Java":
+                    setPatterns("*.java");
+                    break;
+            }
+        }
+    }
+    protected String language = "Java";
 
     @Override
     public HotEntry rewriteBlobEntry(HotEntry.SingleHotEntry entry, Context c) {
-        if (!entry.getName().toLowerCase().endsWith(".java")) {
+        if (!pattern.accept(new File(entry.getName()))) {
             return entry;
         }
-
-        final String[] cmd = { srcml, "--language", lang };
+        final String[] cmd = { srcml, "--language", language };
         try (final ProcessRunner proc = new ProcessRunner(cmd, entry.getBlob(), c)) {
             final InputSource input = new InputSource(proc.getResult());
             final SAXParser parser = SAXParserFactory.newInstance().newSAXParser();
             final Handler handler = new Handler();
             parser.parse(input, handler);
             return entry.update(handler.getResult());
-        } catch (IOException | ParserConfigurationException | SAXException e) {
+        } catch (final IOException | ParserConfigurationException | SAXException e) {
             log.error("Error: {} {}", e, c);
             return entry;
         }
@@ -53,6 +85,7 @@ public class Cregit implements BlobTranslator {
 
     static class Handler extends DefaultHandler {
         String content = "";
+
         final Stack<String> elements = new Stack<>();
 
         final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
