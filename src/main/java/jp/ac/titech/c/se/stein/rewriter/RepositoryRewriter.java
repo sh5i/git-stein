@@ -10,10 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import jp.ac.titech.c.se.stein.core.*;
 import lombok.Setter;
@@ -152,7 +149,8 @@ public class RepositoryRewriter implements RewriterCommand {
         }
 
         final Map<Long, Context> cxts = new ConcurrentHashMap<>();
-        final ExecutorService pool = Executors.newFixedThreadPool(config.nthreads);
+        final ExecutorService pool = new ThreadPoolExecutor(config.nthreads, config.nthreads, 0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>(config.nthreads * 10));
         try (final RevWalk walk = prepareRevisionWalk(c)) {
             for (final RevCommit commit : walk) {
                 pool.execute(() -> {
