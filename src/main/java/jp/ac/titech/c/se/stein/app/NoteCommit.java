@@ -15,13 +15,13 @@ import java.nio.charset.StandardCharsets;
 @Command(name = "@note-commit", description = "Note original commit id on each commit message")
 public class NoteCommit extends RepositoryRewriter {
     @Option(names = "--length", paramLabel = "<num>", description = "length of SHA1 hash (default: ${DEFAULT-VALUE})")
-    protected int length = 20;
+    protected int length = 40;
 
     @Override
     public String rewriteCommitMessage(final String message, final Context c) {
         final ObjectId current = c.getRev().getId();
         final byte[] note = source.readNote(source.getDefaultNotes(), current);
-        if (note != null && note.length == 20) {
+        if (note != null && note.length == 40) {
             // use the commit note for the original commit id
             return new String(note, StandardCharsets.UTF_8).substring(0, length) + " " + message;
         }
