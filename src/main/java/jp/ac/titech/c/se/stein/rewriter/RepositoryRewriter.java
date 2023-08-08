@@ -150,7 +150,7 @@ public class RepositoryRewriter implements RewriterCommand {
 
         final Map<Long, Context> cxts = new ConcurrentHashMap<>();
         final ExecutorService pool = new ThreadPoolExecutor(config.nthreads, config.nthreads, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>(config.nthreads * 10));
+                new LinkedBlockingQueue<>(config.nthreads * 10));
         try (final RevWalk walk = prepareRevisionWalk(c)) {
             for (final RevCommit commit : walk) {
                 pool.execute(() -> {
@@ -242,6 +242,7 @@ public class RepositoryRewriter implements RewriterCommand {
      * @param commit target commit.
      * @return the object ID of the rewritten commit
      */
+    @SuppressWarnings("UnusedReturnValue")
     protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
         final Context uc = c.with(Key.rev, commit, Key.commit, commit);
         final ObjectId[] parentIds = rewriteParents(commit.getParents(), uc);
@@ -641,19 +642,6 @@ public class RepositoryRewriter implements RewriterCommand {
      * A hook method for cleaning up.
      */
     protected void cleanUp(@SuppressWarnings("unused") final Context c) {}
-
-    /**
-     * Exports source-to-destination mapping of commits.
-     */
-    public Map<String, String> exportCommitMapping() {
-        final Map<String, String> result = new HashMap<>();
-        for (final Map.Entry<ObjectId, ObjectId> e : commitMapping.entrySet()) {
-            final String src = e.getKey().name();
-            final String dst = e.getValue().name();
-            result.put(src, dst);
-        }
-        return result;
-    }
 
     @Override
     public String toString() {
