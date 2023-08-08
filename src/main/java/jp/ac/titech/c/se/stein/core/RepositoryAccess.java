@@ -165,12 +165,12 @@ public class RepositoryAccess {
             if (counter.containsKey(e.name)) {
                 // Find a possible filename with a number suffix
                 int suffix = counter.get(e.name) + 1;
-                while (counter.containsKey(e.name + "_" + suffix)) {
-                    log.debug("{}_{} was already used", e.name, suffix);
+                while (counter.containsKey(e.name + "@" + suffix)) {
+                    log.debug("{}@{} was already used", e.name, suffix);
                     suffix++;
                 }
-                log.debug("Entry occurred twice: {}, used {}_{} for {} instead", e.getPath(), e.name, suffix, e.id.name());
-                final ColdEntry.Single newEntry = new ColdEntry.Single(e.mode, e.name + "_" + suffix, e.id, e.directory);
+                log.debug("Entry occurred twice: {}, used {}@{} for {} instead", e.getPath(), e.name, suffix, e.id.name());
+                final ColdEntry.Single newEntry = new ColdEntry.Single(e.mode, e.name + "@" + suffix, e.id, e.directory);
                 counter.put(e.name, suffix);
                 counter.put(newEntry.name, 1);
                 result.add(newEntry);
