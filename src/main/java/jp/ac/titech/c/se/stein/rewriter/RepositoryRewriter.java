@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.rewriter;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -116,7 +117,7 @@ public class RepositoryRewriter implements RewriterCommand {
             rewriteCommits(c);
             updateRefs(c);
         }
-        target.writeNotes(c);
+        target.writeNotes(target.getDefaultNotes(), c);
         cleanUp(c);
     }
 
@@ -262,15 +263,17 @@ public class RepositoryRewriter implements RewriterCommand {
         commitMapping.put(oldId, newId);
         log.debug("Rewrite commit: {} -> {} {}", oldId.name(), newId.name(), c);
 
-        target.addNote(newId, getNote(oldId, c), uc);
+        if (config.isAddingNotes) {
+            target.addNote(target.getDefaultNotes(), newId, getNote(oldId, c), uc);
+        }
         return newId;
     }
 
     /**
      * Returns a note for a commit.
      */
-    protected String getNote(final ObjectId oldCommitId, @SuppressWarnings("unused") final Context c) {
-        return config.isAddingNotes ? oldCommitId.name() : null;
+    protected byte[] getNote(final ObjectId oldCommitId, @SuppressWarnings("unused") final Context c) {
+        return oldCommitId.name().getBytes(StandardCharsets.UTF_8);
     }
 
     /**

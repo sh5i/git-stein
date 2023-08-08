@@ -52,7 +52,7 @@ public class RepositoryAccess {
 
     public RepositoryAccess(final Repository repo) {
         this.repo = repo;
-        this.defaultNotes = readNote();
+        this.defaultNotes = readNotes();
     }
 
     // walk
@@ -230,29 +230,21 @@ public class RepositoryAccess {
     // Notes
 
     /**
-     * Add a note to the default notes.
-     */
-    public void addNote(final ObjectId commitId, final String note, final Context writingContext) {
-        addNote(defaultNotes, commitId, note, writingContext);
-    }
-
-    /**
      * Add a note to notes.
      */
-    public void addNote(final NoteMap notes, final ObjectId commitId, final String note, final Context writingContext) {
-        if (note != null) {
-            final ObjectId blob = writeBlob(note.getBytes(), writingContext);
+    public void addNote(final NoteMap notes, final ObjectId commitId, final byte[] content, final Context writingContext) {
+        if (content != null) {
+            final ObjectId blob = writeBlob(content, writingContext);
             Try.io(() -> notes.set(commitId, blob));
         }
     }
 
-    /**
-     * Writes default notes if at least one exists.
-     */
-    public void writeNotes(final Context writingContext) {
-        if (defaultNotes.iterator().hasNext()) {
-            writeNotes(defaultNotes, writingContext);
+    public byte[] readNote(final NoteMap notes, final ObjectId commitId) {
+        final ObjectId blobId = Try.io(() -> notes.get(commitId));
+        if (blobId == null) {
+            return null;
         }
+        return readBlob(blobId);
     }
 
     /**
@@ -273,7 +265,7 @@ public class RepositoryAccess {
 
     }
 
-    public void eachNote(final NoteMap notes, final BiConsumer<ObjectId, byte[]> f) {
+    public void forEachNote(final NoteMap notes, final BiConsumer<ObjectId, byte[]> f) {
         for (final Note note : notes) {
             final ObjectId id = ObjectId.fromString(note.getName());
             final byte[] body = readBlob(note.getData());
@@ -281,15 +273,11 @@ public class RepositoryAccess {
         }
     }
 
-    public void eachNote(final BiConsumer<ObjectId, byte[]> f) {
-        eachNote(defaultNotes, f);
+    public NoteMap readNotes() {
+        return readNotes(Constants.R_NOTES_COMMITS);
     }
 
-    public NoteMap readNote() {
-        return readNote(Constants.R_NOTES_COMMITS);
-    }
-
-    public NoteMap readNote(final String noteRef) {
+    public NoteMap readNotes(final String noteRef) {
         final Ref targetRef = getRef(noteRef);
         if (targetRef == null) {
             return NoteMap.newEmptyMap();
