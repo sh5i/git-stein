@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public interface BlobTranslator extends RepositoryRewriter.Factory {
+    default void setUp(final Context c) {}
 
     HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c);
 
@@ -41,6 +42,13 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
 
         public Composite(List<BlobTranslator> translators) {
             this(translators.toArray(new BlobTranslator[0]));
+        }
+
+        @Override
+        public void setUp(final Context c) {
+            for (BlobTranslator translator : translators) {
+                translator.setUp(c);
+            }
         }
 
         @Override
