@@ -16,7 +16,7 @@ import picocli.CommandLine.Command;
 
 @Slf4j
 @ToString
-@Command(name = "anonymize", description = "Anonymize filenames and contents")
+@Command(name = "@anonymize", description = "Anonymize filenames and contents")
 public class Anonymize extends RepositoryRewriter {
     public static class NameMap {
         private final Map<String, String> cache = new ConcurrentHashMap<>();

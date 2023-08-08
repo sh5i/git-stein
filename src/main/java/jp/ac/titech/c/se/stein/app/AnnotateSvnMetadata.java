@@ -23,7 +23,7 @@ import picocli.CommandLine.Option;
 
 @Slf4j
 @ToString
-@Command(name = "svn-metadata", description = "Attach metadata obtained from svn2git")
+@Command(name = "@svn-metadata", description = "Attach metadata obtained from svn2git")
 public class AnnotateSvnMetadata extends RepositoryRewriter {
     @Option(names = "--svn-mapping", paramLabel = "<log-git-repository>", description = "svn mapping",
             required = true)

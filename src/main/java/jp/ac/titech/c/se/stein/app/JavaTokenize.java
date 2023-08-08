@@ -19,7 +19,7 @@ import picocli.CommandLine.Option;
 
 @Slf4j
 @ToString
-@Command(name = "java-tokenize", description = "Encode/decode Java source files to/from linetoken format")
+@Command(name = "@tokenize-jdt", description = "Encode/decode Java source files to/from linetoken format via JDT")
 public class JavaTokenize implements BlobTranslator {
     @Option(names = "--decode", description = "decode tokenlines")
     protected boolean isDecoding = false;

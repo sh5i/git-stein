@@ -47,7 +47,7 @@ import picocli.CommandLine.Option;
  */
 @Slf4j
 @ToString
-@Command(name = "java-historage", description = "Generate finer-grained Java modules")
+@Command(name = "@historage-jdt", description = "Generate finer-grained Java modules via JDT")
 public class JavaHistorage extends Extractor {
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;

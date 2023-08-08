@@ -18,7 +18,7 @@ import picocli.CommandLine.Mixin;
 
 @Slf4j
 @ToString
-@Command(name = "convert", description = "Convert files via external HTTP API endpoint or command")
+@Command(name = "@convert", description = "Convert files via external HTTP API endpoint or command")
 public class Convert implements BlobTranslator {
     @Option(names = "--endpoint", paramLabel = "<url>", description = "HTTP Web API endpoint")
     protected URL endpoint;

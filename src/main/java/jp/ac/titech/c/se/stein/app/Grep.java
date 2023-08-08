@@ -14,7 +14,7 @@ import picocli.CommandLine.Mixin;
 
 @Slf4j
 @ToString
-@Command(name = "grep", description = "Filter blob files by name")
+@Command(name = "@grep", description = "Filter blob files by name")
 public class Grep implements BlobTranslator {
     @Mixin
     private final NameFilter filter = new NameFilter();

@@ -12,7 +12,7 @@ import picocli.CommandLine.Option;
 
 @Slf4j
 @ToString
-@Command(name = "size-filter", description = "Remove large files")
+@Command(name = "@size-filter", description = "Remove large files")
 public class SizeFilter implements BlobTranslator {
     @Option(names = "--size", paramLabel = "<num>{,K,M,G}", description = "remove files larger than the size",
             required = true, converter = SizeConverter.class)

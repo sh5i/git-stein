@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @ToString
-@Command(name = "historage", aliases = "historinc", description = "Generate finer-grained modules")
+@Command(name = "@historage", description = "Generate finer-grained modules via ctags")
 public class Historage extends Extractor {
     @Option(names = "--ctags", description = "ctags command used")
     protected String ctags = "ctags";

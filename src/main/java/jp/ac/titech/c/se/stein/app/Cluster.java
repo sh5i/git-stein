@@ -28,7 +28,7 @@ import picocli.CommandLine.Option;
 
 @Slf4j
 @ToString
-@Command(name = "cluster", description = "Cluster and merge commits")
+@Command(name = "@cluster", description = "Cluster and merge commits")
 public class Cluster extends RepositoryRewriter {
     @Option(names = "--recipe", paramLabel = "<file>", description = "recipe JSON",
             required = true)

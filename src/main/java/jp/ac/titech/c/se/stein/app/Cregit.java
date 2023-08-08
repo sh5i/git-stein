@@ -24,7 +24,7 @@ import java.util.*;
 
 @Slf4j
 @ToString
-@Command(name = "cregit", description = "cregit format via srcML")
+@Command(name = "@cregit", description = "cregit format via srcML")
 public class Cregit implements BlobTranslator {
     public static final String CREGIT_VERSION = "0.0.1";
 

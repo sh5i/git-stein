@@ -5,6 +5,6 @@ import lombok.ToString;
 import picocli.CommandLine.Command;
 
 @ToString
-@Command(name = "identity", description = "Copy objects without transformation")
+@Command(name = "@identity", description = "Copy objects without transformation")
 public class Identity extends RepositoryRewriter {
 }
