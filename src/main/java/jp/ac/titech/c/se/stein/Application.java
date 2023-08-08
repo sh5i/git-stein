@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.app.Identity;
 import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
+import jp.ac.titech.c.se.stein.util.SettableHelpCommand;
 import jp.ac.titech.c.se.stein.util.Loader;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
@@ -28,7 +29,8 @@ import org.slf4j.event.Level;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
-@Command(name = "git-stein", sortOptions = false, subcommandsRepeatable = true)
+@Command(name = "git-stein", sortOptions = false, subcommandsRepeatable = true,
+         subcommands = {SettableHelpCommand.class})
 public class Application implements Callable<Integer>, CommandLine.IExecutionStrategy {
     private static final Logger log = LoggerFactory.getLogger(Application.class);
 
@@ -244,9 +246,16 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     public int execute(final ParseResult parseResult) throws ExecutionException, ParameterException {
         setLoggerLevel(Logger.ROOT_LOGGER_NAME, conf.logLevel);
 
+        if (parseResult.subcommands().size() >= 2) {
+            final Object cmd = parseResult.subcommands().get(0).commandSpec().userObject();
+            if (cmd instanceof SettableHelpCommand) {
+                ((SettableHelpCommand) cmd).setCommand(parseResult.subcommands().get(1).commandSpec().name());
+            }
+        }
         if (CommandLine.printHelpIfRequested(parseResult)) {
             return 0;
         }
+
         if (parseResult.subcommands().isEmpty()) {
             throw new ParameterException(parseResult.commandSpec().commandLine(), "No subcommands");
         }
