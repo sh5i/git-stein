@@ -12,7 +12,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-@Slf4j
 @ToString
 @Command(name = "@tokenize", description = "Encode source files to linetoken format")
 public class Tokenize implements BlobTranslator {

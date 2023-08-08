@@ -13,7 +13,6 @@ import picocli.CommandLine.Mixin;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 
-@Slf4j
 @ToString
 @Command(name = "@untokenize", description = "Restore linetoken format to its original")
 public class Untokenize implements BlobTranslator {

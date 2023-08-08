@@ -73,7 +73,7 @@ public class Cregit implements BlobTranslator {
             parser.parse(input, handler);
             return entry.update(handler.getResult());
         } catch (final IOException | ParserConfigurationException | SAXException e) {
-            log.error("Error: {} {}", e, c);
+            log.error(e.getMessage(), e);
             return entry;
         }
     }
