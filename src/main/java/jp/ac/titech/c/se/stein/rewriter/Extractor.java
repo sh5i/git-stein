@@ -16,13 +16,10 @@ public abstract class Extractor implements BlobTranslator {
     @Option(names = "--no-original", negatable = true, description = "[ex]/include original files")
     protected boolean requiresOriginals = true;
 
-    @Option(names = "--no-irrelevances", negatable = true, description = "[ex]/include non-target files")
-    protected boolean requiresIrrelevances = true;
-
     @Override
     public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
         if (!accept(entry.getName().toLowerCase())) {
-            return requiresIrrelevances ? entry : HotEntry.empty();
+            return entry;
         }
 
         final HotEntry.EntrySet result = HotEntry.set();
