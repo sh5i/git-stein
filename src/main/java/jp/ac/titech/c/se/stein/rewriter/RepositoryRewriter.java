@@ -273,7 +273,13 @@ public class RepositoryRewriter implements RewriterCommand {
      * Returns a note for a commit.
      */
     protected byte[] getNote(final ObjectId oldCommitId, @SuppressWarnings("unused") final Context c) {
-        return oldCommitId.name().getBytes(StandardCharsets.UTF_8);
+        final byte[] note = source.readNote(source.getDefaultNotes(), oldCommitId);
+        if (note != null) {
+            return note;
+        }
+        final byte[] blob = new byte[Constants.OBJECT_ID_STRING_LENGTH];
+        oldCommitId.copyTo(blob, 0);
+        return blob;
     }
 
     /**
