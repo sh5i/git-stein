@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein.app;
+package jp.ac.titech.c.se.stein.app.blob;
 
 import java.util.*;
 import java.util.stream.Collectors;

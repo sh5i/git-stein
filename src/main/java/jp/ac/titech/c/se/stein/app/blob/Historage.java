@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein.app;
+package jp.ac.titech.c.se.stein.app.blob;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;

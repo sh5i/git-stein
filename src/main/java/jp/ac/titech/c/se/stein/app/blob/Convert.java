@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein.app;
+package jp.ac.titech.c.se.stein.app.blob;
 
 import java.io.*;
 import java.net.HttpURLConnection;
