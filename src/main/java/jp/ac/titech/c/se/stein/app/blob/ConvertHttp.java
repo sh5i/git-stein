@@ -47,11 +47,16 @@ public class ConvertHttp implements BlobTranslator {
             conn.setRequestProperty("Accept", "text/plain");
             conn.setRequestProperty("Content-Length", String.valueOf(content.length));
             conn.setRequestProperty("X-Filename", filename);
-            conn.getOutputStream().write(content);
+            try (final OutputStream out = conn.getOutputStream()) {
+                out.write(content);
+            }
+            conn.getOutputStream().close();
             if (conn.getResponseCode() == 200) {
-                return IOUtils.toByteArray(conn.getInputStream());
+                try (final InputStream in = conn.getInputStream()) {
+                    return IOUtils.toByteArray(in);
+                }
             } else {
-                log.error("Bad status code in response: {} {}", conn.getResponseCode(), c);
+                log.error("Bad status code in response: {} {} {}", conn.getResponseCode(), conn.getResponseMessage(), c);
             }
         } catch (final IOException e) {
             log.error(e.getMessage(), e);
