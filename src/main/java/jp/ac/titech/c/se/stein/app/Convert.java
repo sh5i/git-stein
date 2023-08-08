@@ -6,15 +6,15 @@ import java.net.URL;
 
 import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
+import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.IOCase;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.filefilter.WildcardFileFilter;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.Mixin;
 
 @Slf4j
 @ToString
@@ -26,32 +26,15 @@ public class Convert implements BlobTranslator {
     @Option(names = "--cmd", split = " ", paramLabel = "<cmdline>", description = "Command with arguments")
     protected String[] cmdline;
 
-    protected FileFilter filter;
-
-    protected String[] patterns;
-
-    @SuppressWarnings("unused")
-    @Option(names = "--pattern", split = ";", paramLabel = "<glob;...>", description = "filter target files")
-    protected void setPatterns(final String[] patterns) {
-        this.patterns = patterns;
-        this.filter = new WildcardFileFilter(patterns, caseSensitivity);
-    }
-
-    protected IOCase caseSensitivity = IOCase.SENSITIVE;
-
-    @SuppressWarnings("unused")
-    @Option(names = {"-i", "--ignore-case"}, description = "Perform case-insensitive matchinge")
-    protected void setCaseInsensitive(final boolean isIgnoringCase) {
-        caseSensitivity = isIgnoringCase ? IOCase.INSENSITIVE : IOCase.SENSITIVE;
-        filter = new WildcardFileFilter(patterns, caseSensitivity);
-    }
+    @Mixin
+    private final NameFilter filter = new NameFilter();
 
     @Option(names = "--exclude", description = "remove files that filtered out")
     protected boolean isExcluding;
 
     @Override
     public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
-        if (filter != null && !filter.accept(new File(entry.getName()))) {
+        if (!filter.accept(new File(entry.getName()))) {
             return isExcluding ? HotEntry.empty() : entry;
         }
         final byte[] blob = entry.getBlob();

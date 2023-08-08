@@ -3,17 +3,17 @@ package jp.ac.titech.c.se.stein.app;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
+import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.IOCase;
-import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.Mixin;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
@@ -31,35 +31,30 @@ public class Cregit implements BlobTranslator {
     @Option(names = "--srcml", description = "srcml command path")
     protected String srcml = "srcml";
 
-    @SuppressWarnings("unused")
-    @Option(names = "--pattern", paramLabel = "<glob;...>", description = "filename patterns for files to convert",
-            arity = "0..*", split = ";")
-    private void setPatterns(final String... wildcards) {
-        pattern = WildcardFileFilter.builder()
-                .setIoCase(IOCase.INSENSITIVE)
-                .setWildcards(wildcards)
-                .get();
-    }
-    protected FileFilter pattern;
+    @Mixin
+    private final NameFilter filter = new NameFilter();
 
     @SuppressWarnings("unused")
-    @Option(names = {"-l", "--lang"}, description = "language (either of C, C++, C#, Java)", required = true)
+    @Option(names = {"-l", "--lang"}, description = "target language: either of 'C', 'C++', 'C#', 'Java'",
+            required = true)
     protected void setLanguage(final String language) {
         this.language = language;
-        if (pattern == null) {
+        if (filter.isDefault()) {
             switch (language) {
                 case "C":
-                    setPatterns("*.c", "*.h");
+                    filter.setPatterns("*.c", "*.h");
                     break;
                 case "C++":
-                    setPatterns("*.cpp", "*.hpp", "*.cc", "*.hh", "*.cxx", "*.hxx", "*.c", "*.h");
+                    filter.setPatterns("*.cpp", "*.hpp", "*.cc", "*.hh", "*.cxx", "*.hxx", "*.c", "*.h");
                     break;
                 case "C#":
-                    setPatterns("*.cs");
+                    filter.setPatterns("*.cs");
                     break;
                 case "Java":
-                    setPatterns("*.java");
+                    filter.setPatterns("*.java");
                     break;
+                default:
+                    log.error("Unknown language: {}", language);
             }
         }
     }
@@ -67,7 +62,7 @@ public class Cregit implements BlobTranslator {
 
     @Override
     public HotEntry rewriteBlobEntry(HotEntry.SingleHotEntry entry, Context c) {
-        if (!pattern.accept(new File(entry.getName()))) {
+        if (!filter.accept(new File(entry.getName()))) {
             return entry;
         }
         final String[] cmd = { srcml, "--language", language };
