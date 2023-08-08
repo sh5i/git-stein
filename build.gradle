@@ -44,7 +44,6 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'info.picocli:picocli:4.7.4'
     implementation 'commons-io:commons-io:2.13.0'
-    implementation 'org.apache.commons:commons-lang3:3.13.0'
     implementation 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
 
     implementation 'org.jgrapht:jgrapht-core:1.5.2'
