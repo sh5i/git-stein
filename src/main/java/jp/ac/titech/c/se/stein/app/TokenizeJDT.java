@@ -15,17 +15,13 @@ import org.eclipse.jdt.core.compiler.InvalidInputException;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 
 @Slf4j
 @ToString
-@Command(name = "@tokenize-jdt", description = "Encode/decode Java source files to/from linetoken format via JDT")
+@Command(name = "@tokenize-jdt", description = "Encode Java source files to linetoken format via JDT")
 public class TokenizeJDT implements BlobTranslator {
-    @Option(names = "--decode", description = "decode tokenlines")
-    protected boolean isDecoding = false;
-
     /**
-     * Encodes the given source.
+     * Encodes the given source to linetoken format.
      */
     public static String encode(final String source) {
         final IScanner scanner = ToolFactory.createScanner(true, true, false, JavaCore.VERSION_17);
@@ -46,21 +42,13 @@ public class TokenizeJDT implements BlobTranslator {
         return buffer.toString();
     }
 
-    /**
-     * Decodes the given source.
-     */
-    public static String decode(final String source) {
-        return source.replace("\n", "").replace("\r", "\n");
-    }
-
     @Override
     public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
         if (!entry.getName().toLowerCase().endsWith(".java")) {
             return entry;
         }
         final String text = SourceText.of(entry.getBlob()).getContent();
-        final String converted = isDecoding ? decode(text) : encode(text);
-        final byte[] newBlob = converted.getBytes(StandardCharsets.UTF_8);
+        final byte[] newBlob = encode(text).getBytes(StandardCharsets.UTF_8);
         return entry.update(newBlob);
     }
 }
