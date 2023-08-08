@@ -5,6 +5,7 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import lombok.Getter;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
@@ -39,6 +40,7 @@ public class RepositoryAccess {
 
     protected final Repository repo;
 
+    @Getter
     protected final NoteMap defaultNotes;
 
     protected boolean isDryRunning = false;

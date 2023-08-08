@@ -67,8 +67,7 @@ public class Anonymize extends RepositoryRewriter {
 
     @Override
     public String rewriteMessage(final String message, final Context c) {
-        final String name = c.getRev().name();
-        return "orig:" + name + " " + hash7(message);
+        return hash7(message);
     }
 
     @Override
