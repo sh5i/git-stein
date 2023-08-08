@@ -3,7 +3,6 @@ package jp.ac.titech.c.se.stein.rewriter;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -30,7 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application.Config;
 import jp.ac.titech.c.se.stein.core.Context.Key;
-import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
+import jp.ac.titech.c.se.stein.core.ColdEntry;
 
 public class RepositoryRewriter implements RewriterCommand {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
@@ -40,7 +39,7 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Entry-to-entries mapping.
      */
-    protected Map<HashEntry, ColdEntry> entryMapping = new HashMap<>();
+    protected Map<ColdEntry.Single, ColdEntry> entryMapping = new HashMap<>();
 
     /**
      * Commit-to-commit mapping.
@@ -92,13 +91,13 @@ public class RepositoryRewriter implements RewriterCommand {
             }
             if (config.cacheLevel.contains(CacheLevel.blob) || config.cacheLevel.contains(CacheLevel.tree)) {
                 log.info("Stored mapping (entry-mapping) is available");
-                Map<HashEntry, ColdEntry> storedEntryMapping = cacheProvider.getEntryMapping();
+                Map<ColdEntry.Single, ColdEntry> storedEntryMapping = cacheProvider.getEntryMapping();
                 if (!config.cacheLevel.contains(CacheLevel.tree)) {
                     log.info("Stored mapping (entry-mapping): blob-only filtering");
                     storedEntryMapping = Cache.Filter.apply(e -> !e.isTree(), storedEntryMapping);
                 } else if (!config.cacheLevel.contains(CacheLevel.blob)) {
                     log.info("Stored mapping (entry-mapping): tree-only filtering");
-                    storedEntryMapping = Cache.Filter.apply(HashEntry::isTree, storedEntryMapping);
+                    storedEntryMapping = Cache.Filter.apply(ColdEntry.Single::isTree, storedEntryMapping);
                 }
                 entryMapping = new Cache<>(entryMapping, storedEntryMapping, !cacheProvider.isInitial(), true);
             }
@@ -305,9 +304,9 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
         // A root tree is represented as a special entry whose name is "/"
-        final HashEntry root = new HashEntry(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
+        final ColdEntry.Single root = new ColdEntry.Single(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
         final ColdEntry newRoot = getEntry(root, c);
-        final ObjectId newId = newRoot instanceof ColdEntry.Empty ? target.writeTree(Collections.emptyList(), c) : ((HashEntry) newRoot).id;
+        final ObjectId newId = newRoot instanceof ColdEntry.Empty ? target.writeTree(Collections.emptyList(), c) : ((ColdEntry.Single) newRoot).id;
 
         log.debug("Rewrite root tree: {} -> {} {}", treeId.name(), newId.name(), c);
         return newId;
@@ -316,7 +315,7 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Obtains tree entries from a tree entry.
      */
-    protected ColdEntry getEntry(final HashEntry entry, final Context c) {
+    protected ColdEntry getEntry(final ColdEntry.Single entry, final Context c) {
         // computeIfAbsent is unsuitable because this may be invoked recursively
         final ColdEntry cache = entryMapping.get(entry);
         if (cache != null) {
@@ -330,7 +329,7 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Rewrites a tree entry.
      */
-    protected ColdEntry rewriteEntry(final HashEntry entry, final Context c) {
+    protected ColdEntry rewriteEntry(final ColdEntry.Single entry, final Context c) {
         final Context uc = c.with(Key.entry, entry);
         switch (entry.getType()) {
             case BLOB:
@@ -345,34 +344,34 @@ public class RepositoryRewriter implements RewriterCommand {
         }
     }
 
-    protected HotEntry rewriteBlobEntry(HotEntry.SingleHotEntry entry, Context c) {
+    protected HotEntry rewriteBlobEntry(HotEntry.Single entry, Context c) {
         return entry;
     }
 
-    protected ColdEntry rewriteTreeEntry(HashEntry entry, Context c) {
+    protected ColdEntry rewriteTreeEntry(ColdEntry.Single entry, Context c) {
         final ObjectId newId = rewriteTree(entry.id, c);
         final String newName = rewriteName(entry.name, c);
-        return newId == ZERO ? ColdEntry.empty() : new HashEntry(entry.mode, newName, newId, entry.directory);
+        return newId == ZERO ? ColdEntry.empty() : new ColdEntry.Single(entry.mode, newName, newId, entry.directory);
     }
 
-    protected ColdEntry rewriteLinkEntry(HashEntry entry, Context c) {
+    protected ColdEntry rewriteLinkEntry(ColdEntry.Single entry, Context c) {
         final ObjectId newId = rewriteLink(entry.id, c);
         final String newName = rewriteName(entry.name, c);
-        return newId == ZERO ? ColdEntry.empty() : new HashEntry(entry.mode, newName, newId, entry.directory);
+        return newId == ZERO ? ColdEntry.empty() : new ColdEntry.Single(entry.mode, newName, newId, entry.directory);
     }
 
     /**
      * Rewrites a tree object.
      */
     protected ObjectId rewriteTree(final ObjectId treeId, final Context c) {
-        final HashEntry entry = c.getEntry();
+        final ColdEntry.Single entry = c.getEntry();
         final String path = entry.isRoot() ? "" : c.getPath() + "/" + entry.name;
         final Context uc = c.with(Key.path, path);
 
         final String dir = isPathSensitive ? path : null;
 
-        final List<HashEntry> entries = new ArrayList<>();
-        for (final HashEntry e : source.readTree(treeId, dir)) {
+        final List<ColdEntry.Single> entries = new ArrayList<>();
+        for (final ColdEntry.Single e : source.readTree(treeId, dir)) {
             final ColdEntry rewritten = getEntry(e, uc);
             rewritten.stream().forEach(entries::add);
         }

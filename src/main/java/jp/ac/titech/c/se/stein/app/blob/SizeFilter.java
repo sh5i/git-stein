@@ -54,7 +54,7 @@ public class SizeFilter implements BlobTranslator {
     }
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
         final long size = entry.getBlobSize();
         if ((size >= maxSize) ^ invertMatch) {
             log.debug("remove {}: size ({}; {}B) {}exceeded {}", entry, FileUtils.byteCountToDisplaySize(size), size, invertMatch ? "not " : "", c);

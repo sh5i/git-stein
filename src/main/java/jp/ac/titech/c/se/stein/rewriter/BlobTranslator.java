@@ -11,7 +11,7 @@ import java.util.stream.Stream;
 public interface BlobTranslator extends RepositoryRewriter.Factory {
     default void setUp(final Context c) {}
 
-    HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c);
+    HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c);
 
     default RepositoryRewriter create() {
         return new Single(this);
@@ -27,7 +27,7 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
         }
 
         @Override
-        public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+        public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
             return translator.rewriteBlobEntry(entry, c);
         }
     }
@@ -52,8 +52,8 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
         }
 
         @Override
-        public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
-            Stream<HotEntry.SingleHotEntry> stream = Stream.of(entry);
+        public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+            Stream<HotEntry.Single> stream = Stream.of(entry);
             for (BlobTranslator translator : translators) {
                 stream = stream.flatMap(e -> translator.rewriteBlobEntry(e, c).stream());
             }

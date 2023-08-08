@@ -17,12 +17,12 @@ public abstract class Extractor implements BlobTranslator {
     protected boolean requiresOriginals = true;
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
         if (!accept(entry.getName().toLowerCase())) {
             return entry;
         }
 
-        final HotEntry.EntrySet result = HotEntry.set();
+        final HotEntry.Set result = HotEntry.set();
         if (requiresOriginals) {
             result.add(entry);
         }
@@ -42,7 +42,7 @@ public abstract class Extractor implements BlobTranslator {
 
     protected abstract boolean accept(final String filename);
 
-    protected abstract Collection<? extends Module> generate(final HotEntry.SingleHotEntry entry, final SourceText text, final Context c);
+    protected abstract Collection<? extends Module> generate(final HotEntry.Single entry, final SourceText text, final Context c);
 
     public static String digest(final String name, final int length) {
         final SHA1 sha1 = SHA1.newInstance();

@@ -35,7 +35,7 @@ public class Historage extends Extractor {
     }
 
     @Override
-    protected Collection<? extends Module> generate(final HotEntry.SingleHotEntry entry, final SourceText text, final Context c) {
+    protected Collection<? extends Module> generate(final HotEntry.Single entry, final SourceText text, final Context c) {
         try {
             return new CtagsRunner(entry.getName(), text, c).generate();
         } catch (final IOException e) {

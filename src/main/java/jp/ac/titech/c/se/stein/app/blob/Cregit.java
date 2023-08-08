@@ -61,7 +61,7 @@ public class Cregit implements BlobTranslator {
     protected String language = "Java";
 
     @Override
-    public HotEntry rewriteBlobEntry(HotEntry.SingleHotEntry entry, Context c) {
+    public HotEntry rewriteBlobEntry(HotEntry.Single entry, Context c) {
         if (!filter.accept(entry)) {
             return entry;
         }

@@ -91,7 +91,7 @@ public class HistorageJDT extends Extractor {
     }
 
     @Override
-    protected Collection<Module> generate(final HotEntry.SingleHotEntry entry, final SourceText text, final Context c) {
+    protected Collection<Module> generate(final HotEntry.Single entry, final SourceText text, final Context c) {
         return new ModuleGenerator(entry.getName(), text).generate();
     }
 

@@ -1,7 +1,5 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
-import java.io.File;
-
 import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
@@ -20,7 +18,7 @@ public class Grep implements BlobTranslator {
     private final NameFilter filter = new NameFilter();
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
         if (!filter.accept(entry)) {
             log.debug("remove {}: filename unaccepted {}", entry, c);
             return HotEntry.empty();

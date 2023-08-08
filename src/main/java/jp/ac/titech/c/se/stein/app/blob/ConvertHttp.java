@@ -28,7 +28,7 @@ public class ConvertHttp implements BlobTranslator {
     private final NameFilter filter = new NameFilter();
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
         if (!filter.accept(entry)) {
             return entry;
         }

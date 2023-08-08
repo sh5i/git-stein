@@ -10,7 +10,7 @@ import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.util.sha1.SHA1;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
+import jp.ac.titech.c.se.stein.core.ColdEntry;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import picocli.CommandLine.Command;
 
@@ -71,7 +71,7 @@ public class Anonymize extends RepositoryRewriter {
     }
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
         return entry
                 .update(entry.getId().name().getBytes())
                 .rename(blobNameMap.convert(entry.getName()));
@@ -79,7 +79,7 @@ public class Anonymize extends RepositoryRewriter {
 
     @Override
     public String rewriteName(final String name, final Context c) {
-        final HashEntry entry = c.getEntry();
+        final ColdEntry.Single entry = c.getEntry();
         if (entry.isTree()) {
             return treeNameMap.convert(name);
         }

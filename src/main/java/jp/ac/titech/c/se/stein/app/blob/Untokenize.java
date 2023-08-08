@@ -6,11 +6,9 @@ import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import lombok.ToString;
-import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 
 @ToString
@@ -27,7 +25,7 @@ public class Untokenize implements BlobTranslator {
     }
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
         if (!filter.accept(entry)) {
             return entry;
         }

@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import jp.ac.titech.c.se.stein.core.ColdEntry.HashEntry;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
@@ -24,47 +23,47 @@ public interface HotEntry {
     /**
      * Entry = a sequence of single entries.
      */
-    Stream<? extends SingleHotEntry> stream();
+    Stream<? extends Single> stream();
 
     int size();
 
     ColdEntry fold(RepositoryAccess target, Context c);
 
-    static SourceFileEntry of(HashEntry e, RepositoryAccess source) {
-        return new SourceFileEntry(e, source);
+    static SourceBlob of(ColdEntry.Single e, RepositoryAccess source) {
+        return new SourceBlob(e, source);
     }
 
-    static NewFileEntry of(HashEntry e, byte[] updatedBlob) {
-        return new NewFileEntry(e.getMode(), e.getName(), updatedBlob, e.getDirectory());
+    static NewBlob of(ColdEntry.Single e, byte[] updatedBlob) {
+        return new NewBlob(e.getMode(), e.getName(), updatedBlob, e.getDirectory());
     }
 
-    static NewFileEntry of(int mode, String name, byte[] blob) {
-        return new NewFileEntry(mode, name, blob, null);
+    static NewBlob of(int mode, String name, byte[] blob) {
+        return new NewBlob(mode, name, blob, null);
     }
 
-    static NewFileEntry of(int mode, String name, byte[] blob, String directory) {
-        return new NewFileEntry(mode, name, blob, directory);
+    static NewBlob of(int mode, String name, byte[] blob, String directory) {
+        return new NewBlob(mode, name, blob, directory);
     }
 
-    static EntrySet of(Collection<SingleHotEntry> entries) {
-        return new EntrySet(entries);
+    static Set of(Collection<Single> entries) {
+        return new Set(entries);
     }
 
-    static EntrySet set() {
-        return new EntrySet();
+    static Set set() {
+        return new Set();
     }
 
     static Empty empty() {
         return new Empty();
     }
 
-    abstract class SingleHotEntry implements HotEntry, SingleEntry {
+    abstract class Single implements HotEntry, SingleEntry {
         public abstract byte[] getBlob();
 
         public abstract long getBlobSize();
 
         @Override
-        public Stream<? extends SingleHotEntry> stream() {
+        public Stream<? extends Single> stream() {
             return Stream.of(this);
         }
 
@@ -74,15 +73,15 @@ public interface HotEntry {
         }
 
         @Override
-        public HashEntry fold(RepositoryAccess target, Context c) {
+        public ColdEntry.Single fold(RepositoryAccess target, Context c) {
             return ColdEntry.of(getMode(), getName(), target.writeBlob(getBlob(), c), getDirectory());
         }
 
-        public NewFileEntry rename(final String newName) {
+        public NewBlob rename(final String newName) {
             return HotEntry.of(getMode(), newName, getBlob(), getDirectory());
         }
 
-        public NewFileEntry update(final byte[] newBlob) {
+        public NewBlob update(final byte[] newBlob) {
             return HotEntry.of(getMode(), getName(), newBlob, getDirectory());
         }
     }
@@ -91,9 +90,9 @@ public interface HotEntry {
      * A normal tree entry.
      */
     @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-    class SourceFileEntry extends SingleHotEntry {
+    class SourceBlob extends Single {
         @Delegate(types = SingleEntry.class)
-        private final HashEntry entry;
+        private final ColdEntry.Single entry;
 
         private final RepositoryAccess source;
 
@@ -123,7 +122,7 @@ public interface HotEntry {
      */
     @Slf4j
     @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-    class NewFileEntry extends SingleHotEntry {
+    class NewBlob extends Single {
         @Getter
         private final int mode;
 
@@ -158,22 +157,22 @@ public interface HotEntry {
     /**
      * A set of multiple tree entries.
      */
-    class EntrySet implements HotEntry {
+    class Set implements HotEntry {
         @Getter
-        private final List<SingleHotEntry> entries = new ArrayList<>();
+        private final List<Single> entries = new ArrayList<>();
 
-        EntrySet() {}
+        Set() {}
 
-        EntrySet(final Collection<SingleHotEntry> entries) {
+        Set(final Collection<Single> entries) {
             this.entries.addAll(entries);
         }
 
-        public void add(final SingleHotEntry entry) {
+        public void add(final Single entry) {
             entries.add(entry);
         }
 
         @Override
-        public Stream<SingleHotEntry> stream() {
+        public Stream<Single> stream() {
             return entries.stream();
         }
 
@@ -200,7 +199,7 @@ public interface HotEntry {
         Empty() {}
 
         @Override
-        public Stream<SingleHotEntry> stream() {
+        public Stream<Single> stream() {
             return Stream.empty();
         }
 

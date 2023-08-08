@@ -47,7 +47,7 @@ public class NameFilter implements FileFilter {
         return filter instanceof TrueFileFilter;
     }
 
-    public boolean accept(final HotEntry.SingleHotEntry entry) {
+    public boolean accept(final HotEntry.Single entry) {
         return filter.accept(new File(entry.getName()));
     }
     public boolean accept(final String pathname) {

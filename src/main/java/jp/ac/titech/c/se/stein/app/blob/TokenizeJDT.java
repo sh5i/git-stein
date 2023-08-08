@@ -43,7 +43,7 @@ public class TokenizeJDT implements BlobTranslator {
     }
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
         if (!entry.getName().toLowerCase().endsWith(".java")) {
             return entry;
         }

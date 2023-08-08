@@ -16,24 +16,24 @@ import org.eclipse.jgit.lib.ObjectId;
  * Abstract tree entry.
  */
 public interface ColdEntry extends Serializable {
-    Stream<HashEntry> stream();
+    Stream<Single> stream();
 
     int size();
 
     default ColdEntry pack() {
-        return size() == 1 ? ((HashEntrySet) this).getEntries().get(0) : this;
+        return size() == 1 ? ((Set) this).getEntries().get(0) : this;
     }
 
-    static HashEntry of(int mode, String name, ObjectId id) {
-        return new HashEntry(mode, name, id, null);
+    static Single of(int mode, String name, ObjectId id) {
+        return new Single(mode, name, id, null);
     }
 
-    static HashEntry of(int mode, String name, ObjectId id, String directory) {
-        return new HashEntry(mode, name, id, directory);
+    static Single of(int mode, String name, ObjectId id, String directory) {
+        return new Single(mode, name, id, directory);
     }
 
-    static HashEntrySet of(Collection<HashEntry> entries) {
-        return new HashEntrySet(entries);
+    static Set of(Collection<Single> entries) {
+        return new Set(entries);
     }
 
     static Empty empty() {
@@ -45,7 +45,7 @@ public interface ColdEntry extends Serializable {
      */
     @RequiredArgsConstructor
     @EqualsAndHashCode
-    class HashEntry implements ColdEntry, SingleEntry {
+    class Single implements ColdEntry, SingleEntry {
         private static final long serialVersionUID = 1L;
 
         @Getter
@@ -69,7 +69,7 @@ public interface ColdEntry extends Serializable {
         }
 
         @Override
-        public Stream<HashEntry> stream() {
+        public Stream<Single> stream() {
             return Stream.of(this);
         }
 
@@ -84,22 +84,22 @@ public interface ColdEntry extends Serializable {
      */
     @NoArgsConstructor
     @EqualsAndHashCode
-    class HashEntrySet implements ColdEntry {
+    class Set implements ColdEntry {
         private static final long serialVersionUID = 1L;
 
         @Getter
-        private final List<HashEntry> entries = new ArrayList<>();
+        private final List<Single> entries = new ArrayList<>();
 
-        public HashEntrySet(Collection<HashEntry> entries) {
+        public Set(Collection<Single> entries) {
             this.entries.addAll(entries);
         }
 
-        public void add(final HashEntry entry) {
+        public void add(final Single entry) {
             entries.add(entry);
         }
 
         @Override
-        public Stream<HashEntry> stream() {
+        public Stream<Single> stream() {
             return entries.stream();
         }
 
@@ -123,7 +123,7 @@ public interface ColdEntry extends Serializable {
         private Empty() {}
 
         @Override
-        public Stream<HashEntry> stream() {
+        public Stream<Single> stream() {
             return Stream.empty();
         }
 

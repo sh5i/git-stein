@@ -5,7 +5,6 @@ import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import lombok.ToString;
-import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine.Command;
 
 import java.nio.charset.StandardCharsets;
@@ -31,7 +30,7 @@ public class Tokenize implements BlobTranslator {
     }
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
+    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
         final String text = SourceText.of(entry.getBlob()).getContent();
         final String converted = encode(text);
         final byte[] newBlob = converted.getBytes(StandardCharsets.UTF_8);
