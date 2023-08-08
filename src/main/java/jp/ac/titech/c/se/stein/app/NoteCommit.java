@@ -32,7 +32,7 @@ public class NoteCommit extends RepositoryRewriter {
                 }
             }
         } catch (final IOException e) {
-            log.error("IOExpcetion: {} {}", e.getMessage(), c);
+            log.error(e.getMessage(), e);
         }
         // no note or no valid note: use the current commit id
         return current.name().substring(0, length) + " " + message;
