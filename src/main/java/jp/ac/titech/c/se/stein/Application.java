@@ -28,7 +28,7 @@ import org.slf4j.event.Level;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
-@Command(version = "git-stein", sortOptions = false, subcommandsRepeatable = true)
+@Command(name = "git-stein", sortOptions = false, subcommandsRepeatable = true)
 public class Application implements Callable<Integer>, CommandLine.IExecutionStrategy {
     private static final Logger log = LoggerFactory.getLogger(Application.class);
 
