@@ -21,8 +21,6 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.gson.Gson;
-
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
@@ -111,9 +109,6 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
             loadCommands(cmdline, path);
         }
 
-        @Option(names = "--mapping", paramLabel = "<file>", description = "store the commit mapping", order = LOW)
-        public File commitMappingFile;
-
         @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})", order = LOW)
         public Level logLevel = Level.INFO;
 
@@ -173,12 +168,6 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
                 new PorcelainAPI(target).checkout();
             }
         });
-
-        if (conf.commitMappingFile != null) {
-            log.debug("Save commit mapping to {}", conf.commitMappingFile);
-            final byte[] content = new Gson().toJson(rewriters.get(0).exportCommitMapping()).getBytes();
-            FileUtils.writeByteArrayToFile(conf.commitMappingFile, content);
-        }
 
         return 0;
     }
