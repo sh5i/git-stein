@@ -79,11 +79,8 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = MIDDLE)
         public boolean isDryRunning = false;
 
-        @Option(names = "--notes-forward", negatable = true, description = "note rewritten commits to source repo", order = MIDDLE)
-        public boolean isAddingForwardNotes = false;
-
-        @Option(names = "--no-notes-backward", negatable = true, description = "note original commits to destination repo", order = MIDDLE)
-        public boolean isAddingBackwardNotes = true;
+        @Option(names = "--no-notes", negatable = true, description = "note original commit id to destination repo", order = MIDDLE)
+        public boolean isAddingNotes = true;
 
         @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = MIDDLE)
         public boolean isRewritingExtraAttributes = false;

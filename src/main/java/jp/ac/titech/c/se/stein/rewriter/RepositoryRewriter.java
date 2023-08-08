@@ -116,7 +116,6 @@ public class RepositoryRewriter implements RewriterCommand {
             rewriteCommits(c);
             updateRefs(c);
         }
-        source.writeNotes(c);
         target.writeNotes(c);
         cleanUp(c);
     }
@@ -263,24 +262,15 @@ public class RepositoryRewriter implements RewriterCommand {
         commitMapping.put(oldId, newId);
         log.debug("Rewrite commit: {} -> {} {}", oldId.name(), newId.name(), c);
 
-        source.addNote(oldId, getForwardNote(newId, c), uc);
-        target.addNote(newId, getBackwardNote(oldId, c), uc);
-
+        target.addNote(newId, getNote(oldId, c), uc);
         return newId;
     }
 
     /**
      * Returns a note for a commit.
      */
-    protected String getForwardNote(final ObjectId newCommitId, @SuppressWarnings("unused") final Context c) {
-        return config.isAddingForwardNotes ? newCommitId.name() : null;
-    }
-
-    /**
-     * Returns a note for a commit.
-     */
-    protected String getBackwardNote(final ObjectId oldCommitId, @SuppressWarnings("unused") final Context c) {
-        return config.isAddingBackwardNotes ? oldCommitId.name() : null;
+    protected String getNote(final ObjectId oldCommitId, @SuppressWarnings("unused") final Context c) {
+        return config.isAddingNotes ? oldCommitId.name() : null;
     }
 
     /**
