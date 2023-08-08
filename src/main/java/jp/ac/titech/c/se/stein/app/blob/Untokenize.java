@@ -29,7 +29,7 @@ public class Untokenize implements BlobTranslator {
 
     @Override
     public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
-        if (!filter.accept(new File(entry.getName()))) {
+        if (!filter.accept(entry)) {
             return entry;
         }
         final String text = SourceText.of(entry.getBlob()).getContent();

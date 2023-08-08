@@ -29,12 +29,12 @@ public class ConvertHttp implements BlobTranslator {
 
     @Override
     public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
-        if (filter.accept(new File(entry.getName()))) {
-            final byte[] blob = entry.getBlob();
-            final byte[] converted = convert(entry.getName(), blob, c);
-            return entry.update(converted);
+        if (!filter.accept(entry)) {
+            return entry;
         }
-        return entry;
+        final byte[] blob = entry.getBlob();
+        final byte[] converted = convert(entry.getName(), blob, c);
+        return entry.update(converted);
     }
 
     protected byte[] convert(final String filename, final byte[] content, final Context c) {

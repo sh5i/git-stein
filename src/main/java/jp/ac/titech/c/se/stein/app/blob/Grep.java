@@ -21,11 +21,10 @@ public class Grep implements BlobTranslator {
 
     @Override
     public HotEntry rewriteBlobEntry(final HotEntry.SingleHotEntry entry, final Context c) {
-        if (filter.accept(new File(entry.getName()))) {
-            return entry;
-        } else {
+        if (!filter.accept(entry)) {
             log.debug("remove {}: filename unaccepted {}", entry, c);
             return HotEntry.empty();
         }
+        return entry;
     }
 }

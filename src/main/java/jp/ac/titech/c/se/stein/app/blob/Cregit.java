@@ -62,7 +62,7 @@ public class Cregit implements BlobTranslator {
 
     @Override
     public HotEntry rewriteBlobEntry(HotEntry.SingleHotEntry entry, Context c) {
-        if (!filter.accept(new File(entry.getName()))) {
+        if (!filter.accept(entry)) {
             return entry;
         }
         final String[] cmd = { srcml, "--language", language };

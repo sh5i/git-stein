@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.rewriter;
 
+import jp.ac.titech.c.se.stein.core.HotEntry;
 import lombok.Getter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,13 @@ public class NameFilter implements FileFilter {
 
     public boolean isDefault() {
         return filter instanceof TrueFileFilter;
+    }
+
+    public boolean accept(final HotEntry.SingleHotEntry entry) {
+        return filter.accept(new File(entry.getName()));
+    }
+    public boolean accept(final String pathname) {
+        return filter.accept(new File(pathname));
     }
 
     @Override
