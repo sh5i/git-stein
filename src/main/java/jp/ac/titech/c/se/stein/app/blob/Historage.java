@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
+import jp.ac.titech.c.se.stein.rewriter.NameFilter;
+import jp.ac.titech.c.se.stein.util.HashUtils;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import jp.ac.titech.c.se.stein.util.TemporaryFile;
 import lombok.Getter;
@@ -12,6 +14,7 @@ import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.Mixin;
 
 import javax.annotation.Nonnull;
 import java.io.*;
@@ -19,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A Historage generator using universal-ctags.
@@ -30,11 +34,30 @@ public class Historage implements BlobTranslator {
     @Option(names = "--ctags", description = "ctags command used")
     protected String ctags = "ctags";
 
-    @Option(names = "--no-original", negatable = true, description = "Exclude original files")
+    @Option(names = "--no-original", negatable = true, description = "exclude original files")
     protected boolean requiresOriginals = true;
+
+    @Option(names = "--no-original-ext", negatable = true, description = "disuse original file extension")
+    protected boolean requiresOriginalExtension = true;
+
+    @Option(names = "--no-sig", negatable = true, description = "stop using signature")
+    protected boolean useSignature = true;
+
+    @Option(names = "--no-digest-sig", negatable = true, description = "stop digesting signature")
+    protected boolean digestSignature = true;
+
+    @Mixin
+    private final NameFilter filter = new NameFilter();
+
+    @Option(names = "--module", paramLabel = "<kind,...>", description = "specify module kinds to include",
+            arity = "0..*", split = ",")
+    protected Set<String> moduleKinds;
 
     @Override
     public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+        if (!filter.accept(entry)) {
+            return entry;
+        }
         final HotEntry.Set result = HotEntry.set();
         if (requiresOriginals) {
             result.add(entry);
@@ -63,10 +86,7 @@ public class Historage implements BlobTranslator {
 
         private final Context c;
 
-        private final Gson gson = new Gson();
-        private final TypeToken<LanguageObject> token = new TypeToken<>() {};
-
-        public Collection<HotEntry.Single> generate() throws IOException {
+        public List<HotEntry.Single> generate() throws IOException {
             try (final TemporaryFile tmp = new TemporaryFile("_stein", "." + entry.getName())) {
                 try (final FileOutputStream out = new FileOutputStream(tmp.getPath().toFile())) {
                     out.write(text.getRaw());
@@ -77,19 +97,39 @@ public class Historage implements BlobTranslator {
 
         protected List<HotEntry.Single> extractModules(final Path path) throws IOException {
             final List<LanguageObject> los = runCtags(path);
-            if (!los.isEmpty()) {
-                text.prepareLineOffsets();
-            }
-            return los.stream().sorted()
+            resolveNameConflicts(los);
+            return los.stream()
                     .map(lo -> HotEntry.of(entry.getMode(), generateName(lo), generateContent(lo)))
                     .collect(Collectors.toList());
         }
 
+        /**
+         * Similar to RepositoryAccess#resolveNameConflicts, but a bit simpler.
+         */
+        protected void resolveNameConflicts(final List<LanguageObject> los) {
+            final Map<String, Integer> counter = new HashMap<>();
+            for (final LanguageObject lo : los) {
+                final String name = lo.generateFileName();
+                if (counter.containsKey(name)) {
+                    lo.index = counter.get(name) + 1;
+                    counter.put(name, lo.index);
+                } else {
+                    counter.put(name, 1);
+                }
+            }
+        }
+
         protected String generateName(final LanguageObject lo) {
-            final String scope = lo.scope != null ? "[" + lo.scope + "]" : "";
-            //final String signature = m.signature != null ? "(~" + digest(m.signature, 4) + ")" : "";
-            final String signature = "";
-            return (entry.getName() + "!" + scope + lo.name + signature + "." + lo.kind).replace('/', '%');
+            final String moduleName = lo.generateFileName();
+            if (requiresOriginalExtension) {
+                final String name = entry.getName();
+                final int index = name.lastIndexOf('.');
+                final String basename = index > 0 ? name.substring(0, index) : name;
+                final String ext = index > 0 ? name.substring(index) : "";
+                return basename + "!" + moduleName + ext;
+            } else {
+                return entry.getName() + "!" + moduleName;
+            }
         }
 
         protected byte[] generateContent(final LanguageObject lo) {
@@ -99,16 +139,14 @@ public class Historage implements BlobTranslator {
         protected List<LanguageObject> runCtags(final Path inputPath) throws IOException {
             final String[] cmd = { ctags, "--output-format=json", "--fields=NnesKS", "-o", "-", inputPath.toString() };
             try (final ProcessRunner proc = new ProcessRunner(cmd, c)) {
-                return proc.getResult().lines().map(this::load).filter(this::isValid).collect(Collectors.toList());
+                Stream<LanguageObject> result = proc.getResult().lines()
+                        .map(LanguageObject::parse)
+                        .filter(LanguageObject::isValid);
+                if (moduleKinds != null) {
+                    result = result.filter(lo -> moduleKinds.contains(lo.kind));
+                }
+                return result.sorted().collect(Collectors.toList());
             }
-        }
-
-        private LanguageObject load(final String line) {
-            return gson.fromJson(line, token.getType());
-        }
-
-        private boolean isValid(final LanguageObject lo) {
-            return lo.name != null && lo.line != 0 && lo.end != 0;
         }
     }
 
@@ -117,19 +155,50 @@ public class Historage implements BlobTranslator {
      */
     @ToString
     public static class LanguageObject implements Comparable<LanguageObject> {
+        protected static final Gson GSON = new Gson();
+        protected static final TypeToken<LanguageObject> TYPE_TOKEN = new TypeToken<>() {};
+
         @Getter
         protected String name, kind, signature, scope;
 
         @Getter
         protected int line, end;
 
+        @Getter
+        protected int index = 1;
+
+        public static LanguageObject parse(final String source) {
+            return GSON.fromJson(source, TYPE_TOKEN.getType());
+        }
+
+        public boolean isValid() {
+            return name != null && line != 0 && end != 0;
+        }
+
+        public String generateFileName() {
+            final StringBuilder sb = new StringBuilder();
+            if (scope != null) {
+                sb.append(scope.replace('/', '%')).append("$");
+            }
+            sb.append(name);
+            if (signature != null) {
+                sb.append("(~").append(HashUtils.digest(signature, 4)).append(")");
+            }
+            if (index >= 2) {
+                sb.append("@").append(index);
+            }
+            sb.append(".").append(kind.replace('/', '%'));
+            return sb.toString();
+        }
+
         public static final Comparator<LanguageObject> COMPARATOR = Comparator
-                .comparing(LanguageObject::getLine)
+                .comparingInt(LanguageObject::getLine)
                 .thenComparing(LanguageObject::getEnd, Comparator.reverseOrder())
                 .thenComparing(LanguageObject::getScope, Comparator.nullsFirst(Comparator.naturalOrder()))
                 .thenComparing(LanguageObject::getKind, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(LanguageObject::getName, Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparing(LanguageObject::getSignature, Comparator.nullsLast(Comparator.naturalOrder()));
+                .thenComparing(LanguageObject::getSignature, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(LanguageObject::getIndex);
 
         @Override
         public int compareTo(@Nonnull final LanguageObject other) {

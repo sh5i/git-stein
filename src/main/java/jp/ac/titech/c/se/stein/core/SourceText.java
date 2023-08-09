@@ -56,9 +56,11 @@ public class SourceText {
         return text.replaceAll("\r\n?", "\n");
     }
 
-    public void prepareLineOffsets() {
-        final Matcher matcher = LINE_BREAK.matcher(content);
-        this.lineOffsets = IntStream.concat(IntStream.of(0), matcher.results().mapToInt(m -> m.start() + 1)).toArray();
+    protected void prepareLineOffsets() {
+        if (this.lineOffsets == null) {
+            final Matcher matcher = LINE_BREAK.matcher(content);
+            this.lineOffsets = IntStream.concat(IntStream.of(0), matcher.results().mapToInt(m -> m.start() + 1)).toArray();
+        }
     }
 
     public Fragment getFragment(final int beginIndex, final int endIndex) {
@@ -66,6 +68,7 @@ public class SourceText {
     }
 
     public Fragment getFragmentOfLines(final int beginLine, final int endLine) {
+        prepareLineOffsets();
         int beginIndex = lineOffsets[beginLine - 1];
         int endIndex = endLine < lineOffsets.length ? lineOffsets[endLine] : content.length();
         return new Fragment(beginIndex, endIndex, beginIndex, endIndex);
