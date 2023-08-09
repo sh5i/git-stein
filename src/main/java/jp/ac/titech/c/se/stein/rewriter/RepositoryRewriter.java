@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.concurrent.*;
 
 import jp.ac.titech.c.se.stein.core.*;
+import jp.ac.titech.c.se.stein.entry.HotEntry;
 import lombok.Setter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -29,7 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application.Config;
 import jp.ac.titech.c.se.stein.core.Context.Key;
-import jp.ac.titech.c.se.stein.core.ColdEntry;
+import jp.ac.titech.c.se.stein.entry.ColdEntry;
 
 public class RepositoryRewriter implements RewriterCommand {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);

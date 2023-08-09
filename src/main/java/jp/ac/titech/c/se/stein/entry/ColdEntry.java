@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein.core;
+package jp.ac.titech.c.se.stein.entry;
 
 import java.io.Serializable;
 import java.util.ArrayList;

@@ -1,5 +1,7 @@
-package jp.ac.titech.c.se.stein.core;
+package jp.ac.titech.c.se.stein.entry;
 
+import jp.ac.titech.c.se.stein.core.Context;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

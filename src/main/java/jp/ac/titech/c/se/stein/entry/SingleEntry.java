@@ -1,10 +1,10 @@
-package jp.ac.titech.c.se.stein.core;
+package jp.ac.titech.c.se.stein.entry;
 
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 
 /**
- * Abstract tree entry.
+ * Abstract single tree entry.
  */
 public interface SingleEntry extends Comparable<SingleEntry> {
     enum Type {

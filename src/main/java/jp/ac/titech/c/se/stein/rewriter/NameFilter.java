@@ -1,6 +1,6 @@
 package jp.ac.titech.c.se.stein.rewriter;
 
-import jp.ac.titech.c.se.stein.core.HotEntry;
+import jp.ac.titech.c.se.stein.entry.HotEntry;
 import lombok.Getter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;

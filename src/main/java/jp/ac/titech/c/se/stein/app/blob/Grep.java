@@ -1,6 +1,6 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
-import jp.ac.titech.c.se.stein.core.HotEntry;
+import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import lombok.ToString;

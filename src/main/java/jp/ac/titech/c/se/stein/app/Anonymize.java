@@ -3,14 +3,14 @@ package jp.ac.titech.c.se.stein.app;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import jp.ac.titech.c.se.stein.core.HotEntry;
+import jp.ac.titech.c.se.stein.entry.HotEntry;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.util.sha1.SHA1;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.ColdEntry;
+import jp.ac.titech.c.se.stein.entry.ColdEntry;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import picocli.CommandLine.Command;
 

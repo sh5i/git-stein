@@ -2,7 +2,7 @@ package jp.ac.titech.c.se.stein.app.blob;
 
 import java.nio.charset.StandardCharsets;
 
-import jp.ac.titech.c.se.stein.core.HotEntry;
+import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import lombok.ToString;

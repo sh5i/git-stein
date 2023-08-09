@@ -9,7 +9,7 @@ import com.j256.ormlite.logger.Slf4jLoggingLogBackend;
 import com.j256.ormlite.misc.TransactionManager;
 import com.j256.ormlite.table.DatabaseTable;
 import com.j256.ormlite.table.TableUtils;
-import jp.ac.titech.c.se.stein.core.ColdEntry;
+import jp.ac.titech.c.se.stein.entry.ColdEntry;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.slf4j.Logger;
