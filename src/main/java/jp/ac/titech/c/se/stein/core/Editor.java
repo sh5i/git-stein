@@ -9,6 +9,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import jp.ac.titech.c.se.stein.entry.ColdEntry;
+import jp.ac.titech.c.se.stein.entry.Entry;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -78,12 +79,12 @@ public class Editor {
     }
 
     public class TreeNode extends Node {
-        protected final Map<String, ColdEntry.Single> entries = new HashMap<>();
+        protected final Map<String, Entry> entries = new HashMap<>();
 
         public TreeNode(final ObjectId id) {
             super(id);
             if (id != null) {
-                for (final ColdEntry.Single e : ra.readTree(id, null)) {
+                for (final Entry e : ra.readTree(id, null)) {
                     entries.put(e.name, e);
                 }
             }
@@ -115,7 +116,7 @@ public class Editor {
         }
 
         protected BlobNode getBlob(final String name, final boolean create) {
-            ColdEntry.Single e = entries.get(name);
+            Entry e = entries.get(name);
             if (e == null) {
                 if (!create) {
                     throw new IllegalStateException("No entry");
@@ -136,7 +137,7 @@ public class Editor {
         }
 
         protected TreeNode getTree(final String name, final boolean create) {
-            ColdEntry.Single e = entries.get(name);
+            Entry e = entries.get(name);
             if (e == null) {
                 if (!create) {
                     throw new IllegalStateException("No entry");

@@ -9,7 +9,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import jp.ac.titech.c.se.stein.entry.ColdEntry;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -208,8 +207,8 @@ public class Context implements Map<Context.Key, Object> {
     /**
      * Returns the entry object in the context.
      */
-    public ColdEntry.Single getEntry() {
-        return (ColdEntry.Single) get(Key.entry);
+    public jp.ac.titech.c.se.stein.entry.Entry getEntry() {
+        return (jp.ac.titech.c.se.stein.entry.Entry) get(Key.entry);
     }
 
     /**

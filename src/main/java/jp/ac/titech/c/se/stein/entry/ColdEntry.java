@@ -9,14 +9,13 @@ import java.util.stream.Stream;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import org.eclipse.jgit.lib.ObjectId;
 
 /**
  * Abstract tree entry.
  */
 public interface ColdEntry extends Serializable {
-    Stream<Single> stream();
+    Stream<Entry> stream();
 
     int size();
 
@@ -24,59 +23,20 @@ public interface ColdEntry extends Serializable {
         return size() == 1 ? ((Set) this).getEntries().get(0) : this;
     }
 
-    static Single of(int mode, String name, ObjectId id) {
-        return new Single(mode, name, id, null);
+    static Entry of(int mode, String name, ObjectId id) {
+        return new Entry(mode, name, id, null);
     }
 
-    static Single of(int mode, String name, ObjectId id, String directory) {
-        return new Single(mode, name, id, directory);
+    static Entry of(int mode, String name, ObjectId id, String directory) {
+        return new Entry(mode, name, id, directory);
     }
 
-    static Set of(Collection<Single> entries) {
+    static Set of(Collection<Entry> entries) {
         return new Set(entries);
     }
 
     static Empty empty() {
         return new Empty();
-    }
-
-    /**
-     * A normal tree entry.
-     */
-    @RequiredArgsConstructor
-    @EqualsAndHashCode
-    class Single implements ColdEntry, SingleEntry {
-        private static final long serialVersionUID = 1L;
-
-        @Getter
-        public final int mode;
-
-        @Getter
-        public final String name;
-
-        @Getter
-        public final ObjectId id;
-
-        @Getter
-        public final String directory;
-
-        @EqualsAndHashCode.Exclude
-        public transient Object data;
-
-        @Override
-        public String toString() {
-            return String.format("<Entry:%o %s %s>", mode, getPath(), id.name());
-        }
-
-        @Override
-        public Stream<Single> stream() {
-            return Stream.of(this);
-        }
-
-        @Override
-        public int size() {
-            return 1;
-        }
     }
 
     /**
@@ -88,18 +48,18 @@ public interface ColdEntry extends Serializable {
         private static final long serialVersionUID = 1L;
 
         @Getter
-        private final List<Single> entries = new ArrayList<>();
+        private final List<Entry> entries = new ArrayList<>();
 
-        public Set(Collection<Single> entries) {
+        public Set(Collection<Entry> entries) {
             this.entries.addAll(entries);
         }
 
-        public void add(final Single entry) {
+        public void add(final Entry entry) {
             entries.add(entry);
         }
 
         @Override
-        public Stream<Single> stream() {
+        public Stream<Entry> stream() {
             return entries.stream();
         }
 
@@ -123,7 +83,7 @@ public interface ColdEntry extends Serializable {
         private Empty() {}
 
         @Override
-        public Stream<Single> stream() {
+        public Stream<Entry> stream() {
             return Stream.empty();
         }
 

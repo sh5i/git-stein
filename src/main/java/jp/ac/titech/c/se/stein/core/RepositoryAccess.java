@@ -5,6 +5,7 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import jp.ac.titech.c.se.stein.entry.Entry;
 import lombok.Getter;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.CommitBuilder;
@@ -30,7 +31,6 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jp.ac.titech.c.se.stein.entry.ColdEntry;
 import jp.ac.titech.c.se.stein.core.Try.IOThrowableFunction;
 
 public class RepositoryAccess {
@@ -130,14 +130,14 @@ public class RepositoryAccess {
     /**
      * Reads a tree object.
      */
-    public List<ColdEntry.Single> readTree(final ObjectId treeId, final String path) {
-        final List<ColdEntry.Single> result = new ArrayList<>();
+    public List<Entry> readTree(final ObjectId treeId, final String path) {
+        final List<Entry> result = new ArrayList<>();
         Try.io(() -> {
             try (final TreeWalk walk = new TreeWalk(repo)) {
                 walk.addTree(treeId);
                 walk.setRecursive(false);
                 while (walk.next()) {
-                    result.add(new ColdEntry.Single(walk.getFileMode().getBits(), walk.getNameString(), walk.getObjectId(0), path));
+                    result.add(new Entry(walk.getFileMode().getBits(), walk.getNameString(), walk.getObjectId(0), path));
                 }
             }
         });
@@ -147,10 +147,10 @@ public class RepositoryAccess {
     /**
      * Writes tree entries to a tree object.
      */
-    public ObjectId writeTree(final Collection<ColdEntry.Single> entries, final Context writingContext) {
+    public ObjectId writeTree(final Collection<Entry> entries, final Context writingContext) {
         final TreeFormatter f = new TreeFormatter();
         resolveNameConflicts(entries).stream()
-                .sorted(Comparator.comparing(ColdEntry.Single::sortKey))
+                .sorted(Comparator.comparing(Entry::sortKey))
                 .forEach(e -> f.append(e.name, FileMode.fromBits(e.mode), e.id));
         return insert(ins -> isDryRunning ? ins.idFor(f) : ins.insert(f), writingContext);
     }
@@ -158,10 +158,10 @@ public class RepositoryAccess {
     /**
      * Resolve name conflicts.
      */
-    public List<ColdEntry.Single> resolveNameConflicts(final Collection<ColdEntry.Single> entries) {
+    public List<Entry> resolveNameConflicts(final Collection<Entry> entries) {
         final Map<String, Integer> counter = new HashMap<>();
-        final List<ColdEntry.Single> result = new ArrayList<>();
-        for (final ColdEntry.Single e : entries) {
+        final List<Entry> result = new ArrayList<>();
+        for (final Entry e : entries) {
             if (counter.containsKey(e.name)) {
                 // Find a possible filename with a number suffix
                 int suffix = counter.get(e.name) + 1;
@@ -170,7 +170,7 @@ public class RepositoryAccess {
                     suffix++;
                 }
                 log.debug("Entry occurred twice: {}, used {}@{} for {} instead", e.getPath(), e.name, suffix, e.id.name());
-                final ColdEntry.Single newEntry = new ColdEntry.Single(e.mode, e.name + "@" + suffix, e.id, e.directory);
+                final Entry newEntry = new Entry(e.mode, e.name + "@" + suffix, e.id, e.directory);
                 counter.put(e.name, suffix);
                 counter.put(newEntry.name, 1);
                 result.add(newEntry);

@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.app;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +11,6 @@ import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.util.sha1.SHA1;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.entry.ColdEntry;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import picocli.CommandLine.Command;
 
@@ -79,7 +79,7 @@ public class Anonymize extends RepositoryRewriter {
 
     @Override
     public String rewriteName(final String name, final Context c) {
-        final ColdEntry.Single entry = c.getEntry();
+        final Entry entry = c.getEntry();
         if (entry.isTree()) {
             return treeNameMap.convert(name);
         }

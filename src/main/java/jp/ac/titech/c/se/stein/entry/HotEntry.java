@@ -31,11 +31,11 @@ public interface HotEntry {
 
     ColdEntry fold(RepositoryAccess target, Context c);
 
-    static SourceBlob of(ColdEntry.Single e, RepositoryAccess source) {
+    static SourceBlob of(Entry e, RepositoryAccess source) {
         return new SourceBlob(e, source);
     }
 
-    static NewBlob of(ColdEntry.Single e, byte[] updatedBlob) {
+    static NewBlob of(Entry e, byte[] updatedBlob) {
         return new NewBlob(e.getMode(), e.getName(), updatedBlob, e.getDirectory());
     }
 
@@ -75,7 +75,7 @@ public interface HotEntry {
         }
 
         @Override
-        public ColdEntry.Single fold(RepositoryAccess target, Context c) {
+        public Entry fold(RepositoryAccess target, Context c) {
             return ColdEntry.of(getMode(), getName(), target.writeBlob(getBlob(), c), getDirectory());
         }
 
@@ -94,7 +94,7 @@ public interface HotEntry {
     @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
     class SourceBlob extends Single {
         @Delegate(types = SingleEntry.class)
-        private final ColdEntry.Single entry;
+        private final Entry entry;
 
         private final RepositoryAccess source;
 

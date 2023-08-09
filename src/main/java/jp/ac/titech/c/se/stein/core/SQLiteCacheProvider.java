@@ -10,6 +10,7 @@ import com.j256.ormlite.misc.TransactionManager;
 import com.j256.ormlite.table.DatabaseTable;
 import com.j256.ormlite.table.TableUtils;
 import jp.ac.titech.c.se.stein.entry.ColdEntry;
+import jp.ac.titech.c.se.stein.entry.Entry;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.slf4j.Logger;
@@ -102,8 +103,8 @@ public class SQLiteCacheProvider {
         return new MapAdapter<>(commitDao, CommitRow::new, m, m);
     }
 
-    public Map<ColdEntry.Single, ColdEntry> getEntryMapping() {
-        final Marshaler<ColdEntry.Single> km = new Marshaler.JavaSerializerMarshaler<>();
+    public Map<Entry, ColdEntry> getEntryMapping() {
+        final Marshaler<Entry> km = new Marshaler.JavaSerializerMarshaler<>();
         final Marshaler<ColdEntry> vm = new Marshaler.JavaSerializerMarshaler<>();
         return new MapAdapter<>(entryDao, EntryRow::new, km, vm);
     }
