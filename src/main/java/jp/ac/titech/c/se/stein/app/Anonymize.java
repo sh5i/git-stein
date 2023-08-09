@@ -14,11 +14,38 @@ import org.eclipse.jgit.util.sha1.SHA1;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Slf4j
 @ToString
 @Command(name = "@anonymize", description = "Anonymize filenames and contents")
 public class Anonymize extends RepositoryRewriter {
+
+    @Option(names = "--no-tree", negatable = true, description = "anonymize tree name")
+    protected boolean isTreeNameEnabled = true;
+
+    @Option(names = "--no-blob", negatable = true, description = "anonymize blob name")
+    protected boolean isBlobNameEnabled = true;
+
+    @Option(names = "--no-content", negatable = true, description = "anonymize blob content")
+    protected boolean isBlobContentEnabled = true;
+
+    @Option(names = "--no-message", negatable = true, description = "anonymize commit/tag message")
+    protected boolean isMessageEnabled = true;
+
+    @Option(names = "--no-branch", negatable = true, description = "anonymize branch name")
+    protected boolean isBranchNameEnabled = true;
+
+    @Option(names = "--no-tag", negatable = true, description = "anonymize tag name")
+    protected boolean isTagNameEnabled = true;
+
+    @Option(names = "--no-author", negatable = true, description = "anonymize author name")
+    protected boolean isAuthorNameEnabled = true;
+
+    @Option(names = "--no-email", negatable = true, description = "anonymize author email")
+    protected boolean isAuthorEmailEnabled = true;
+
+
     public static class NameMap {
         private final Map<String, String> cache = new ConcurrentHashMap<>();
 
@@ -68,21 +95,25 @@ public class Anonymize extends RepositoryRewriter {
 
     @Override
     public String rewriteMessage(final String message, final Context c) {
-        return hash7(message);
+        return isMessageEnabled ? hash7(message) : message;
     }
 
     @Override
-    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
-        return entry
-                .update(entry.getId().name().getBytes())
-                .rename(blobNameMap.convert(entry.getName()));
+    public AnyHotEntry rewriteBlobEntry(HotEntry entry, final Context c) {
+        if (isBlobContentEnabled) {
+            entry = entry.update(entry.getId().name().getBytes());
+        }
+        if (isBlobNameEnabled) {
+            entry = entry.rename(blobNameMap.convert(entry.getName()));
+        }
+        return entry;
     }
 
     @Override
     public String rewriteName(final String name, final Context c) {
         final Entry entry = c.getEntry();
         if (entry.isTree()) {
-            return treeNameMap.convert(name);
+            return isTreeNameEnabled ? treeNameMap.convert(name) : name;
         }
         return name;
     }
@@ -92,22 +123,22 @@ public class Anonymize extends RepositoryRewriter {
         if (person == null) {
             return null;
         }
-        final String name = personNameMap.convert(person.getName());
-        final String address = hash7(person.getEmailAddress());
+        final String name = isAuthorNameEnabled ? personNameMap.convert(person.getName()) : person.getName();
+        final String address = isAuthorEmailEnabled ? hash7(person.getEmailAddress()) : person.getEmailAddress();
         return new PersonIdent(name, address, person.getWhen(), person.getTimeZone());
     }
 
     @Override
     public String rewriteBranchName(final String name, final Context c) {
-        if (name.equals("master")) {
+        if (name.equals("master") || name.equals("main")) {
             return name;
         } else {
-            return branchNameMap.convert(name);
+            return isBranchNameEnabled ? branchNameMap.convert(name) : name;
         }
     }
 
     @Override
     public String rewriteTagName(final String name, final Context c) {
-        return tagNameMap.convert(name);
+        return isTagNameEnabled ? tagNameMap.convert(name) : name;
     }
 }
