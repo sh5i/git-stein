@@ -139,7 +139,7 @@ public class Historage implements BlobTranslator {
         protected List<LanguageObject> runCtags(final Path inputPath) throws IOException {
             final String[] cmd = { ctags, "--output-format=json", "--fields=NnesKS", "-o", "-", inputPath.toString() };
             try (final ProcessRunner proc = new ProcessRunner(cmd, c)) {
-                Stream<LanguageObject> result = proc.getResult().lines()
+                Stream<LanguageObject> result = proc.getResultReader().lines()
                         .map(LanguageObject::parse)
                         .filter(LanguageObject::isValid);
                 if (moduleKinds != null) {

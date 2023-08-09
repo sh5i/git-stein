@@ -94,7 +94,7 @@ public class Cregit implements BlobTranslator {
 
         final String[] cmd = { srcml, "--language", lang };
         try (final ProcessRunner proc = new ProcessRunner(cmd, entry.getBlob(), c)) {
-            final InputSource input = new InputSource(proc.getResult());
+            final InputSource input = new InputSource(new ByteArrayInputStream(proc.getResult()));
             final SAXParser parser = SAXParserFactory.newInstance().newSAXParser();
             final Handler handler = new Handler();
             parser.parse(input, handler);

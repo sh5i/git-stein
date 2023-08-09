@@ -4,17 +4,14 @@ import jp.ac.titech.c.se.stein.core.Context;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 
 @Slf4j
 public class ProcessRunner implements AutoCloseable {
     @Getter
     private final Process proc;
 
-    @Getter
-    private final BufferedReader result;
+    private BufferedReader reader;
 
     private final Context c;
 
@@ -23,7 +20,6 @@ public class ProcessRunner implements AutoCloseable {
                 .command(cmdline)
                 .redirectError(ProcessBuilder.Redirect.INHERIT)
                 .start();
-        this.result = new BufferedReader(new InputStreamReader(proc.getInputStream()));
         this.c = c;
     }
 
@@ -33,10 +29,23 @@ public class ProcessRunner implements AutoCloseable {
                 .redirectError(ProcessBuilder.Redirect.INHERIT)
                 .start();
         // FIXME: does not work if the target command blocks
-        proc.getOutputStream().write(input);
-        proc.getOutputStream().close();
-        this.result = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+        try (final OutputStream out = proc.getOutputStream()) {
+            out.write(input);
+        }
         this.c = c;
+    }
+
+    public BufferedReader getResultReader() {
+        reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+        return reader;
+    }
+
+    public byte[] getResult() {
+        try (final InputStream in = proc.getInputStream()) {
+            return in.readAllBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -44,6 +53,8 @@ public class ProcessRunner implements AutoCloseable {
         try (final BufferedReader err = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
             err.lines().forEach(line -> log.warn("stderr: {} {}", line, c));
         }
-        result.close();
+        if (reader != null) {
+            reader.close();
+        }
     }
 }
