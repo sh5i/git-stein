@@ -67,7 +67,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         }
 
         @SuppressWarnings("unused")
-        @Option(names = { "-p", "--parallel" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = MIDDLE,
+        @Option(names = { "-j", "--jobs" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = MIDDLE,
                 fallbackValue = "0")
         void setNumberOfThreads(final int nthreads) {
             this.nthreads = nthreads;
@@ -246,6 +246,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     public int execute(final ParseResult parseResult) throws ExecutionException, ParameterException {
         setLoggerLevel(Logger.ROOT_LOGGER_NAME, conf.logLevel);
 
+        // help
         if (parseResult.subcommands().size() >= 2) {
             final Object cmd = parseResult.subcommands().get(0).commandSpec().userObject();
             if (cmd instanceof SettableHelpCommand) {
