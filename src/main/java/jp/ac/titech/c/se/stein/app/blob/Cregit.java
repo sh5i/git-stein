@@ -28,6 +28,19 @@ import java.util.*;
 public class Cregit implements BlobTranslator {
     public static final String CREGIT_VERSION = "0.0.1";
 
+    /**
+     * Defined based on <a href="https://github.com/srcML/srcML/blob/master/src/libsrcml/language_extension_registry.cpp">srcML extension list</a>
+     */
+    public static final String[] JAVA_EXT = {"*.java", "*.aj", "*.mjava", "*.fjava", "*.cjava"}; // @historage-jdt extensions added
+    public static final String[] C_EXT = {"*.c", "*.h", "*.i"};
+    public static final String[] CXX_EXT = {"*.cpp", "*.CPP", "*.cp", "*.hpp", "*.cxx", "*.hxx", "*.cc", "*.hh", "*.c++", "*.h++", "*.C", "*.H", "*.tcc", "*.ii"};
+    public static final String[] CSHARP_EXT = {"*.cs"};
+
+    public static final NameFilter JAVA_FILTER = new NameFilter(false, JAVA_EXT);
+    public static final NameFilter C_FILTER = new NameFilter(false, C_EXT);
+    public static final NameFilter CXX_FILTER = new NameFilter(false, CXX_EXT);
+    public static final NameFilter CSHARP_FILTER = new NameFilter(false, CSHARP_EXT);
+
     @Option(names = "--srcml", description = "srcml command path")
     protected String srcml = "srcml";
 
@@ -35,37 +48,47 @@ public class Cregit implements BlobTranslator {
     private final NameFilter filter = new NameFilter();
 
     @SuppressWarnings("unused")
-    @Option(names = {"-l", "--lang"}, description = "target language: either of 'C', 'C++', 'C#', 'Java'",
-            required = true)
+    @Option(names = {"-l", "--lang"}, description = "target language: either of 'C', 'C++', 'C#', 'Java'")
     protected void setLanguage(final String language) {
         this.language = language;
         if (filter.isDefault()) {
             switch (language) {
                 case "C":
-                    filter.setPatterns("*.c", "*.h");
+                    filter.setPatterns(C_EXT);
                     break;
                 case "C++":
-                    filter.setPatterns("*.cpp", "*.hpp", "*.cc", "*.hh", "*.cxx", "*.hxx", "*.c", "*.h");
+                    filter.setPatterns(CXX_EXT);
                     break;
                 case "C#":
-                    filter.setPatterns("*.cs");
+                    filter.setPatterns(CSHARP_EXT);
                     break;
                 case "Java":
-                    filter.setPatterns("*.java");
+                    filter.setPatterns(JAVA_EXT);
                     break;
                 default:
                     log.error("Unknown language: {}", language);
             }
         }
     }
-    protected String language = "Java";
+    protected String language;
 
     @Override
     public HotEntry rewriteBlobEntry(HotEntry.Single entry, Context c) {
         if (!filter.accept(entry)) {
             return entry;
         }
-        final String[] cmd = { srcml, "--language", language };
+
+        String lang = language;
+        if (lang == null) {
+            lang = guessLanguage(entry);
+            if (lang == null) {
+                return entry;
+            }
+        }
+
+        log.debug("Generate cregit module for {} as {} language {}", entry, lang, c);
+
+        final String[] cmd = { srcml, "--language", lang };
         try (final ProcessRunner proc = new ProcessRunner(cmd, entry.getBlob(), c)) {
             final InputSource input = new InputSource(proc.getResult());
             final SAXParser parser = SAXParserFactory.newInstance().newSAXParser();
@@ -76,6 +99,23 @@ public class Cregit implements BlobTranslator {
             log.error(e.getMessage(), e);
             return entry;
         }
+    }
+
+    protected String guessLanguage(HotEntry.Single entry) {
+        final File file = new File(entry.getName());
+        if (JAVA_FILTER.accept(file)) {
+            return "Java";
+        }
+        if (C_FILTER.accept(file)) {
+            return "C";
+        }
+        if (CXX_FILTER.accept(file)) {
+            return "C++";
+        }
+        if (CSHARP_FILTER.accept(file)) {
+            return "C#";
+        }
+        return null;
     }
 
     static class Handler extends DefaultHandler {
