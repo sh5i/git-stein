@@ -22,6 +22,10 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
+/**
+ * A cregit implementation.
+ * This is based on the <a href="https://github.com/dmgerman/tokenizers">cregit tokenizer</a>.
+ */
 @Slf4j
 @ToString
 @Command(name = "@cregit", description = "cregit format via srcML")
