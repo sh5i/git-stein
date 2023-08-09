@@ -14,6 +14,7 @@ import java.util.concurrent.*;
 
 import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import lombok.Setter;
 import org.eclipse.jgit.lib.Constants;
@@ -346,7 +347,7 @@ public class RepositoryRewriter implements RewriterCommand {
         }
     }
 
-    protected HotEntry rewriteBlobEntry(HotEntry.Single entry, Context c) {
+    protected AnyHotEntry rewriteBlobEntry(HotEntry entry, Context c) {
         return entry;
     }
 

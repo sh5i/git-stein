@@ -2,8 +2,9 @@ package jp.ac.titech.c.se.stein.app.blob;
 
 import java.nio.charset.StandardCharsets;
 
-import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +44,7 @@ public class TokenizeJDT implements BlobTranslator {
     }
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
         if (!entry.getName().toLowerCase().endsWith(".java")) {
             return entry;
         }

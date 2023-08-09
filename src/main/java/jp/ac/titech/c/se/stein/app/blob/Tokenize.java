@@ -1,8 +1,9 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import lombok.ToString;
 import picocli.CommandLine.Command;
@@ -30,7 +31,7 @@ public class Tokenize implements BlobTranslator {
     }
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
         final String text = SourceText.of(entry.getBlob()).getContent();
         final String converted = encode(text);
         final byte[] newBlob = converted.getBytes(StandardCharsets.UTF_8);

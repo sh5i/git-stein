@@ -4,6 +4,7 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
@@ -28,7 +29,7 @@ public class ConvertHttp implements BlobTranslator {
     private final NameFilter filter = new NameFilter();
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
         if (!filter.accept(entry)) {
             return entry;
         }

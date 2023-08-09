@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.core.Context;
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import lombok.ToString;
@@ -54,11 +55,11 @@ public class SizeFilter implements BlobTranslator {
     }
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
         final long size = entry.getBlobSize();
         if ((size >= maxSize) ^ invertMatch) {
             log.debug("remove {}: size ({}; {}B) {}exceeded {}", entry, FileUtils.byteCountToDisplaySize(size), size, invertMatch ? "not " : "", c);
-            return HotEntry.empty();
+            return AnyHotEntry.empty();
         }
         return entry;
     }

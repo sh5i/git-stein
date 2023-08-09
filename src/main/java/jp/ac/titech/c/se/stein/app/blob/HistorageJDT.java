@@ -4,9 +4,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
+import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.HashUtils;
@@ -75,11 +76,11 @@ public class HistorageJDT implements BlobTranslator {
     protected boolean parsable = false;
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
         if (!JAVA.accept(entry)) {
             return entry;
         }
-        final HotEntry.Set result = HotEntry.set();
+        final AnyHotEntry.Set result = AnyHotEntry.set();
         if (requiresOriginals) {
             result.add(entry);
         }

@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.app.blob;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import jp.ac.titech.c.se.stein.core.*;
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
@@ -55,19 +56,19 @@ public class Historage implements BlobTranslator {
     protected Set<String> moduleKinds;
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
         if (!filter.accept(entry)) {
             return entry;
         }
-        final HotEntry.Set result = HotEntry.set();
+        final AnyHotEntry.Set result = AnyHotEntry.set();
         if (requiresOriginals) {
             result.add(entry);
         }
         final SourceText text = SourceText.ofNormalized(entry.getBlob());
         try {
-            final Collection<? extends HotEntry.Single> entries = new CtagsRunner(entry, text, c).generate();
+            final Collection<? extends HotEntry> entries = new CtagsRunner(entry, text, c).generate();
             if (!entries.isEmpty()) {
-                for (final HotEntry.Single e : entries) {
+                for (final HotEntry e : entries) {
                     log.debug("Generate submodule: {} from {} {}", e.getName(), entry, c);
                     result.add(e);
                 }
@@ -81,13 +82,13 @@ public class Historage implements BlobTranslator {
 
     @RequiredArgsConstructor
     public class CtagsRunner {
-        private final HotEntry.Single entry;
+        private final HotEntry entry;
 
         private final SourceText text;
 
         private final Context c;
 
-        public List<HotEntry.Single> generate() throws IOException {
+        public List<HotEntry> generate() throws IOException {
             try (final TemporaryFile tmp = new TemporaryFile("_stein", "." + entry.getName())) {
                 try (final FileOutputStream out = new FileOutputStream(tmp.getPath().toFile())) {
                     out.write(text.getRaw());
@@ -96,7 +97,7 @@ public class Historage implements BlobTranslator {
             }
         }
 
-        protected List<HotEntry.Single> extractModules(final Path path) throws IOException {
+        protected List<HotEntry> extractModules(final Path path) throws IOException {
             final List<LanguageObject> los = runCtags(path);
             resolveNameConflicts(los);
             return los.stream()

@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.core.Context;
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
@@ -77,7 +78,7 @@ public class Cregit implements BlobTranslator {
     protected String language;
 
     @Override
-    public HotEntry rewriteBlobEntry(HotEntry.Single entry, Context c) {
+    public AnyHotEntry rewriteBlobEntry(HotEntry entry, Context c) {
         if (!filter.accept(entry)) {
             return entry;
         }
@@ -105,7 +106,7 @@ public class Cregit implements BlobTranslator {
         }
     }
 
-    protected String guessLanguage(HotEntry.Single entry) {
+    protected String guessLanguage(HotEntry entry) {
         final File file = new File(entry.getName());
         if (JAVA_FILTER.accept(file)) {
             return "Java";

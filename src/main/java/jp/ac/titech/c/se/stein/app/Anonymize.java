@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -71,7 +72,7 @@ public class Anonymize extends RepositoryRewriter {
     }
 
     @Override
-    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
         return entry
                 .update(entry.getId().name().getBytes())
                 .rename(blobNameMap.convert(entry.getName()));

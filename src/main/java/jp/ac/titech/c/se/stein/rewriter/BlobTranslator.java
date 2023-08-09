@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.rewriter;
 
 import jp.ac.titech.c.se.stein.core.*;
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import lombok.Getter;
 import lombok.ToString;
@@ -12,7 +13,7 @@ import java.util.stream.Stream;
 public interface BlobTranslator extends RepositoryRewriter.Factory {
     default void setUp(final Context c) {}
 
-    HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c);
+    AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c);
 
     default RepositoryRewriter create() {
         return new Single(this);
@@ -28,7 +29,7 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
         }
 
         @Override
-        public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+        public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
             return translator.rewriteBlobEntry(entry, c);
         }
     }
@@ -53,12 +54,12 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
         }
 
         @Override
-        public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
-            Stream<HotEntry.Single> stream = Stream.of(entry);
+        public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
+            Stream<HotEntry> stream = Stream.of(entry);
             for (BlobTranslator translator : translators) {
                 stream = stream.flatMap(e -> translator.rewriteBlobEntry(e, c).stream());
             }
-            return HotEntry.of(stream.collect(Collectors.toList()));
+            return AnyHotEntry.of(stream.collect(Collectors.toList()));
         }
     }
 }
