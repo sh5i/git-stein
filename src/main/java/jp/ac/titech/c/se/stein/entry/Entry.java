@@ -13,7 +13,7 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 @EqualsAndHashCode
 public
-class Entry implements ColdEntry, SingleEntry {
+class Entry implements AnyColdEntry, SingleEntry {
     private static final long serialVersionUID = 1L;
 
     @Getter

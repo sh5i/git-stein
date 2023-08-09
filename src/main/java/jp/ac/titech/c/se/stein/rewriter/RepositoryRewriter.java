@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application.Config;
 import jp.ac.titech.c.se.stein.core.Context.Key;
-import jp.ac.titech.c.se.stein.entry.ColdEntry;
+import jp.ac.titech.c.se.stein.entry.AnyColdEntry;
 
 public class RepositoryRewriter implements RewriterCommand {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
@@ -42,7 +42,7 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Entry-to-entries mapping.
      */
-    protected Map<Entry, ColdEntry> entryMapping = new HashMap<>();
+    protected Map<Entry, AnyColdEntry> entryMapping = new HashMap<>();
 
     /**
      * Commit-to-commit mapping.
@@ -94,7 +94,7 @@ public class RepositoryRewriter implements RewriterCommand {
             }
             if (config.cacheLevel.contains(CacheLevel.blob) || config.cacheLevel.contains(CacheLevel.tree)) {
                 log.info("Stored mapping (entry-mapping) is available");
-                Map<Entry, ColdEntry> storedEntryMapping = cacheProvider.getEntryMapping();
+                Map<Entry, AnyColdEntry> storedEntryMapping = cacheProvider.getEntryMapping();
                 if (!config.cacheLevel.contains(CacheLevel.tree)) {
                     log.info("Stored mapping (entry-mapping): blob-only filtering");
                     storedEntryMapping = Cache.Filter.apply(e -> !e.isTree(), storedEntryMapping);
@@ -308,8 +308,8 @@ public class RepositoryRewriter implements RewriterCommand {
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = new Entry(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
-        final ColdEntry newRoot = getEntry(root, c);
-        final ObjectId newId = newRoot instanceof ColdEntry.Empty ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
+        final AnyColdEntry newRoot = getEntry(root, c);
+        final ObjectId newId = newRoot instanceof AnyColdEntry.Empty ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
         log.debug("Rewrite root tree: {} -> {} {}", treeId.name(), newId.name(), c);
         return newId;
@@ -318,13 +318,13 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Obtains tree entries from a tree entry.
      */
-    protected ColdEntry getEntry(final Entry entry, final Context c) {
+    protected AnyColdEntry getEntry(final Entry entry, final Context c) {
         // computeIfAbsent is unsuitable because this may be invoked recursively
-        final ColdEntry cache = entryMapping.get(entry);
+        final AnyColdEntry cache = entryMapping.get(entry);
         if (cache != null) {
             return cache;
         }
-        final ColdEntry result = rewriteEntry(entry, c);
+        final AnyColdEntry result = rewriteEntry(entry, c);
         entryMapping.put(entry, result);
         return result;
     }
@@ -332,7 +332,7 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Rewrites a tree entry.
      */
-    protected ColdEntry rewriteEntry(final Entry entry, final Context c) {
+    protected AnyColdEntry rewriteEntry(final Entry entry, final Context c) {
         final Context uc = c.with(Key.entry, entry);
         switch (entry.getType()) {
             case BLOB:
@@ -351,16 +351,16 @@ public class RepositoryRewriter implements RewriterCommand {
         return entry;
     }
 
-    protected ColdEntry rewriteTreeEntry(Entry entry, Context c) {
+    protected AnyColdEntry rewriteTreeEntry(Entry entry, Context c) {
         final ObjectId newId = rewriteTree(entry.id, c);
         final String newName = rewriteName(entry.name, c);
-        return newId == ZERO ? ColdEntry.empty() : new Entry(entry.mode, newName, newId, entry.directory);
+        return newId == ZERO ? AnyColdEntry.empty() : new Entry(entry.mode, newName, newId, entry.directory);
     }
 
-    protected ColdEntry rewriteLinkEntry(Entry entry, Context c) {
+    protected AnyColdEntry rewriteLinkEntry(Entry entry, Context c) {
         final ObjectId newId = rewriteLink(entry.id, c);
         final String newName = rewriteName(entry.name, c);
-        return newId == ZERO ? ColdEntry.empty() : new Entry(entry.mode, newName, newId, entry.directory);
+        return newId == ZERO ? AnyColdEntry.empty() : new Entry(entry.mode, newName, newId, entry.directory);
     }
 
     /**
@@ -375,7 +375,7 @@ public class RepositoryRewriter implements RewriterCommand {
 
         final List<Entry> entries = new ArrayList<>();
         for (final Entry e : source.readTree(treeId, dir)) {
-            final ColdEntry rewritten = getEntry(e, uc);
+            final AnyColdEntry rewritten = getEntry(e, uc);
             rewritten.stream().forEach(entries::add);
         }
         final ObjectId newId = entries.isEmpty() ? ZERO : target.writeTree(entries, uc);

@@ -14,12 +14,12 @@ import org.eclipse.jgit.lib.ObjectId;
 /**
  * Abstract tree entry.
  */
-public interface ColdEntry extends Serializable {
+public interface AnyColdEntry extends Serializable {
     Stream<Entry> stream();
 
     int size();
 
-    default ColdEntry pack() {
+    default AnyColdEntry pack() {
         return size() == 1 ? ((Set) this).getEntries().get(0) : this;
     }
 
@@ -44,7 +44,7 @@ public interface ColdEntry extends Serializable {
      */
     @NoArgsConstructor
     @EqualsAndHashCode
-    class Set implements ColdEntry {
+    class Set implements AnyColdEntry {
         private static final long serialVersionUID = 1L;
 
         @Getter
@@ -77,7 +77,7 @@ public interface ColdEntry extends Serializable {
     /**
      * An empty set of hash entries.
      */
-    class Empty implements ColdEntry {
+    class Empty implements AnyColdEntry {
         private static final long serialVersionUID = 1L;
 
         private Empty() {}

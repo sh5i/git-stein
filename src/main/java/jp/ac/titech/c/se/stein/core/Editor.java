@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import jp.ac.titech.c.se.stein.entry.ColdEntry;
+import jp.ac.titech.c.se.stein.entry.AnyColdEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
@@ -121,7 +121,7 @@ public class Editor {
                 if (!create) {
                     throw new IllegalStateException("No entry");
                 }
-                e = ColdEntry.of(FileMode.REGULAR_FILE.getBits(), name, null);
+                e = AnyColdEntry.of(FileMode.REGULAR_FILE.getBits(), name, null);
                 entries.put(name, e);
             } else {
                 if (e.isTree()) {
@@ -142,7 +142,7 @@ public class Editor {
                 if (!create) {
                     throw new IllegalStateException("No entry");
                 }
-                e = ColdEntry.of(FileMode.TREE.getBits(), name, null);
+                e = AnyColdEntry.of(FileMode.TREE.getBits(), name, null);
                 entries.put(name, e);
             } else {
                 if (!e.isTree()) {

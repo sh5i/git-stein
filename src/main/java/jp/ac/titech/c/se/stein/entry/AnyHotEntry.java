@@ -21,7 +21,7 @@ public interface AnyHotEntry {
 
     int size();
 
-    ColdEntry fold(RepositoryAccess target, Context c);
+    AnyColdEntry fold(RepositoryAccess target, Context c);
 
     static Set of(Collection<HotEntry> entries) {
         return new Set(entries);
@@ -63,8 +63,8 @@ public interface AnyHotEntry {
         }
 
         @Override
-        public ColdEntry fold(RepositoryAccess target, Context c) {
-            return ColdEntry.of(stream()
+        public AnyColdEntry fold(RepositoryAccess target, Context c) {
+            return AnyColdEntry.of(stream()
                     .map(e -> e.fold(target, c))
                     .collect(Collectors.toList()))
                     .pack();
@@ -90,8 +90,8 @@ public interface AnyHotEntry {
         }
 
         @Override
-        public ColdEntry.Empty fold(RepositoryAccess target, Context c) {
-            return ColdEntry.empty();
+        public AnyColdEntry.Empty fold(RepositoryAccess target, Context c) {
+            return AnyColdEntry.empty();
         }
     }
 }

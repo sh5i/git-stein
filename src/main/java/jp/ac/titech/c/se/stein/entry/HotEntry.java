@@ -46,7 +46,7 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
 
     @Override
     public Entry fold(RepositoryAccess target, Context c) {
-        return ColdEntry.of(getMode(), getName(), target.writeBlob(getBlob(), c), getDirectory());
+        return AnyColdEntry.of(getMode(), getName(), target.writeBlob(getBlob(), c), getDirectory());
     }
 
     public NewBlob rename(final String newName) {
