@@ -85,7 +85,7 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
 
         @Override
         public String toString() {
-            return String.format("<SourceFileEntry:%o %s %s>", getMode(), getPath(), getId().name());
+            return String.format("<SE:%s %s %o>", getPath(), getPath(), getMode());
         }
     }
 
@@ -123,7 +123,7 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
 
         @Override
         public String toString() {
-            return String.format("<NewFileEntry:%o %s ...>", getMode(), getPath());
+            return String.format("<NE:%s (%d) %o>", getPath(), getBlobSize(), getMode());
         }
     }
 }
