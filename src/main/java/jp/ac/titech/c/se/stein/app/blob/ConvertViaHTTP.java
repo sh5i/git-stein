@@ -20,7 +20,7 @@ import picocli.CommandLine.Mixin;
 @Slf4j
 @ToString
 @Command(name = "@convert-http", description = "Convert files via external HTTP API")
-public class ConvertHttp implements BlobTranslator {
+public class ConvertViaHTTP implements BlobTranslator {
     @Option(names = "--endpoint", paramLabel = "<url>", description = "HTTP Web API endpoint",
             required = true)
     protected URL endpoint;

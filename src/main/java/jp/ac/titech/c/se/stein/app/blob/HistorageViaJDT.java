@@ -33,7 +33,7 @@ import picocli.CommandLine.Option;
 @Slf4j
 @ToString
 @Command(name = "@historage-jdt", description = "Generate finer-grained Java modules via JDT")
-public class HistorageJDT implements BlobTranslator {
+public class HistorageViaJDT implements BlobTranslator {
     public static final NameFilter JAVA = new NameFilter(true, "*.java");
 
     @Option(names = "--no-original", negatable = true, description = "Exclude original files")

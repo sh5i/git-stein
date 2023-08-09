@@ -16,7 +16,7 @@ import java.io.*;
 @Slf4j
 @ToString
 @Command(name = "@convert-cmd", description = "Convert files via command execution")
-public class ConvertCommand implements BlobTranslator {
+public class ConvertViaCommand implements BlobTranslator {
     @Option(names = "--cmd", split = " ", paramLabel = "<cmdline>", description = "Command with arguments",
             required = true)
     protected String[] cmdline;
