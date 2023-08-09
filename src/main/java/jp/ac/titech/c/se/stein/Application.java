@@ -96,8 +96,8 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @Option(names = "--bare", description = "treat that repos are bare")
         public boolean isBare = false;
 
-        @Option(names = "--pack", description = "pack objects")
-        public boolean isPackingEnabled = false;
+        @Option(names = "--no-pack", negatable = true, description = "pack objects")
+        public boolean isPackingEnabled = true;
 
         @SuppressWarnings("unused")
         @Option(names = "--cmdpath", paramLabel = "<pkg>", description = "add path package for command classes", order = LOW,
