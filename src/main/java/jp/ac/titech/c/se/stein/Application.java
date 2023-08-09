@@ -30,7 +30,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.*;
 
 @Command(name = "git-stein", sortOptions = false, subcommandsRepeatable = true,
-         subcommands = {SettableHelpCommand.class})
+         subcommands = {SettableHelpCommand.class}, usageHelpAutoWidth = true)
 public class Application implements Callable<Integer>, CommandLine.IExecutionStrategy {
     private static final Logger log = LoggerFactory.getLogger(Application.class);
 
@@ -66,6 +66,9 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
             public boolean isCleaningEnabled;
         }
 
+        @Option(names = "--bare", description = "treat that repos are bare")
+        public boolean isBare = false;
+
         @SuppressWarnings("unused")
         @Option(names = { "-j", "--jobs" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = MIDDLE,
                 fallbackValue = "0")
@@ -84,28 +87,27 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @Option(names = "--no-notes", negatable = true, description = "note original commit id to destination repo", order = MIDDLE)
         public boolean isAddingNotes = true;
 
-        @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = MIDDLE)
-        public boolean isRewritingExtraAttributes = false;
+        @Option(names = "--no-pack", negatable = true, description = "pack objects (default: ${DEFAULT-VALUE})", order = MIDDLE)
+        public boolean isPackingEnabled = true;
 
-        @Option(names = { "--no-composite" }, negatable = true, description = "compose multiple blob translators", order = MIDDLE)
+        @Option(names = "--no-composite", negatable = true, description = "compose multiple blob translators (default: ${DEFAULT-VALUE})", order = MIDDLE)
         public boolean useComposite = true;
 
         @Option(names = "--cache", split = ",", paramLabel = "<l>", description = "cache level (${COMPLETION-CANDIDATES}. default: none)", order = MIDDLE)
         public EnumSet<RepositoryRewriter.CacheLevel> cacheLevel = EnumSet.noneOf(RepositoryRewriter.CacheLevel.class);
 
-        @Option(names = "--bare", description = "treat that repos are bare")
-        public boolean isBare = false;
+        @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = MIDDLE)
+        public boolean isRewritingExtraAttributes = false;
 
-        @Option(names = "--no-pack", negatable = true, description = "pack objects")
-        public boolean isPackingEnabled = true;
 
         @SuppressWarnings("unused")
-        @Option(names = "--cmdpath", paramLabel = "<pkg>", description = "add path package for command classes", order = LOW,
-                arity = "0..*")
-        void setCommandPath(final String path) {
+        @Option(names = "--cmdpath", split = ":", paramLabel = "<p>", description = "add packages for search for commands", order = LOW)
+        void setCommandPath(final String[] paths) {
             final Application app = (Application) commandSpec.root().userObject();
             final CommandLine cmdline = commandSpec.root().commandLine();
-            loadCommands(cmdline, path);
+            for (final String path : paths) {
+                loadCommands(cmdline, path);
+            }
         }
 
         @Option(names = "--log", paramLabel = "<level>", description = "log level (default: ${DEFAULT-VALUE})", order = LOW)
