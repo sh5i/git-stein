@@ -41,10 +41,10 @@ public class Cregit implements BlobTranslator {
     public static final String[] CXX_EXT = {"*.cpp", "*.CPP", "*.cp", "*.hpp", "*.cxx", "*.hxx", "*.cc", "*.hh", "*.c++", "*.h++", "*.C", "*.H", "*.tcc", "*.ii"};
     public static final String[] CSHARP_EXT = {"*.cs"};
 
-    public static final NameFilter JAVA_FILTER = new NameFilter(false, JAVA_EXT);
-    public static final NameFilter C_FILTER = new NameFilter(false, C_EXT);
-    public static final NameFilter CXX_FILTER = new NameFilter(false, CXX_EXT);
-    public static final NameFilter CSHARP_FILTER = new NameFilter(false, CSHARP_EXT);
+    public static final NameFilter JAVA_FILTER = new NameFilter(JAVA_EXT);
+    public static final NameFilter C_FILTER = new NameFilter(C_EXT);
+    public static final NameFilter CXX_FILTER = new NameFilter(CXX_EXT);
+    public static final NameFilter CSHARP_FILTER = new NameFilter(CSHARP_EXT);
 
     @Option(names = "--srcml", description = "srcml command path")
     protected String srcml = "srcml";

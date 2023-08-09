@@ -5,49 +5,73 @@ import lombok.Getter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOCase;
-import org.apache.commons.io.filefilter.NotFileFilter;
-import org.apache.commons.io.filefilter.TrueFileFilter;
-import org.apache.commons.io.filefilter.WildcardFileFilter;
+import org.apache.commons.io.filefilter.*;
 import picocli.CommandLine.Option;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.util.stream.Stream;
 
 @Slf4j
 @ToString
 public class NameFilter implements FileFilter {
-    @ToString.Exclude
-    protected final WildcardFileFilter.Builder builder = WildcardFileFilter.builder();
-
     @Getter
-    protected FileFilter filter = TrueFileFilter.TRUE;
+    protected IOFileFilter filter = TrueFileFilter.TRUE;
 
     @SuppressWarnings("unused")
-    @Option(names = "--pattern", paramLabel = "<glob;...>", description = "filename patterns for targets",
-            arity = "0..*", split = ";")
-    public void setPatterns(final String... wildcards) {
-        builder.setWildcards(wildcards);
-        filter = builder.get();
+    @Option(names = "--pattern", paramLabel = "<glob;...>", description = "filename patterns for targets", split = ";")
+    public void setPatterns(final String... patterns) {
+        this.patterns = patterns;
+        updateFilter();
     }
+    protected String[] patterns;
 
     @SuppressWarnings("unused")
     @Option(names = {"-i", "--ignore-case"}, description = "perform case-insensitive matching")
     public void setIgnoringCase(final boolean isIgnoringCase) {
-        builder.setIoCase(isIgnoringCase ? IOCase.INSENSITIVE : IOCase.SENSITIVE);
-        filter = builder.get();
+        this.isIgnoringCase = isIgnoringCase;
+        updateFilter();
     }
+    protected boolean isIgnoringCase = false;
 
     @SuppressWarnings("unused")
     @Option(names = { "-V", "--invert-match" }, description = "select non-matching items for targets")
     public void setInvertMatch(final boolean isInvertMatch) {
-        filter = isInvertMatch ? new NotFileFilter(builder.get()) : builder.get();
+        this.invertMatch = isInvertMatch;
+        updateFilter();
+    }
+    protected boolean invertMatch = false;
+
+    protected void updateFilter() {
+        if (patterns == null) {
+            filter = TrueFileFilter.TRUE;
+        } else if (isSuffixFilterCompatible(patterns)) {
+            final String[] suffixes = Stream.of(patterns).map(s -> s.substring(1)).toArray(String[]::new);
+            filter = new SuffixFileFilter(suffixes, isIgnoringCase ? IOCase.INSENSITIVE : IOCase.SENSITIVE);
+        } else {
+            filter = WildcardFileFilter.builder()
+                    .setWildcards(patterns)
+                    .setIoCase(isIgnoringCase ? IOCase.INSENSITIVE : IOCase.SENSITIVE)
+                    .get();
+        }
+        if (invertMatch) {
+            filter = filter.negate();
+        }
+    }
+
+    protected boolean isSuffixFilterCompatible(final String[] patterns) {
+        return Stream.of(patterns).allMatch(p -> p.matches("\\*\\.\\w+"));
     }
 
     public NameFilter() {}
 
     public NameFilter(final boolean isIgnoringCase, final String... patterns) {
-        this.setPatterns(patterns);
         this.setIgnoringCase(isIgnoringCase);
+        this.setPatterns(patterns);
+    }
+
+    public NameFilter(final String... patterns) {
+        this(false, patterns);
     }
 
     public boolean isDefault() {
