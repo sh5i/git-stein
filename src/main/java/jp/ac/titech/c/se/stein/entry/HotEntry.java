@@ -46,7 +46,7 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
 
     @Override
     public Entry fold(RepositoryAccess target, Context c) {
-        return AnyColdEntry.of(getMode(), getName(), target.writeBlob(getBlob(), c), getDirectory());
+        return Entry.of(getMode(), getName(), target.writeBlob(getBlob(), c), getDirectory());
     }
 
     public NewBlob rename(final String newName) {
@@ -61,8 +61,7 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
      * A normal tree entry.
      */
     @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-    public static
-    class SourceBlob extends HotEntry {
+    public static class SourceBlob extends HotEntry {
         @Delegate(types = SingleEntry.class)
         private final Entry entry;
 
@@ -94,8 +93,7 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
      */
     @Slf4j
     @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-    public static
-    class NewBlob extends HotEntry {
+    public static class NewBlob extends HotEntry {
         @Getter
         private final int mode;
 

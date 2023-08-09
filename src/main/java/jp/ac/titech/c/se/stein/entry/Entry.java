@@ -12,9 +12,16 @@ import java.util.stream.Stream;
  */
 @RequiredArgsConstructor
 @EqualsAndHashCode
-public
-class Entry implements AnyColdEntry, SingleEntry {
+public class Entry implements AnyColdEntry, SingleEntry {
     private static final long serialVersionUID = 1L;
+
+    public static Entry of(int mode, String name, ObjectId id) {
+        return new Entry(mode, name, id, null);
+    }
+
+    public static Entry of(int mode, String name, ObjectId id, String directory) {
+        return new Entry(mode, name, id, directory);
+    }
 
     @Getter
     public final int mode;

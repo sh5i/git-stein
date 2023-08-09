@@ -9,7 +9,6 @@ import java.util.stream.Stream;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.eclipse.jgit.lib.ObjectId;
 
 /**
  * Abstract tree entry.
@@ -23,16 +22,12 @@ public interface AnyColdEntry extends Serializable {
         return size() == 1 ? ((Set) this).getEntries().get(0) : this;
     }
 
-    static Entry of(int mode, String name, ObjectId id) {
-        return new Entry(mode, name, id, null);
-    }
-
-    static Entry of(int mode, String name, ObjectId id, String directory) {
-        return new Entry(mode, name, id, directory);
-    }
-
-    static Set of(Collection<Entry> entries) {
+    static Set set(Collection<Entry> entries) {
         return new Set(entries);
+    }
+
+    static Set set() {
+        return new Set();
     }
 
     static Empty empty() {
@@ -77,6 +72,7 @@ public interface AnyColdEntry extends Serializable {
     /**
      * An empty set of hash entries.
      */
+    @EqualsAndHashCode
     class Empty implements AnyColdEntry {
         private static final long serialVersionUID = 1L;
 

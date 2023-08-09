@@ -23,7 +23,7 @@ public interface AnyHotEntry {
 
     AnyColdEntry fold(RepositoryAccess target, Context c);
 
-    static Set of(Collection<HotEntry> entries) {
+    static Set set(Collection<HotEntry> entries) {
         return new Set(entries);
     }
 
@@ -64,7 +64,7 @@ public interface AnyHotEntry {
 
         @Override
         public AnyColdEntry fold(RepositoryAccess target, Context c) {
-            return AnyColdEntry.of(stream()
+            return AnyColdEntry.set(stream()
                     .map(e -> e.fold(target, c))
                     .collect(Collectors.toList()))
                     .pack();

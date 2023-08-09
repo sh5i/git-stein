@@ -59,7 +59,7 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
             for (BlobTranslator translator : translators) {
                 stream = stream.flatMap(e -> translator.rewriteBlobEntry(e, c).stream());
             }
-            return AnyHotEntry.of(stream.collect(Collectors.toList()));
+            return AnyHotEntry.set(stream.collect(Collectors.toList()));
         }
     }
 }
