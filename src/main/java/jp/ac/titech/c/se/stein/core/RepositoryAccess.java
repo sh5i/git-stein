@@ -137,7 +137,7 @@ public class RepositoryAccess {
                 walk.addTree(treeId);
                 walk.setRecursive(false);
                 while (walk.next()) {
-                    result.add(new Entry(walk.getFileMode().getBits(), walk.getNameString(), walk.getObjectId(0), path));
+                    result.add(Entry.of(walk.getFileMode().getBits(), walk.getNameString(), walk.getObjectId(0), path));
                 }
             }
         });
@@ -170,7 +170,7 @@ public class RepositoryAccess {
                     suffix++;
                 }
                 log.debug("Entry occurred twice: {}, used {}@{} for {} instead", e.getPath(), e.name, suffix, e.id.name());
-                final Entry newEntry = new Entry(e.mode, e.name + "@" + suffix, e.id, e.directory);
+                final Entry newEntry = Entry.of(e.mode, e.name + "@" + suffix, e.id, e.directory);
                 counter.put(e.name, suffix);
                 counter.put(newEntry.name, 1);
                 result.add(newEntry);

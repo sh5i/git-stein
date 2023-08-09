@@ -307,7 +307,7 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
         // A root tree is represented as a special entry whose name is "/"
-        final Entry root = new Entry(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
+        final Entry root = Entry.of(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
         final AnyColdEntry newRoot = getEntry(root, c);
         final ObjectId newId = newRoot instanceof AnyColdEntry.Empty ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
@@ -354,13 +354,13 @@ public class RepositoryRewriter implements RewriterCommand {
     protected AnyColdEntry rewriteTreeEntry(Entry entry, Context c) {
         final ObjectId newId = rewriteTree(entry.id, c);
         final String newName = rewriteName(entry.name, c);
-        return newId == ZERO ? AnyColdEntry.empty() : new Entry(entry.mode, newName, newId, entry.directory);
+        return newId == ZERO ? AnyColdEntry.empty() : Entry.of(entry.mode, newName, newId, entry.directory);
     }
 
     protected AnyColdEntry rewriteLinkEntry(Entry entry, Context c) {
         final ObjectId newId = rewriteLink(entry.id, c);
         final String newName = rewriteName(entry.name, c);
-        return newId == ZERO ? AnyColdEntry.empty() : new Entry(entry.mode, newName, newId, entry.directory);
+        return newId == ZERO ? AnyColdEntry.empty() : Entry.of(entry.mode, newName, newId, entry.directory);
     }
 
     /**

@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.entry;
 
+import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +11,7 @@ import java.util.stream.Stream;
 /**
  * A normal tree entry.
  */
-@RequiredArgsConstructor
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 @EqualsAndHashCode
 public class Entry implements AnyColdEntry, SingleEntry {
     private static final long serialVersionUID = 1L;
