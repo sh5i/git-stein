@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -8,31 +9,12 @@ import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import jp.ac.titech.c.se.stein.rewriter.Extractor;
 import lombok.AllArgsConstructor;
-import lombok.Getter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.compiler.IProblem;
-import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ASTParser;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.AbstractTypeDeclaration;
-import org.eclipse.jdt.core.dom.AnnotationTypeDeclaration;
-import org.eclipse.jdt.core.dom.AnonymousClassDeclaration;
-import org.eclipse.jdt.core.dom.BodyDeclaration;
-import org.eclipse.jdt.core.dom.Comment;
-import org.eclipse.jdt.core.dom.CompilationUnit;
-import org.eclipse.jdt.core.dom.EnumDeclaration;
-import org.eclipse.jdt.core.dom.FieldDeclaration;
-import org.eclipse.jdt.core.dom.Javadoc;
-import org.eclipse.jdt.core.dom.MethodDeclaration;
-import org.eclipse.jdt.core.dom.PackageDeclaration;
-import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
-import org.eclipse.jdt.core.dom.Type;
-import org.eclipse.jdt.core.dom.TypeDeclaration;
-import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
+import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants;
 
 import jp.ac.titech.c.se.stein.core.Context;
@@ -91,26 +73,31 @@ public class HistorageJDT extends Extractor {
     }
 
     @Override
-    protected Collection<Module> generate(final HotEntry.Single entry, final SourceText text, final Context c) {
-        return new ModuleGenerator(entry.getName(), text).generate();
+    protected Collection<HotEntry.Single> generate(final HotEntry.Single entry, final SourceText text, final Context c) {
+        return new ModuleGenerator(entry.getName(), text).generate().stream()
+                .map(m -> HotEntry.of(entry.getMode(), m.getFilename(), m.getBlob()))
+                .collect(Collectors.toList());
     }
 
     @AllArgsConstructor
-    public abstract static class Module implements Extractor.Module {
+    public abstract static class Module {
         protected final String name;
         protected final String extension;
         protected final Module parent;
 
-        @Getter
         protected final String content;
 
         public String getBasename() {
             return name;
         }
 
-        @Override
+
         public String getFilename() {
             return getBasename() + extension;
+        }
+
+        public byte[] getBlob() {
+            return content.getBytes(StandardCharsets.UTF_8);
         }
     }
 

@@ -15,6 +15,7 @@ import picocli.CommandLine.Option;
 
 import javax.annotation.Nonnull;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -35,9 +36,9 @@ public class Historage extends Extractor {
     }
 
     @Override
-    protected Collection<? extends Module> generate(final HotEntry.Single entry, final SourceText text, final Context c) {
+    protected Collection<? extends HotEntry.Single> generate(final HotEntry.Single entry, final SourceText text, final Context c) {
         try {
-            return new CtagsRunner(entry.getName(), text, c).generate();
+            return new CtagsRunner(entry, text, c).generate();
         } catch (final IOException e) {
             log.error("IOException: {} {}", e, c);
             return Collections.emptyList();
@@ -46,7 +47,7 @@ public class Historage extends Extractor {
 
     @RequiredArgsConstructor
     public class CtagsRunner {
-        private final String basename;
+        private final HotEntry.Single entry;
 
         private final SourceText text;
 
@@ -55,8 +56,8 @@ public class Historage extends Extractor {
         private final Gson gson = new Gson();
         private final TypeToken<LanguageObject> token = new TypeToken<>() {};
 
-        public Collection<Module> generate() throws IOException {
-            try (final TemporaryFile tmp = new TemporaryFile("_stein", "." + basename)) {
+        public Collection<HotEntry.Single> generate() throws IOException {
+            try (final TemporaryFile tmp = new TemporaryFile("_stein", "." + entry.getName())) {
                 try (final FileOutputStream out = new FileOutputStream(tmp.getPath().toFile())) {
                     out.write(text.getRaw());
                 }
@@ -64,27 +65,25 @@ public class Historage extends Extractor {
             }
         }
 
-        protected List<Module> extractModules(final Path path) throws IOException {
+        protected List<HotEntry.Single> extractModules(final Path path) throws IOException {
             final List<LanguageObject> los = runCtags(path);
             if (!los.isEmpty()) {
                 text.prepareLineOffsets();
             }
-            return los.stream().sorted().map(this::convert).collect(Collectors.toList());
-        }
-
-        protected Module convert(final LanguageObject lo) {
-            return Module.of(generateName(lo), generateContent(lo));
+            return los.stream().sorted()
+                    .map(lo -> HotEntry.of(entry.getMode(), generateName(lo), generateContent(lo)))
+                    .collect(Collectors.toList());
         }
 
         protected String generateName(final LanguageObject lo) {
             final String scope = lo.scope != null ? "[" + lo.scope + "]" : "";
             //final String signature = m.signature != null ? "(~" + digest(m.signature, 4) + ")" : "";
             final String signature = "";
-            return (basename + "!" + scope + lo.name + signature + "." + lo.kind).replace('/', '%');
+            return (entry.getName() + "!" + scope + lo.name + signature + "." + lo.kind).replace('/', '%');
         }
 
-        protected String generateContent(final LanguageObject lo) {
-            return text.getFragmentOfLines(lo.line, lo.end).getWiderContent();
+        protected byte[] generateContent(final LanguageObject lo) {
+            return text.getFragmentOfLines(lo.line, lo.end).getWiderContent().getBytes(StandardCharsets.UTF_8);
         }
 
         protected List<LanguageObject> runCtags(final Path inputPath) throws IOException {
@@ -117,7 +116,7 @@ public class Historage extends Extractor {
         public static final Comparator<LanguageObject> COMPARATOR = Comparator
                 .comparing(LanguageObject::getLine)
                 .thenComparing(LanguageObject::getEnd, Comparator.reverseOrder())
-                .thenComparing(LanguageObject::getScope, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(LanguageObject::getScope, Comparator.nullsFirst(Comparator.naturalOrder()))
                 .thenComparing(LanguageObject::getKind, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(LanguageObject::getName, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(LanguageObject::getSignature, Comparator.nullsLast(Comparator.naturalOrder()));
