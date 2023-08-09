@@ -3,7 +3,7 @@ package jp.ac.titech.c.se.stein.app.blob;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import jp.ac.titech.c.se.stein.core.*;
-import jp.ac.titech.c.se.stein.rewriter.Extractor;
+import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import jp.ac.titech.c.se.stein.util.TemporaryFile;
 import lombok.Getter;
@@ -26,23 +26,33 @@ import java.util.stream.Collectors;
 @Slf4j
 @ToString
 @Command(name = "@historage", description = "Generate finer-grained modules via ctags")
-public class Historage extends Extractor {
+public class Historage implements BlobTranslator {
     @Option(names = "--ctags", description = "ctags command used")
     protected String ctags = "ctags";
 
-    @Override
-    protected boolean accept(String filename) {
-        return true;
-    }
+    @Option(names = "--no-original", negatable = true, description = "Exclude original files")
+    protected boolean requiresOriginals = true;
 
     @Override
-    protected Collection<? extends HotEntry.Single> generate(final HotEntry.Single entry, final SourceText text, final Context c) {
-        try {
-            return new CtagsRunner(entry, text, c).generate();
-        } catch (final IOException e) {
-            log.error("IOException: {} {}", e, c);
-            return Collections.emptyList();
+    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+        final HotEntry.Set result = HotEntry.set();
+        if (requiresOriginals) {
+            result.add(entry);
         }
+        final SourceText text = SourceText.ofNormalized(entry.getBlob());
+        try {
+            final Collection<? extends HotEntry.Single> entries = new CtagsRunner(entry, text, c).generate();
+            if (!entries.isEmpty()) {
+                for (final HotEntry.Single e : entries) {
+                    log.debug("Generate submodule: {} from {} {}", e.getName(), entry, c);
+                    result.add(e);
+                }
+                log.debug("Rewrite entry: {} -> {} entries {}", entry, result.size(), c);
+            }
+        } catch (final IOException e) {
+            log.error(e.getMessage(), e);
+        }
+        return result;
     }
 
     @RequiredArgsConstructor

@@ -7,7 +7,9 @@ import java.util.stream.Collectors;
 import jp.ac.titech.c.se.stein.core.HotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
-import jp.ac.titech.c.se.stein.rewriter.Extractor;
+import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
+import jp.ac.titech.c.se.stein.rewriter.NameFilter;
+import jp.ac.titech.c.se.stein.util.HashUtils;
 import lombok.AllArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +32,12 @@ import picocli.CommandLine.Option;
 @Slf4j
 @ToString
 @Command(name = "@historage-jdt", description = "Generate finer-grained Java modules via JDT")
-public class HistorageJDT extends Extractor {
+public class HistorageJDT implements BlobTranslator {
+    public static final NameFilter JAVA = new NameFilter(true, "*.java");
+
+    @Option(names = "--no-original", negatable = true, description = "Exclude original files")
+    protected boolean requiresOriginals = true;
+
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
 
@@ -68,15 +75,24 @@ public class HistorageJDT extends Extractor {
     protected boolean parsable = false;
 
     @Override
-    protected boolean accept(final String filename) {
-        return filename.endsWith(".java");
-    }
-
-    @Override
-    protected Collection<HotEntry.Single> generate(final HotEntry.Single entry, final SourceText text, final Context c) {
-        return new ModuleGenerator(entry.getName(), text).generate().stream()
-                .map(m -> HotEntry.of(entry.getMode(), m.getFilename(), m.getBlob()))
-                .collect(Collectors.toList());
+    public HotEntry rewriteBlobEntry(final HotEntry.Single entry, final Context c) {
+        if (!JAVA.accept(entry)) {
+            return entry;
+        }
+        final HotEntry.Set result = HotEntry.set();
+        if (requiresOriginals) {
+            result.add(entry);
+        }
+        final SourceText text = SourceText.ofNormalized(entry.getBlob());
+        final Collection<Module> modules = new ModuleGenerator(entry.getName(), text).generate();
+        if (!modules.isEmpty()) {
+            for (final Module m : modules) {
+                log.debug("Generate submodule: {} from {} {}", m.getFilename(), entry, c);
+                result.add(HotEntry.of(entry.getMode(), m.getFilename(), m.getBlob()));
+            }
+            log.debug("Rewrite entry: {} -> {} entries {}", entry, result.size(), c);
+        }
+        return result;
     }
 
     @AllArgsConstructor
@@ -520,7 +536,7 @@ public class HistorageJDT extends Extractor {
                     .map(o -> getTypeName((SingleVariableDeclaration) o))
                     .collect(Collectors.joining(","));
             if (digestParameters && !names.isEmpty()) {
-                names = "~" + digest(names, 6);
+                names = "~" + HashUtils.digest(names, 6);
             }
             buffer.append("(").append(names).append(")");
         }

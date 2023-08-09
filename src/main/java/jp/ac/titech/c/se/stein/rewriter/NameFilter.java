@@ -32,7 +32,7 @@ public class NameFilter implements FileFilter {
 
     @SuppressWarnings("unused")
     @Option(names = {"-i", "--ignore-case"}, description = "perform case-insensitive matching")
-    public void setCaseInsensitive(final boolean isIgnoringCase) {
+    public void setIgnoringCase(final boolean isIgnoringCase) {
         builder.setIoCase(isIgnoringCase ? IOCase.INSENSITIVE : IOCase.SENSITIVE);
         filter = builder.get();
     }
@@ -41,6 +41,13 @@ public class NameFilter implements FileFilter {
     @Option(names = { "-V", "--invert-match" }, description = "select non-matching items for targets")
     public void setInvertMatch(final boolean isInvertMatch) {
         filter = isInvertMatch ? new NotFileFilter(builder.get()) : builder.get();
+    }
+
+    public NameFilter() {}
+
+    public NameFilter(final boolean isIgnoringCase, final String... patterns) {
+        this.setPatterns(patterns);
+        this.setIgnoringCase(isIgnoringCase);
     }
 
     public boolean isDefault() {
