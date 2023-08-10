@@ -41,7 +41,7 @@ public class Entry implements AnyColdEntry, SingleEntry {
 
     @Override
     public String toString() {
-        return String.format("<E:%s %s %o>", getPath(), id.name(), mode);
+        return String.format("%s [%s:%o]", getPath(), id.name(), mode);
     }
 
     @Override

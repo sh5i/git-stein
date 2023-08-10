@@ -84,7 +84,7 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
 
         @Override
         public String toString() {
-            return String.format("<SE:%s %s %o>", getPath(), getPath(), getMode());
+            return String.format("%s [hot(%s):%o]", getPath(), getId().name(), getMode());
         }
     }
 
@@ -121,7 +121,7 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
 
         @Override
         public String toString() {
-            return String.format("<NE:%s (%d) %o>", getPath(), getBlobSize(), getMode());
+            return String.format("%s [new(%d):%o]", getPath(), getBlobSize(), getMode());
         }
     }
 }
