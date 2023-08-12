@@ -116,6 +116,9 @@ public class RepositoryRewriter implements RewriterCommand {
                 return null;
             });
         } else {
+            if (config.nthreads >= 2) {
+                rewriteRootTrees(c);
+            }
             rewriteCommits(c);
             updateRefs(c);
         }
@@ -129,7 +132,6 @@ public class RepositoryRewriter implements RewriterCommand {
      * Rewrites all commits.
      */
     protected void rewriteCommits(final Context c) {
-        rewriteRootTrees(c);
         target.openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
             try (final RevWalk walk = prepareRevisionWalk(uc)) {
@@ -145,11 +147,6 @@ public class RepositoryRewriter implements RewriterCommand {
      * Rewrites all root trees.
      */
     protected void rewriteRootTrees(final Context c) {
-        if (config.nthreads <= 1) {
-            // This will be done in each rewriteCommit() in non-parallel mode.
-            return;
-        }
-
         final Map<Long, Context> cxts = new ConcurrentHashMap<>();
         final ExecutorService pool = new ThreadPoolExecutor(config.nthreads, config.nthreads, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(config.nthreads * 10));
