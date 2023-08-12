@@ -10,7 +10,6 @@ import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.IOUtils;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import picocli.CommandLine.Command;
@@ -54,7 +53,7 @@ public class ConvertViaHTTP implements BlobTranslator {
             conn.getOutputStream().close();
             if (conn.getResponseCode() == 200) {
                 try (final InputStream in = conn.getInputStream()) {
-                    return IOUtils.toByteArray(in);
+                    in.readAllBytes();
                 }
             } else {
                 log.error("Bad status code in response: {} {} {}", conn.getResponseCode(), conn.getResponseMessage(), c);
