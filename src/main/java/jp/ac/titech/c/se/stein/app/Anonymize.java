@@ -6,10 +6,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.util.HashUtils;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.util.sha1.SHA1;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
@@ -20,7 +20,6 @@ import picocli.CommandLine.Option;
 @ToString
 @Command(name = "@anonymize", description = "Anonymize filenames and contents")
 public class Anonymize extends RepositoryRewriter {
-
     @Option(names = "--no-tree", negatable = true, description = "anonymize tree name")
     protected boolean isTreeNameEnabled = true;
 
@@ -83,19 +82,9 @@ public class Anonymize extends RepositoryRewriter {
 
     private final NameMap personNameMap = new NameMap("person", "p");
 
-    private String hash(final String data) {
-        final SHA1 md = SHA1.newInstance();
-        md.update(data.getBytes());
-        return md.toObjectId().getName();
-    }
-
-    private String hash7(final String data) {
-        return hash(data).substring(0, 7);
-    }
-
     @Override
     public String rewriteMessage(final String message, final Context c) {
-        return isMessageEnabled ? hash7(message) : message;
+        return isMessageEnabled ? HashUtils.digest(message, 7) : message;
     }
 
     @Override
@@ -124,7 +113,7 @@ public class Anonymize extends RepositoryRewriter {
             return null;
         }
         final String name = isAuthorNameEnabled ? personNameMap.convert(person.getName()) : person.getName();
-        final String address = isAuthorEmailEnabled ? hash7(person.getEmailAddress()) : person.getEmailAddress();
+        final String address = isAuthorEmailEnabled ? HashUtils.digest(person.getEmailAddress(), 7) : person.getEmailAddress();
         return new PersonIdent(name, address, person.getWhen(), person.getTimeZone());
     }
 
