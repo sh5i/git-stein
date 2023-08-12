@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.entry.Entry;
@@ -197,15 +198,13 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected Collection<ObjectId> collectStarts(final Context c) {
         final List<ObjectId> result = new ArrayList<>();
-        for (final Ref ref : source.getRefs()) {
-            if (confirmStartRef(ref, c)) {
-                final ObjectId commitId = source.getRefTarget(ref);
-                if (source.getObjectType(commitId) == Constants.OBJ_COMMIT) {
-                    log.debug("Ref {}: added as a start point (commit: {})", ref.getName(), commitId.name());
-                    result.add(commitId);
-                } else {
-                    log.debug("Ref {}: non-commit; skipped (commit: {})", ref.getName(), commitId.name());
-                }
+        for (final Ref ref : filterRefs(source.getRefs(), c)) {
+            final ObjectId commitId = source.getRefTarget(ref);
+            if (source.getObjectType(commitId) == Constants.OBJ_COMMIT) {
+                log.debug("Ref {}: added as a start point (commit: {})", ref.getName(), commitId.name());
+                result.add(commitId);
+            } else {
+                log.debug("Ref {}: non-commit; skipped (commit: {})", ref.getName(), commitId.name());
             }
         }
         return result;
@@ -214,9 +213,10 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Confirms whether the given ref is used for a start point.
      */
-    protected boolean confirmStartRef(final Ref ref, @SuppressWarnings("unused") final Context c) {
-        final String name = ref.getName();
-        return name.equals(Constants.HEAD) || name.startsWith(Constants.R_HEADS) || name.startsWith(Constants.R_TAGS);
+    protected List<Ref> filterRefs(final List<Ref> refs, @SuppressWarnings("unused") final Context c) {
+        return refs.stream()
+                .filter(ref -> ref.getName().equals(Constants.HEAD) || ref.getName().startsWith(Constants.R_HEADS) || ref.getName().startsWith(Constants.R_TAGS))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -455,18 +455,9 @@ public class RepositoryRewriter implements RewriterCommand {
      * Updates ref objects.
      */
     protected void updateRefs(final Context c) {
-        for (final Ref ref : source.getRefs()) {
-            if (confirmUpdateRef(ref, c)) {
-                updateRef(ref, c);
-            }
+        for (final Ref ref : filterRefs(source.getRefs(), c)) {
+            updateRef(ref, c);
         }
-    }
-
-    /**
-     * Confirms whether the given ref is to be updated.
-     */
-    protected boolean confirmUpdateRef(final Ref ref, final Context c) {
-        return confirmStartRef(ref, c);
     }
 
     /**
