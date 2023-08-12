@@ -50,7 +50,6 @@ public class ConvertViaHTTP implements BlobTranslator {
             try (final OutputStream out = conn.getOutputStream()) {
                 out.write(content);
             }
-            conn.getOutputStream().close();
             if (conn.getResponseCode() == 200) {
                 try (final InputStream in = conn.getInputStream()) {
                     in.readAllBytes();
