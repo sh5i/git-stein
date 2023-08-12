@@ -17,6 +17,7 @@ public class Loader {
     /**
      * Loads a rewriter class from the given name and instantiates it.
      */
+    @SuppressWarnings("unused")
     public static RewriterCommand load(final String name) {
         final Class<? extends RewriterCommand> klass = loadClass(name);
         return klass == null ? null : newInstance(klass);
@@ -69,14 +70,15 @@ public class Loader {
             final ClassPath cp = ClassPath.from(loader);
             @SuppressWarnings("unchecked")
             final Collection<Class<? extends RewriterCommand>> result =
-                    (isRecursive ? cp.getTopLevelClassesRecursive(pkg) : cp.getTopLevelClasses(pkg)).stream()
+                    (isRecursive ? cp.getTopLevelClassesRecursive(pkg) : cp.getTopLevelClasses(pkg))
+                            .stream()
                             .map(info -> (Class<? extends RewriterCommand>) info.load())
                             .filter(c -> c.isAnnotationPresent(Command.class))
                             .sorted(Comparator.comparing(c -> c.getAnnotation(Command.class).name()))
                             .collect(Collectors.toList());
             return result;
         } catch (final IOException e) {
-            log.error("Loading command", e);
+            log.error("Loading command: " + e.getMessage(), e);
             return Collections.emptyList();
         }
     }
