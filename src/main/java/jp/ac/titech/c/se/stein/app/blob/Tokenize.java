@@ -24,9 +24,7 @@ public class Tokenize implements BlobTranslator {
     @Override
     public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
         final String text = SourceText.of(entry.getBlob()).getContent();
-        final String converted = encode(text);
-        final byte[] newBlob = converted.getBytes(StandardCharsets.UTF_8);
-        return entry.update(newBlob);
+        return entry.update(encode(text));
     }
 
     /**

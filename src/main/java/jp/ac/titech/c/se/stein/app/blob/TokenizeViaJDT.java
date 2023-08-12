@@ -27,8 +27,7 @@ public class TokenizeViaJDT implements BlobTranslator {
             return entry;
         }
         final String text = SourceText.of(entry.getBlob()).getContent();
-        final byte[] newBlob = encode(text).getBytes(StandardCharsets.UTF_8);
-        return entry.update(newBlob);
+        return entry.update(encode(text));
     }
 
     /**

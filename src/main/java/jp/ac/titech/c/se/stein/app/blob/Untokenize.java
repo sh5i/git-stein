@@ -23,8 +23,7 @@ public class Untokenize implements BlobTranslator {
             return entry;
         }
         final String text = SourceText.of(entry.getBlob()).getContent();
-        final byte[] newBlob = decode(text).getBytes(StandardCharsets.UTF_8);
-        return entry.update(newBlob);
+        return entry.update(decode(text));
     }
 
     /**

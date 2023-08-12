@@ -90,7 +90,7 @@ public class Anonymize extends RepositoryRewriter {
     @Override
     public AnyHotEntry rewriteBlobEntry(HotEntry entry, final Context c) {
         if (isBlobContentEnabled) {
-            entry = entry.update(entry.getId().name().getBytes());
+            entry = entry.update(entry.getId().name());
         }
         if (isBlobNameEnabled) {
             entry = entry.rename(blobNameMap.convert(entry.getName()));

@@ -11,6 +11,7 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 
+import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
 
 public abstract class HotEntry implements AnyHotEntry, SingleEntry {
@@ -55,6 +56,10 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
 
     public NewBlob update(final byte[] newBlob) {
         return of(getMode(), getName(), newBlob, getDirectory());
+    }
+
+    public NewBlob update(final String newContent) {
+        return update(newContent.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

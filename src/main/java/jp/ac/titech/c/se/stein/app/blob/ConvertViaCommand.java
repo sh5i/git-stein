@@ -29,9 +29,7 @@ public class ConvertViaCommand implements BlobTranslator {
         if (!filter.accept(entry)) {
             return entry;
         }
-        final byte[] blob = entry.getBlob();
-        final byte[] converted = convert(blob, c);
-        return entry.update(converted);
+        return entry.update(convert(entry.getBlob(), c));
     }
 
     protected byte[] convert(final byte[] content, final Context c) {
