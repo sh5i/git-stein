@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.entry;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
+import jp.ac.titech.c.se.stein.util.HashUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -119,9 +120,7 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
         @Override
         public ObjectId getId() {
             log.warn("Getting Object ID for NewFileEntry requires hash computation");
-            try (ObjectInserter inserter = new ObjectInserter.Formatter()) {
-                return inserter.idFor(Constants.OBJ_BLOB, blob);
-            }
+            return HashUtils.idFor(blob);
         }
 
         @Override

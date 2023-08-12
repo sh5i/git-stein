@@ -1,7 +1,9 @@
 package jp.ac.titech.c.se.stein.util;
 
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.util.sha1.SHA1;
 
 import java.nio.charset.StandardCharsets;
@@ -26,5 +28,14 @@ public class HashUtils {
 
     public static String digest(final String data) {
         return digest(data.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Computes blob id from blob.
+     */
+    public static ObjectId idFor(final byte[] blob) {
+        try (ObjectInserter inserter = new ObjectInserter.Formatter()) {
+            return inserter.idFor(Constants.OBJ_BLOB, blob);
+        }
     }
 }
