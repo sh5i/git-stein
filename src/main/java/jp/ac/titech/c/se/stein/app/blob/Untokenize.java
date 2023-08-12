@@ -17,14 +17,6 @@ import java.nio.charset.StandardCharsets;
 public class Untokenize implements BlobTranslator {
     @Mixin
     protected final NameFilter filter = new NameFilter();
-
-    /**
-     * Decodes the given linetoken source.
-     */
-    public static String decode(final String source) {
-        return source.replace("\n", "").replace("\r", "\n");
-    }
-
     @Override
     public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
         if (!filter.accept(entry)) {
@@ -33,5 +25,12 @@ public class Untokenize implements BlobTranslator {
         final String text = SourceText.of(entry.getBlob()).getContent();
         final byte[] newBlob = decode(text).getBytes(StandardCharsets.UTF_8);
         return entry.update(newBlob);
+    }
+
+    /**
+     * Decodes the given linetoken source.
+     */
+    public static String decode(final String source) {
+        return source.replace("\n", "").replace("\r", "\n");
     }
 }

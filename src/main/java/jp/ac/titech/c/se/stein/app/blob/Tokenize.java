@@ -21,6 +21,14 @@ public class Tokenize implements BlobTranslator {
             "[^\\w\\s]+" // symbols
     ));
 
+    @Override
+    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
+        final String text = SourceText.of(entry.getBlob()).getContent();
+        final String converted = encode(text);
+        final byte[] newBlob = converted.getBytes(StandardCharsets.UTF_8);
+        return entry.update(newBlob);
+    }
+
     /**
      * Encodes the given source.
      */
@@ -28,13 +36,5 @@ public class Tokenize implements BlobTranslator {
         return TOKEN.matcher(source).results()
                 .map(m -> m.group().replace("\n", "\r") + "\n")
                 .collect(Collectors.joining());
-    }
-
-    @Override
-    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
-        final String text = SourceText.of(entry.getBlob()).getContent();
-        final String converted = encode(text);
-        final byte[] newBlob = converted.getBytes(StandardCharsets.UTF_8);
-        return entry.update(newBlob);
     }
 }

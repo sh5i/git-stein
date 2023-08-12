@@ -21,6 +21,16 @@ import picocli.CommandLine.Command;
 @ToString
 @Command(name = "@tokenize-jdt", description = "Encode Java source files to linetoken format via JDT")
 public class TokenizeViaJDT implements BlobTranslator {
+    @Override
+    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
+        if (!HistorageViaJDT.JAVA.accept(entry)) {
+            return entry;
+        }
+        final String text = SourceText.of(entry.getBlob()).getContent();
+        final byte[] newBlob = encode(text).getBytes(StandardCharsets.UTF_8);
+        return entry.update(newBlob);
+    }
+
     /**
      * Encodes the given source to linetoken format.
      */
@@ -41,15 +51,5 @@ public class TokenizeViaJDT implements BlobTranslator {
             log.error(e.getMessage(), e);
         }
         return buffer.toString();
-    }
-
-    @Override
-    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
-        if (!entry.getName().toLowerCase().endsWith(".java")) {
-            return entry;
-        }
-        final String text = SourceText.of(entry.getBlob()).getContent();
-        final byte[] newBlob = encode(text).getBytes(StandardCharsets.UTF_8);
-        return entry.update(newBlob);
     }
 }
