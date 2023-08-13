@@ -551,7 +551,7 @@ public class RepositoryRewriter implements RewriterCommand {
             case Constants.OBJ_BLOB: // 3: blob
                 // TODO rewriting opportunity for this blob
                 final ObjectId newBlobId = target.writeBlob(source.readBlob(id), c);
-                log.warn("Blob {} as a ref object not rewritten, just copied", id);
+                log.warn("A ref object blob {} found, just copied {}", id.name(), c);
                 return newBlobId;
 
             case Constants.OBJ_TAG: // 4: tag
@@ -560,7 +560,7 @@ public class RepositoryRewriter implements RewriterCommand {
 
             default:
                 // referring non-commit and non-tag; ignore it
-                log.warn("Ignore unknown type: {}, type = {} {}", id.name(), type, c);
+                log.warn("Ignore unknown type ({}): {} {}", type, id.name(), c);
                 return id;
         }
     }
