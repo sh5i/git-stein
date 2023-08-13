@@ -40,7 +40,7 @@ public class Loader {
     public static Class<? extends RewriterCommand> loadClass(final String name) {
         Class<? extends RewriterCommand> result = tryLoadClass(name);
         if (result == null) {
-            result = tryLoadClass(Application.class.getPackage().getName() + ".app." + name);
+            result = tryLoadClass(Application.BUILTIN_COMMAND_PACKAGE + "." + name);
         }
         if (result == null) {
             result = tryLoadClass(Application.class.getPackage().getName() + "." + name);
