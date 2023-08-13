@@ -6,20 +6,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.util.TreeFormatter2;
 import lombok.Getter;
-import org.eclipse.jgit.lib.AnyObjectId;
-import org.eclipse.jgit.lib.CommitBuilder;
-import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.FileMode;
-import org.eclipse.jgit.lib.GpgSignature;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectInserter;
-import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.RefUpdate;
-import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.lib.TagBuilder;
-import org.eclipse.jgit.lib.TreeFormatter;
+import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.notes.Note;
 import org.eclipse.jgit.notes.NoteMap;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -150,11 +139,11 @@ public class RepositoryAccess {
      * Writes tree entries to a tree object.
      */
     public ObjectId writeTree(final Collection<Entry> entries, final Context writingContext) {
-        final TreeFormatter f = new TreeFormatter();
+        final TreeFormatter2 f = new TreeFormatter2();
         resolveNameConflicts(entries).stream()
                 .sorted(Comparator.comparing(Entry::sortKey))
-                .forEach(e -> f.append(e.name, FileMode.fromBits(e.mode), e.id));
-        return insert(ins -> isDryRunning ? ins.idFor(f) : ins.insert(f), writingContext);
+                .forEach(e -> f.append(e.name, e.mode, e.id));
+        return insert(ins -> isDryRunning ? f.computeId(ins) : f.insertTo(ins), writingContext);
     }
 
     /**
