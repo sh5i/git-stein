@@ -6,7 +6,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
-import jp.ac.titech.c.se.stein.util.TreeFormatter2;
+import jp.ac.titech.c.se.stein.jgit.TreeFormatter;
 import lombok.Getter;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.notes.Note;
@@ -139,7 +139,7 @@ public class RepositoryAccess {
      * Writes tree entries to a tree object.
      */
     public ObjectId writeTree(final Collection<Entry> entries, final Context writingContext) {
-        final TreeFormatter2 f = new TreeFormatter2();
+        final TreeFormatter f = new TreeFormatter();
         resolveNameConflicts(entries).stream()
                 .sorted(Comparator.comparing(Entry::sortKey))
                 .forEach(e -> f.append(e.name, e.mode, e.id));

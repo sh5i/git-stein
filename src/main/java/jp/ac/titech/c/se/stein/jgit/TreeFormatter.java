@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-package jp.ac.titech.c.se.stein.util;
+package jp.ac.titech.c.se.stein.jgit;
 
 import static org.eclipse.jgit.lib.Constants.OBJECT_ID_LENGTH;
 import static org.eclipse.jgit.lib.Constants.OBJ_TREE;
@@ -22,11 +22,11 @@ import org.eclipse.jgit.util.TemporaryBuffer;
 /**
  * A workaround for TreeFormatter in jgit, that accepts int modebits instead of FileMode.
  */
-public class TreeFormatter2 {
+public class TreeFormatter {
     public static int entrySize(byte[] mode, int nameLen) {
         return mode.length + nameLen + OBJECT_ID_LENGTH + 2;
     }
-    TreeFormatter a;
+    org.eclipse.jgit.lib.TreeFormatter a;
     private byte[] buf = new byte[8192];
 
     private int ptr;
