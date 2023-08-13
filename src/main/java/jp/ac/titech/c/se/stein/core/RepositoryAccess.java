@@ -27,7 +27,7 @@ import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.treewalk.TreeWalk;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -133,11 +133,13 @@ public class RepositoryAccess {
     public List<Entry> readTree(final ObjectId treeId, final String path) {
         final List<Entry> result = new ArrayList<>();
         Try.io(() -> {
-            try (final TreeWalk walk = new TreeWalk(repo)) {
-                walk.addTree(treeId);
-                walk.setRecursive(false);
-                while (walk.next()) {
-                    result.add(Entry.of(walk.getFileMode().getBits(), walk.getNameString(), walk.getObjectId(0), path));
+            // Do not use TreeWalk here; TreeWalk does not provide a way to access the mode bit directly.
+            // Its API getFileMode() outputs a FileMode, but it normalizes different mode bits into a standard one.
+            try (final ObjectReader reader = repo.newObjectReader()) {
+                final CanonicalTreeParser p = new CanonicalTreeParser(null, reader, treeId);
+                while (!p.eof()) {
+                    result.add(Entry.of(p.getEntryRawMode(), p.getEntryPathString(), p.getEntryObjectId(), path));
+                    p.next();
                 }
             }
         });
