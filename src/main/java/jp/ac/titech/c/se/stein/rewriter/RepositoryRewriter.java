@@ -333,11 +333,17 @@ public class RepositoryRewriter implements RewriterCommand {
         final Context uc = c.with(Key.entry, entry);
         switch (entry.getType()) {
             case BLOB:
-                return rewriteBlobEntry(HotEntry.of(entry, source), uc).fold(target, uc);
+                final AnyColdEntry newBlob = rewriteBlobEntry(HotEntry.of(entry, source), uc).fold(target, uc);
+                log.debug("Rewrite blob: {} -> {} {}", entry, newBlob, c);
+                return newBlob;
             case TREE:
-                return rewriteTreeEntry(entry, uc);
+                final AnyColdEntry newTree = rewriteTreeEntry(entry, uc);
+                log.debug("Rewrite tree: {} -> {} {}", entry, newTree, c);
+                return newTree;
             case LINK:
-                return rewriteLinkEntry(entry, uc);
+                final AnyColdEntry newLink = rewriteLinkEntry(entry, uc);
+                log.debug("Rewrite link: {} -> {} {}", entry, newLink, c);
+                return newLink;
             default:
                 assert false;
                 return null;
