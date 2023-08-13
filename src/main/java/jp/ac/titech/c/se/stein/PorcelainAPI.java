@@ -7,9 +7,7 @@ import org.eclipse.jgit.internal.storage.file.GC;
 
 import jp.ac.titech.c.se.stein.core.Try;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.stream.Stream;
+import java.util.Date;
 
 public class PorcelainAPI implements AutoCloseable {
     private final FileRepository repo;
@@ -59,12 +57,9 @@ public class PorcelainAPI implements AutoCloseable {
     }
 
     public void repack() {
-        Try.run(() -> {
-            new GC(repo).repack();
-            // delete unnecessary objects/xx directories
-            try (final Stream<Path> paths = Files.list(repo.getObjectsDirectory().toPath())) {
-                paths.filter(Files::isDirectory).forEach(p -> p.toFile().delete());
-            }
-        });
+        Try.run(() -> git.gc()
+                .setAggressive(true)
+                .setExpire(new Date())
+                .call());
     }
 }
