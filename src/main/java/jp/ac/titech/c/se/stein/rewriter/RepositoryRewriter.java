@@ -253,7 +253,7 @@ public class RepositoryRewriter implements RewriterCommand {
         if (config.isRewritingExtraAttributes) {
             final Charset enc = rewriteEncoding(commit.getEncoding(), uc);
             final GpgSignature sig = rewriteSignature(commit.getRawGpgSignature(), uc);
-            newId = target.writeCommit(parentIds, treeId, author, committer, enc, sig, msg, uc);
+            newId = target.writeCommit(parentIds, treeId, author, committer, msg, enc, sig, uc);
         } else {
             newId = target.writeCommit(parentIds, treeId, author, committer, msg, uc);
         }

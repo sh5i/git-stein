@@ -209,24 +209,24 @@ public class RepositoryAccess {
      * Writes a commit object.
      */
     public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer,
-            final Charset encoding, final GpgSignature signature, final String message, final Context writingContext) {
+            final String message, final Charset encoding, final GpgSignature signature, final Context writingContext) {
         final CommitBuilder builder = new CommitBuilder();
         builder.setParentIds(parentIds);
         builder.setTreeId(treeId);
         builder.setAuthor(author);
         builder.setCommitter(committer);
+        builder.setMessage(message);
         if (encoding != null) {
             builder.setEncoding(encoding);
         }
         if (signature != null) {
             builder.setGpgSignature(signature);
         }
-        builder.setMessage(message);
         return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder), writingContext);
     }
 
     public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer, final String message, final Context writingContext) {
-        return writeCommit(parentIds, treeId, author, committer, null, null, message, writingContext);
+        return writeCommit(parentIds, treeId, author, committer, message, null, null, writingContext);
     }
 
     // Notes
