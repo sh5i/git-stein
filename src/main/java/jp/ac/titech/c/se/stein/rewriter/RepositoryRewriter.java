@@ -449,9 +449,10 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected GpgSignature rewriteSignature(final byte[] rawSignature, @SuppressWarnings("unused") final Context c) {
         if (rawSignature != null) {
-            // fix to remove the prefix spaces
-            final byte[] fixed = new String(rawSignature, US_ASCII).replaceAll("\n ", "\n").getBytes();
-            return new GpgSignature(fixed);
+            final String original = new String(rawSignature, US_ASCII);
+            // TODO fixing the spacing. Why this is needed?
+            final String fixed = original.replaceAll("\n ", "\n") + "\n";
+            return new GpgSignature(fixed.getBytes(US_ASCII));
         } else {
             return null;
         }
