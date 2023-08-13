@@ -1,7 +1,9 @@
 package jp.ac.titech.c.se.stein;
 
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
+import org.eclipse.jgit.api.errors.*;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.internal.storage.file.GC;
 
@@ -9,6 +11,7 @@ import jp.ac.titech.c.se.stein.core.Try;
 
 import java.util.Date;
 
+@Slf4j
 public class PorcelainAPI implements AutoCloseable {
     private final FileRepository repo;
 
@@ -48,12 +51,16 @@ public class PorcelainAPI implements AutoCloseable {
     }
 
     public void checkout() {
-        Try.run(() -> {
+        try {
             git.checkout()
                 .setAllPaths(true)
                 .setStartPoint("HEAD")
+                .setForced(true)
                 .call();
-        });
+        } catch (final GitAPIException | JGitInternalException e) {
+            log.error(e.getMessage(), e);
+            log.error("Checkout (by jgit) failed, this may be due to the jgit implementation. Try `git checkout -f` on the generated repository.");
+        }
     }
 
     public void repack() {
