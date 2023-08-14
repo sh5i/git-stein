@@ -9,10 +9,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import jp.ac.titech.c.se.stein.jgit.RevWalk;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.revwalk.RevWalk;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -58,7 +58,7 @@ public class Cluster extends RepositoryRewriter {
     }
 
     @Override
-    protected void rewriteCommits(final Context c) {
+    protected void rewriteCommits(final RevWalk walk, final Context c) {
         graph.build(prepareRevisionWalk(c));
         log.debug("Graph: {} vertices, {} edges {}", graph.vertexSet().size(), graph.edgeSet().size(), c);
 
@@ -69,8 +69,7 @@ public class Cluster extends RepositoryRewriter {
         }
         target.openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
-
-            try (final RevWalk walk = source.walk()) {
+            try (walk) {
                 for (final Vertex v : graph) {
                     rewriteCommit(Try.io(() -> walk.parseCommit(v.id)), uc);
                 }

@@ -17,6 +17,7 @@ import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.jgit.RevWalk;
 import lombok.Setter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -27,7 +28,6 @@ import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTag;
-import org.eclipse.jgit.revwalk.RevWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -110,17 +110,19 @@ public class RepositoryRewriter implements RewriterCommand {
 
     public void rewrite(final Context c) {
         setUp(c);
+        final RevWalk walk = prepareRevisionWalk(c);
         if (cacheProvider != null) {
             cacheProvider.inTransaction(() -> {
-                rewriteCommits(c);
+                rewriteCommits(walk, c);
                 updateRefs(c);
                 return null;
             });
         } else {
             if (config.nthreads >= 2) {
-                rewriteRootTrees(c);
+                rewriteRootTrees(walk, c);
+                Try.io(walk::memoReset);
             }
-            rewriteCommits(c);
+            rewriteCommits(walk, c);
             updateRefs(c);
         }
         target.writeNotes(target.getDefaultNotes(), c);
@@ -132,10 +134,10 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Rewrites all commits.
      */
-    protected void rewriteCommits(final Context c) {
+    protected void rewriteCommits(final RevWalk walk, final Context c) {
         target.openInserter(ins -> {
             final Context uc = c.with(Key.inserter, ins);
-            try (final RevWalk walk = prepareRevisionWalk(uc)) {
+            try (walk) {
                 for (final RevCommit commit : walk) {
                     rewriteCommit(commit, uc);
                     commit.disposeBody();
@@ -147,18 +149,17 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Rewrites all root trees.
      */
-    protected void rewriteRootTrees(final Context c) {
+    protected void rewriteRootTrees(final RevWalk walk, final Context c) {
         final Map<Long, Context> cxts = new ConcurrentHashMap<>();
         final ExecutorService pool = new ThreadPoolExecutor(config.nthreads, config.nthreads, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(config.nthreads * 10));
-        try (final RevWalk walk = prepareRevisionWalk(c)) {
+        try (walk) {
             for (final RevCommit commit : walk) {
                 pool.execute(() -> {
                     final long id = Thread.currentThread().getId();
                     final Context uc = cxts.computeIfAbsent(id, k -> c.with(Key.inserter, target.getInserter()));
                     final Context uuc = uc.with(Key.rev, commit, Key.commit, commit);
                     rewriteRootTree(commit.getTree().getId(), uuc);
-                    commit.disposeBody();
                 });
             }
         }
@@ -178,16 +179,13 @@ public class RepositoryRewriter implements RewriterCommand {
      * Prepares the revision walk.
      */
     protected RevWalk prepareRevisionWalk(final Context c) {
-        final Collection<ObjectId> uninterestings = collectUninterestings(c);
-        final Collection<ObjectId> starts = collectStarts(c);
-
         final RevWalk walk = source.walk();
         Try.io(c, () -> {
-            for (final ObjectId id : starts) {
-                walk.markStart(walk.parseCommit(id));
+            for (final ObjectId id : collectStarts(c)) {
+                walk.memoMarkStart(id);
             }
-            for (final ObjectId id : uninterestings) {
-                walk.markUninteresting(walk.parseCommit(id));
+            for (final ObjectId id : collectUninterestings(c)) {
+                walk.memoMarkUninteresting(id);
             }
         });
         return walk;
