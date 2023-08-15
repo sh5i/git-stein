@@ -19,7 +19,7 @@ public interface AnyColdEntry extends Serializable {
     int size();
 
     default AnyColdEntry pack() {
-        return size() == 1 ? ((Set) this).getEntries().get(0) : this;
+        return this;
     }
 
     static Set set(Collection<Entry> entries) {
@@ -66,6 +66,18 @@ public interface AnyColdEntry extends Serializable {
         @Override
         public String toString() {
             return entries.toString();
+        }
+
+        @Override
+        public AnyColdEntry pack() {
+            switch (size()) {
+                case 0:
+                    return empty();
+                case 1:
+                    return entries.get(0);
+                default:
+                    return this;
+            }
         }
     }
 
