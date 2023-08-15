@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import lombok.EqualsAndHashCode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -42,6 +43,7 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
     /**
      * Builds vertices and edges from a RevWalk.
      */
+    @SuppressWarnings("UnusedReturnValue")
     public CommitGraph build(final RevWalk walk) {
         try (final RevWalk w = walk) {
             // This process does not require body info
@@ -152,6 +154,7 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
     /**
      * Vertices of the graph (commits).
      */
+    @EqualsAndHashCode
     public static class Vertex {
         public final ObjectId id;
 
@@ -159,26 +162,16 @@ public class CommitGraph extends SimpleDirectedGraph<Vertex, Edge> implements It
             return of(ObjectId.fromString(name));
         }
 
-        public static Vertex of(final ObjectId id) {
-            return new Vertex(id);
-        }
-
         public static Vertex of(final RevCommit commit) {
             return of(commit.getId());
         }
 
+        public static Vertex of(final ObjectId id) {
+            return new Vertex(id);
+        }
+
         protected Vertex(final ObjectId id) {
             this.id = id;
-        }
-
-        @Override
-        public int hashCode() {
-            return id.hashCode();
-        }
-
-        @Override
-        public boolean equals(final Object obj) {
-            return obj instanceof Vertex && id.equals(((Vertex) obj).id);
         }
 
         @Override
