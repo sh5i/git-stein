@@ -166,7 +166,6 @@ public class RepositoryRewriter implements RewriterCommand {
                 final Context uc = cxts.computeIfAbsent(id, k -> c.with(Key.inserter, target.getInserter()));
                 final Context uuc = uc.with(Key.rev, commit, Key.commit, commit);
                 rewriteRootTree(commit.getTree().getId(), uuc);
-                commit.disposeBody();
             });
         }
 
