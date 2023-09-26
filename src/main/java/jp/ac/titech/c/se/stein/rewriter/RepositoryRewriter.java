@@ -3,15 +3,11 @@ package jp.ac.titech.c.se.stein.rewriter;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.entry.Entry;
@@ -119,6 +115,7 @@ public class RepositoryRewriter implements RewriterCommand {
             });
         } else {
             if (config.nthreads >= 2) {
+                log.debug("Parallel rewriting");
                 rewriteRootTrees(walk, c);
                 Try.io(walk::memoReset);
             }
@@ -151,23 +148,27 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected void rewriteRootTrees(final RevWalk walk, final Context c) {
         final Map<Long, Context> cxts = new ConcurrentHashMap<>();
-        final ExecutorService pool = new ThreadPoolExecutor(config.nthreads, config.nthreads, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(config.nthreads * 10));
+
+        long count = 0;
         try (walk) {
             for (final RevCommit commit : walk) {
-                pool.execute(() -> {
-                    final long id = Thread.currentThread().getId();
-                    final Context uc = cxts.computeIfAbsent(id, k -> c.with(Key.inserter, target.getInserter()));
-                    final Context uuc = uc.with(Key.rev, commit, Key.commit, commit);
-                    rewriteRootTree(commit.getTree().getId(), uuc);
-                });
+                count++;
             }
         }
-        pool.shutdown();
+        Try.io(walk::memoReset);
 
-        // Long.MAX_VALUE means infinity.
-        // @see java.util.concurrent
-        Try.run(() -> pool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS));
+        try (walk) {
+            final int characteristics = Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.SIZED;
+            final Spliterator<RevCommit> split = Spliterators.spliterator(walk.iterator(), count, characteristics);
+            final Stream<RevCommit> stream = StreamSupport.stream(split, true);
+            stream.forEach(commit -> {
+                final long id = Thread.currentThread().getId();
+                final Context uc = cxts.computeIfAbsent(id, k -> c.with(Key.inserter, target.getInserter()));
+                final Context uuc = uc.with(Key.rev, commit, Key.commit, commit);
+                rewriteRootTree(commit.getTree().getId(), uuc);
+                commit.disposeBody();
+            });
+        }
 
         // finalize
         for (final Context uc : cxts.values()) {
