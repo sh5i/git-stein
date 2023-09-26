@@ -25,28 +25,30 @@ $ git stein [options...]                  # When subcommand available
 
 Typical runs:
 ```
-$ git stein [general options...] path/to/source-repoo [app] [app-options...] ...
+$ git stein [general options...] path/to/source-repo [app] [app-options...] ...
 # Example: Converts a Java repository to a method repository
 $ git stein -o path/to/target-repo path/to/source-repo -o path/to/target-repo historage
 ```
 
 ## General Options
-- `-o`, `--output=<path>`: Specify the destination repository path. If it is omitted, git-stein runs as _overwrite_ mode (rewriting the input repo.
+- `-o`, `--output=<path>`: Specify the destination repository path. If it is omitted, git-stein runs as _overwrite_ mode (rewriting the input repo).
 - `-d`, `--duplicate`: Duplicate the source repository and overwrites it. **Requires `-o`**.
-- `--clean`: Delete the destination repository before applying the transformation if it exists. **Requires `-o`**.
+- `--clean`: Delete the target repository before applying the transformation if it exists. **Requires `-o`**.
 - `--bare`: Treat that the specified repositories are bare.
-- `-p`, `--parallel=<nthreads>`: Rewrites trees in parallel using `<nthreads>` threads. If the number of threads is omitted (just `-p` is given), _total number of processors - 1_ is used.
+- `-j`, `--jobs=<nthreads>`: Rewrites trees in parallel using `<nthreads>` threads. If the number of threads is omitted (just `-p` is given), _total number of processors - 1_ is used.
 - `-n`, `--dry-run`: Do not actually modify the target repository.
-- `--[no-]notes-forward`: Note the object ID of rewritten commits to the commits in the source repository. _Default: no_.
-- `--[no-]notes-backward`: Note the object ID of original commits to the commits in the destination repository. _Default: yes_.
+- `--no-notes`: Stop noting the source commit ID to the commits in the target repository.
+- `--no-pack`: Stop packing objects after transformation finished.
+- `--no-composite`: Stop composing multiple blob translators.
 - `--extra-attributes`: Allow opportunity to rewrite the encoding and the signature fields in commits.
-- `--mapping=<file>` Store the commit mapping to `<file>` as JSON format.
 - `--cache=<level>,...`: Specify the object types for caching (`commit`, `blob`, `tree`. See [Incremental transformation](#incremental-transformation) for the details). Default: none. `commit` is recommended.
+- `--cmdpath=<path>:...`: Add packages for search for commands.
 - `--log=<level>`: Specify log level (default: `INFO`).
 - `-q`, `--quiet`: Quiet mode (same as `--log=ERROR`).
 - `-v`, `--verbose`: Verbose mode (same as `--log=DEBUG`).
 - `--help`: Show a help message and exit.
 - `--version`: Print version information and exit.
+
 
 In addition to general options, each app has its own options.
 
@@ -68,51 +70,116 @@ This cache can save the re-transformation of remaining objects during the second
 
 ## Bundle Apps
 
-### java-historage
-Generates a [Historage](https://github.com/hideakihata/git2historage)-like repository from a Java-based project repository.
+### Blob Translators
 
+#### @historage
+Generates a [Historage](https://github.com/hideakihata/git2historage)-like repository using [Universal Ctags](https://ctags.io/).
 Options:
-- `--[no-]classes`: Include class files (`*.cjava`). _Default: yes_.
-- `--[no-]fields`: Include field files (`*.fjava`). _Default: yes_.
-- `--[no-]methods`: Include method files (`*.mjava`). _Default: yes_.
-- `--[no-]original`: Include original Java files. _Default: yes_.
-- `--[no-]noncode`: Include non-Java files. _Default: yes_.
+- `--ctags=<cmd>`: Location of executable `ctags` command. _Default: ctags_.
+- `--no-original`: Exclude original files.
+- `--no-original-ext`: Disuse original file extension.
+- `--no-sig`: Stop using signature (parameters) for generating filenames.
+- `--no-digest-sig`: Stop digesting signature.
+- `--module=<kind>,...`: Specify module kinds to include.
+- `--pattern=<glob>`: Specify the target files as a wildcard glob.
+- `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
+- `-V`, `--invert-match`: Select non-matching items for targets.
+
+#### @historage-jdt
+Generates a [Historage](https://github.com/hideakihata/git2historage)-like repository from a Java-based project repository using [Eclipse-JDT](https://projects.eclipse.org/projects/eclipse.jdt).
+Options:
+- `--no-original`: Exclude original Java files.
+- `--no-classes`: Exclude class files (`*.cjava`).
+- `--no-methods`: Exclude method files (`*.mjava`).
+- `--no-fields`: Exclude field files (`*.fjava`).
 - `--comments`: Include comment files (`*.?java.com`).
 - `--separate-comments`: Exclude comments from module files.
+- `--class-ext=<ext>`: Class file extension. _Default: .cjava_.
+- `--method-ext=<ext>`: Method file extension. _Default: .mjava_.
+- `--field-ext=<ext>`: Field file extension. _Default: .fjava_.
+- `--comment-ext=<ext>`: Comment file extension. _Default: .com_.
+- `--digest-params`: Digest parameters.
+- `--unqualify`: Unqualify typenames.
+- `--parsable`: Generate more parsable files. Specifically, this option adds a package name declration and a class declaration for method files.
 
-### java-tokenize
-Splits lines in Java source files (_LineToken_ format) so that each line contains at most one Java token.
+#### @tokenize
+Splits lines in input files so that each line contains mostly one token using a simple regular expression.
 More specifically, it rewrites all the line breaks into "\r" and inserts "\n" into all the token boundaries.
 
-Options:
-- `--decode`: Decode LineToken files into the original one instead of converting to LineToken files.
+#### @tokenize-jdt
+Splits lines in Java source files (_LineToken_ format) so that each line contains at most one Java token using [Eclipse-JDT](https://projects.eclipse.org/projects/eclipse.jdt)..
+More specifically, it rewrites all the line breaks into "\r" and inserts "\n" into all the token boundaries.
 
-### anonymize
-Anonymizes filenames, branch names, tag names, and file contents.
+#### @untokenize
+Decodes _LineToken_ files into the original one.
 
-### cluster
-Restructures commit graph.
-
-Options:
-- `--recipe=<file>`: Specify a _recipe_ JSON file that describe how the commit graph should be restructured.
-- `--dump-graph=<file>`: Dump the restructured graph in GML format.
-      
-### convert
+#### @convert-http
 A general-purpose blob converter via an HTTP Web API.
-
 Options:
 - `--endpoint=<url>`: Specify the endpoint URL of the HTTP Web API.
-- `--pattern=<glob>`: Specify the target files.
-- `--exclude`: Exclude non-target files.
+- `--pattern=<glob>`: Specify the target files as a wildcard glob.
+- `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
+- `-V`, `--invert-match`: Select non-matching items for targets.
 
-### svn-metadata
+#### @convert-cmd
+A general-purpose blob converter via an executable command.
+Options:
+- `--cmd=<cmdline>`: Command with arguments.
+- `--pattern=<glob>`: Specify the target files as a wildcard glob.
+- `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
+- `-V`, `--invert-match`: Select non-matching items for targets.
+
+#### @grep
+A blob filter by filename.
+Options:
+- `--pattern=<glob>`: Specify the target files as a wildcard glob.
+- `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
+- `-V`, `--invert-match`: Select non-matching items for targets.
+
+#### @size-filter
+A blob filter by file size.
+Options:
+- `--size=<num>{,K,M,G}`: The blob size threshold; remove files larger than this size.
+- `-V`, `--invert-match`: Select non-matching items for targets.
+
+#### @cregit
+cregit format via [srcML](https://www.srcml.org/).
+Options:
+- `--srcml=<cmd>`: Location of executable `srcml` command. _Default: srcml_.
+- `--pattern=<glob>`: Specify the target files as a wildcard glob.
+- `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
+- `-V`, `--invert-match`: Select non-matching items for targets.
+
+
+### Commit Translators
+
+#### @note-commit
+Note original commit ID on each commit message.
+Options:
+- `--length=<num>`: Length of SHA1 hash. _Default: 40_.
+
+#### @svn-metadata
 Attaches svn commit IDs into a Git repository generated by [svn2git](https://github.com/svn-all-fast-export/svn2git).
-
 Options:
 - `--svn-mapping=<log-git-repository>`: Specify the svn mapping file.
 - `--object-mapping=<marks-git-repository>`: Specify the object mapping file.
-                             
-### identity
+
+
+### Others
+
+#### @cluster
+Restructures commit graph.
+Options:
+- `--recipe=<file>`: Specify a _recipe_ JSON file that describe how the commit graph should be restructured.
+- `--dump-graph=<file>`: Dump the restructured graph in GML format.
+
+#### @anonymize
+Anonymizes filenames, branch names, tag names, and file contents.
+
+#### @external
+Run an external rewriter.
+
+#### @identity
 A test app to do nothing.
 
 
