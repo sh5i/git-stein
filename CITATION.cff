@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: Hayashi
+  given-names: Shinpei
+- family-names: Shiba
+  given-names: Shunta
+title: git-stein
+url: https://github.com/sh5i/git-stein
+preferred-citation:
+  type: article
+  authors:
+  - family-names: Shiba
+    given-names: Shunta
+  - family-names: Hayashi
+    given-names: Shinpei
+  doi: 10.11309/jssst.39.4_75
+  journal: "Computer Software"
+  title: "Historinc: A Repository Transformation Tool for Fine-Grained History Tracking"
+  volume: 39
+  issue: 4
+  start: 75
+  end: 85
+  year: 2022
+  month: 11

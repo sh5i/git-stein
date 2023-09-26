@@ -186,6 +186,8 @@ A test app to do nothing.
 ## Publications
 The following article includes the details of the incremental transformation (and a brief introduction to git-stein).
 Those who have used git-stein in their academic work may be encouraged to cite the following in their work:
+
+Shunta Shiba, Shinpei Hayashi: ``Historinc: A Repository Transformation Tool for Fine-Grained History Tracking'' (in Japanese), Computer Software, Vol. 39, No. 4, pp. 75-85, 2022. https://doi.org/10.11309/jssst.39.4_75
 ```
 @article{shiba-jssst202211,
     author = {Shunta Shiba and Shinpei Hayashi},
@@ -195,5 +197,6 @@ Those who have used git-stein in their academic work may be encouraged to cite t
     number = 4,
     pages = {75−−85},
     year = 2022,
+    doi = {10.11309/jssst.39.4_75}
 }
 ```
