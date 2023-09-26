@@ -35,7 +35,7 @@ $ git stein -o path/to/target-repo path/to/source-repo -o path/to/target-repo hi
 - `-d`, `--duplicate`: Duplicate the source repository and overwrites it. **Requires `-o`**.
 - `--clean`: Delete the target repository before applying the transformation if it exists. **Requires `-o`**.
 - `--bare`: Treat that the specified repositories are bare.
-- `-j`, `--jobs=<nthreads>`: Rewrites trees in parallel using `<nthreads>` threads. If the number of threads is omitted (just `-p` is given), _total number of processors - 1_ is used.
+- `-j`, `--jobs=<nthreads>`: Rewrites trees in parallel using `<nthreads>` threads. If the number of threads is omitted (just `-j` is given), _total number of processors - 1_ is used.
 - `-n`, `--dry-run`: Do not actually modify the target repository.
 - `--no-notes`: Stop noting the source commit ID to the commits in the target repository.
 - `--no-pack`: Stop packing objects after transformation finished.
