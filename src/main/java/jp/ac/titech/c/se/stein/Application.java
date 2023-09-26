@@ -56,10 +56,10 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         public OutputOptions output;
 
         public static class OutputOptions {
-            @Option(names = { "-o", "--output" }, paramLabel = "<path>", description = "destination repo", required = true)
+            @Option(names = {"-o", "--output"}, paramLabel = "<path>", description = "destination repo", required = true)
             public File target;
 
-            @Option(names = { "-d", "--duplicate" }, description = "duplicate source repo and overwrite it")
+            @Option(names = {"-d", "--duplicate"}, description = "duplicate source repo and overwrite it")
             public boolean isDuplicating;
 
             @Option(names = "--clean", description = "delete destination repo beforehand if exists")
@@ -70,7 +70,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         public boolean isBare = false;
 
         @SuppressWarnings("unused")
-        @Option(names = { "-j", "--jobs" }, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = MIDDLE,
+        @Option(names = {"-j", "--jobs"}, paramLabel = "<nthreads>", description = "number of threads to rewrite trees in parallel", order = MIDDLE,
                 fallbackValue = "0")
         void setNumberOfThreads(final int nthreads) {
             this.nthreads = nthreads;
@@ -81,7 +81,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         }
         public int nthreads = 1;
 
-        @Option(names = { "-n", "--dry-run" }, description = "do not actually touch destination repo", order = MIDDLE)
+        @Option(names = {"-n", "--dry-run"}, description = "do not actually touch destination repo", order = MIDDLE)
         public boolean isDryRunning = false;
 
         @Option(names = "--no-notes", negatable = true, description = "note original commit id to destination repo", order = MIDDLE)
@@ -114,7 +114,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         public Level logLevel = Level.INFO;
 
         @SuppressWarnings("unused")
-        @Option(names = { "-q", "--quiet" }, description = "quiet mode (same as --log=ERROR)", order = LOW)
+        @Option(names = {"-q", "--quiet"}, description = "quiet mode (same as --log=ERROR)", order = LOW)
         void setQuiet(final boolean isQuiet) {
             if (isQuiet) {
                 logLevel = Level.ERROR;
@@ -122,7 +122,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         }
 
         @SuppressWarnings("unused")
-        @Option(names = { "-v", "--verbose" }, description = "verbose mode (same as --log=DEBUG)", order = LOW)
+        @Option(names = {"-v", "--verbose"}, description = "verbose mode (same as --log=DEBUG)", order = LOW)
         void setVerbose(final boolean isVerbose) {
             if (isVerbose) {
                 logLevel = Level.DEBUG;

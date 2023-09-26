@@ -42,11 +42,11 @@ public class HistorageViaJDT implements BlobTranslator {
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
 
-    @Option(names = "--no-fields", negatable = true, description = "[ex]/include field files")
-    protected boolean requiresFields = true;
-
     @Option(names = "--no-methods", negatable = true, description = "[ex]/include method files")
     protected boolean requiresMethods = true;
+
+    @Option(names = "--no-fields", negatable = true, description = "[ex]/include field files")
+    protected boolean requiresFields = true;
 
     @Option(names = "--comments", description = "extract comment files")
     protected boolean requiresComments = false;

@@ -35,7 +35,7 @@ public class NameFilter implements FileFilter {
     protected boolean isIgnoringCase = false;
 
     @SuppressWarnings("unused")
-    @Option(names = { "-V", "--invert-match" }, description = "select non-matching items for targets")
+    @Option(names = {"-V", "--invert-match"}, description = "select non-matching items for targets")
     public void setInvertMatch(final boolean isInvertMatch) {
         this.invertMatch = isInvertMatch;
         updateFilter();

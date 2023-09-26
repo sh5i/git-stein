@@ -19,7 +19,7 @@ public class SizeFilter implements BlobTranslator {
             required = true, converter = SizeConverter.class)
     protected long maxSize = -1L;
 
-    @Option(names = { "-V", "--invert-match" }, description = "filter non-matching items")
+    @Option(names = {"-V", "--invert-match"}, description = "filter non-matching items")
     protected boolean invertMatch;
 
     public static class SizeConverter implements ITypeConverter<Long> {
