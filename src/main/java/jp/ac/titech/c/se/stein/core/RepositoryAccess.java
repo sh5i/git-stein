@@ -188,6 +188,34 @@ public class RepositoryAccess {
     }
 
     /**
+     * Copies a tree to another repo.
+     */
+    public ObjectId copyTree(final ObjectId treeId, final RepositoryAccess target, final Context c) {
+        final List<Entry> entries = new ArrayList<>();
+        for (final Entry e : readTree(treeId, null)) {
+            switch (e.getType()) {
+                case TREE:
+                    entries.add(Entry.of(e.getMode(), e.getName(), copyTree(e.getId(), target, c)));
+                    break;
+                case BLOB:
+                    entries.add(Entry.of(e.getMode(), e.getName(), copyBlob(e.getId(), target, c)));
+                    break;
+                default:
+                    entries.add(e);
+                    break;
+            }
+        }
+        return target.writeTree(entries, c);
+    }
+
+    /**
+     * Copies a blob to another repo.
+     */
+    public ObjectId copyBlob(final ObjectId blobId, final RepositoryAccess target, final Context c) {
+        return target.writeBlob(readBlob(blobId), c);
+    }
+
+    /**
      * Computes the size of a blob object.
      */
     public long getBlobSize(final ObjectId blobId) {

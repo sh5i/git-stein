@@ -546,9 +546,15 @@ public class RepositoryRewriter implements RewriterCommand {
                 }
                 return newCommitId;
 
+            case Constants.OBJ_TREE: // 2: tree
+                // TODO rewriting opportunity for this tree
+                final ObjectId newTreeId = source.copyTree(id, target, c);
+                log.warn("A ref object tree {} found, just copied {}", id.name(), c);
+                return newTreeId;
+
             case Constants.OBJ_BLOB: // 3: blob
                 // TODO rewriting opportunity for this blob
-                final ObjectId newBlobId = target.writeBlob(source.readBlob(id), c);
+                final ObjectId newBlobId = source.copyBlob(id, target, c);
                 log.warn("A ref object blob {} found, just copied {}", id.name(), c);
                 return newBlobId;
 
