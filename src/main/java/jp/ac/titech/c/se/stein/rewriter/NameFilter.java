@@ -19,7 +19,7 @@ public class NameFilter implements FileFilter {
     protected IOFileFilter filter = TrueFileFilter.TRUE;
 
     @SuppressWarnings("unused")
-    @Option(names = "--pattern", paramLabel = "<glob;...>", description = "filename patterns for targets", split = ";")
+    @Option(names = "--pattern", paramLabel = "<g>", description = "filename patterns for targets", split = ";")
     public void setPatterns(final String... patterns) {
         this.patterns = patterns;
         updateFilter();

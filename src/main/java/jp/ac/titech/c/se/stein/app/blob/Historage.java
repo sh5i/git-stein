@@ -51,7 +51,7 @@ public class Historage implements BlobTranslator {
     @Mixin
     private final NameFilter filter = new NameFilter();
 
-    @Option(names = "--module", paramLabel = "<kind>,...", description = "specify module kinds to include",
+    @Option(names = "--kind", paramLabel = "<k>", description = "specify module kinds to include",
             arity = "0..*", split = ",")
     protected Set<String> moduleKinds;
 
