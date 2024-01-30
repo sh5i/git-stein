@@ -149,7 +149,7 @@ public class RepositoryAccess {
     /**
      * Resolve name conflicts.
      */
-    public List<Entry> resolveNameConflicts(final Collection<Entry> entries) {
+    public static List<Entry> resolveNameConflicts(final Collection<Entry> entries) {
         final Map<String, Integer> counter = new HashMap<>();
         final List<Entry> result = new ArrayList<>();
         for (final Entry e : entries) {
