@@ -20,29 +20,29 @@ import picocli.CommandLine.Option;
 @ToString
 @Command(name = "@anonymize", description = "Anonymize filenames and contents")
 public class Anonymize extends RepositoryRewriter {
-    @Option(names = "--no-tree", negatable = true, description = "anonymize tree name")
-    protected boolean isTreeNameEnabled = true;
+    @Option(names = "--tree", description = "anonymize tree name")
+    protected boolean isTreeNameEnabled;
 
-    @Option(names = "--no-blob", negatable = true, description = "anonymize blob name")
-    protected boolean isBlobNameEnabled = true;
+    @Option(names = "--blob", description = "anonymize blob name")
+    protected boolean isBlobNameEnabled;
 
-    @Option(names = "--no-content", negatable = true, description = "anonymize blob content")
-    protected boolean isBlobContentEnabled = true;
+    @Option(names = "--content", description = "anonymize blob content")
+    protected boolean isBlobContentEnabled;
 
-    @Option(names = "--no-message", negatable = true, description = "anonymize commit/tag message")
-    protected boolean isMessageEnabled = true;
+    @Option(names = "--message", description = "anonymize commit/tag message")
+    protected boolean isMessageEnabled;
 
-    @Option(names = "--no-branch", negatable = true, description = "anonymize branch name")
-    protected boolean isBranchNameEnabled = true;
+    @Option(names = "--branch", description = "anonymize branch name")
+    protected boolean isBranchNameEnabled;
 
-    @Option(names = "--no-tag", negatable = true, description = "anonymize tag name")
-    protected boolean isTagNameEnabled = true;
+    @Option(names = "--tag", description = "anonymize tag name")
+    protected boolean isTagNameEnabled;
 
-    @Option(names = "--no-author", negatable = true, description = "anonymize author name")
-    protected boolean isAuthorNameEnabled = true;
+    @Option(names = "--author", description = "anonymize author name")
+    protected boolean isAuthorNameEnabled;
 
-    @Option(names = "--no-email", negatable = true, description = "anonymize author email")
-    protected boolean isAuthorEmailEnabled = true;
+    @Option(names = "--email", description = "anonymize author email")
+    protected boolean isAuthorEmailEnabled;
 
 
     public static class NameMap {
