@@ -44,6 +44,18 @@ public class Anonymize extends RepositoryRewriter {
     @Option(names = "--email", description = "anonymize author email")
     protected boolean isAuthorEmailEnabled;
 
+    @SuppressWarnings("unused")
+    @Option(names = "--all", description = "anonymize all")
+    protected void setAllEnabled(boolean isEnabled) {
+        isTreeNameEnabled = isEnabled;
+        isBlobNameEnabled = isEnabled;
+        isBlobContentEnabled = isEnabled;
+        isMessageEnabled = isEnabled;
+        isBranchNameEnabled = isEnabled;
+        isTagNameEnabled = isEnabled;
+        isAuthorNameEnabled = isEnabled;
+        isAuthorEmailEnabled = isEnabled;
+    }
 
     public static class NameMap {
         private final Map<String, String> cache = new ConcurrentHashMap<>();
