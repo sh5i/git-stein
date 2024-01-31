@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
+import jp.ac.titech.c.se.stein.app.blob.SizeFilter;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.app.Identity;
 import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
@@ -19,6 +20,7 @@ import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.storage.file.WindowCacheConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,6 +101,14 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = MIDDLE)
         public boolean isRewritingExtraAttributes = false;
 
+        @SuppressWarnings("unused")
+        @Option(names = "--stream-size-limit", paramLabel = "<num>{,K,M,G}", description = "increase stream size limit", order = MIDDLE,
+                converter = SizeFilter.SizeConverter.class)
+        void setSizeLimit(final long limit) {
+            final WindowCacheConfig config = new WindowCacheConfig();
+            config.setStreamFileThreshold((int) limit);
+            config.install();
+        }
 
         @SuppressWarnings("unused")
         @Option(names = "--cmdpath", split = ":", paramLabel = "<p>", description = "add packages for search for commands", order = LOW)
