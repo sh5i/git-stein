@@ -4,6 +4,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
@@ -36,6 +38,8 @@ import picocli.CommandLine.Option;
 public class HistorageViaJDT implements BlobTranslator {
     public static final NameFilter JAVA = new NameFilter(true, "*.java");
 
+    public static final Gson GSON = new Gson();
+
     @Option(names = "--no-original", negatable = true, description = "Exclude original files")
     protected boolean requiresOriginals = true;
 
@@ -54,6 +58,9 @@ public class HistorageViaJDT implements BlobTranslator {
     @Option(names = "--separate-comments", description = "exclude comments from modules")
     protected boolean separatesComments = false;
 
+    @Option(names = "--mapping", description = "extract mapping file")
+    protected boolean requiresMapping = false;
+
     @Option(names = "--class-ext", paramLabel = "<ext>", description = "class file extension (default: ${DEFAULT-VALUE})")
     protected String classExtension = ".cjava";
 
@@ -65,6 +72,9 @@ public class HistorageViaJDT implements BlobTranslator {
 
     @Option(names = "--comment-ext", paramLabel = "<ext>", description = "comment file extension (default: ${DEFAULT-VALUE})")
     protected String commentExtension = ".com";
+
+    @Option(names = "--mapping-ext", paramLabel = "<ext>", description = "mapping file extension (default: ${DEFAULT-VALUE})")
+    protected String mappingExtension = ".mapping";
 
     @Option(names = "--digest-params", description = "digest parameters")
     protected boolean digestParameters = false;
@@ -112,13 +122,20 @@ public class HistorageViaJDT implements BlobTranslator {
             return name;
         }
 
-
         public String getFilename() {
             return getBasename() + extension;
         }
 
         public byte[] getBlob() {
             return content.getBytes(StandardCharsets.UTF_8);
+        }
+
+        public JsonObject toJsonObject() {
+            final JsonObject result = new JsonObject();
+            result.addProperty("filename", getFilename());
+            result.addProperty("beginLine", beginLine);
+            result.addProperty("endLine", endLine);
+            return result;
         }
     }
 
@@ -208,6 +225,23 @@ public class HistorageViaJDT implements BlobTranslator {
         }
     }
 
+    public class MappingModule extends Module {
+        public MappingModule(final Module parent, final List<Module> modules) {
+            super(null, mappingExtension, parent, generateMappingContent(modules), -1, -1);
+        }
+
+        @Override
+        public String getBasename() {
+            return parent.getBasename();
+        }
+    }
+
+    protected static String generateMappingContent(final List<Module> modules) {
+        return modules.stream()
+                .map(m -> GSON.toJson(m.toJsonObject()) + "\n")
+                .collect(Collectors.joining());
+    }
+
     public class ModuleGenerator extends ASTVisitor {
         private final SourceText text;
         private final CompilationUnit unit;
@@ -231,6 +265,9 @@ public class HistorageViaJDT implements BlobTranslator {
                 return Collections.emptyList();
             }
             unit.accept(this);
+            if (requiresMapping && !modules.isEmpty()) {
+                modules.add(new MappingModule(stack.peek(), modules));
+            }
             return modules;
         }
 
