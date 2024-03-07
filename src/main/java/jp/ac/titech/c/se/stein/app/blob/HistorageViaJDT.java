@@ -355,8 +355,7 @@ public class HistorageViaJDT implements BlobTranslator {
         /**
          * Gets a source of the given node with excluding its all comments.
          */
-        protected String getSourceWithoutComments(final BodyDeclaration node) {
-            final Fragment fragment = getFragmentWithSurroundingComments(node);
+        protected String getSourceWithoutComments(final Fragment fragment, final BodyDeclaration node) {
             String source = fragment.getWiderContent();
             final List<Comment> comments = commentSet.getComments(node);
             for (int i = comments.size() - 1; i >= 0; i--) {
@@ -382,17 +381,17 @@ public class HistorageViaJDT implements BlobTranslator {
         /**
          * Gets the source content of the given node.
          */
-        protected String getSource(final BodyDeclaration node) {
-            return separatesComments ? getSourceWithoutComments(node) : getFragmentWithSurroundingComments(node).getWiderContent();
+        protected String getSource(final Fragment fragment, final BodyDeclaration node) {
+            return separatesComments ? getSourceWithoutComments(fragment, node) : fragment.getWiderContent();
         }
 
         /**
          * Gets the content of the given node. If an option requested, code of
          * its belonging package and class is supplied to make it more parsable.
          */
-        protected String getContent(final BodyDeclaration node) {
+        protected String getContent(final Fragment fragment, final BodyDeclaration node) {
             if (!parsable) {
-                return getSource(node);
+                return getSource(fragment, node);
             }
 
             final StringBuilder sb = new StringBuilder();
@@ -401,10 +400,10 @@ public class HistorageViaJDT implements BlobTranslator {
                 sb.append("package ").append(pkg.getName().getFullyQualifiedName()).append(";\n");
             }
             if (node instanceof TypeDeclaration) {
-                sb.append(getSource(node));
+                sb.append(getSource(fragment, node));
             } else {
                 sb.append("class ").append(stack.peek().getBasename()).append(" {\n");
-                sb.append(getSource(node));
+                sb.append(getSource(fragment, node));
                 sb.append("}\n");
             }
             return sb.toString();
@@ -442,7 +441,8 @@ public class HistorageViaJDT implements BlobTranslator {
 
         protected boolean visitType(final AbstractTypeDeclaration node) {
             final String name = node.getName().getIdentifier();
-            final Module klass = new ClassModule(name, stack.peek(), getContent(node));
+            final Fragment fragment = getFragmentWithSurroundingComments(node);
+            final Module klass = new ClassModule(name, stack.peek(), getContent(fragment, node));
             if (requiresClasses) {
                 modules.add(klass);
                 if (requiresComments) {
@@ -466,7 +466,8 @@ public class HistorageViaJDT implements BlobTranslator {
         public boolean visit(final MethodDeclaration node) {
             if (requiresMethods) {
                 final String name = new MethodNameGenerator(node).generate();
-                final Module method = new MethodModule(name, stack.peek(), getContent(node));
+                final Fragment fragment = getFragmentWithSurroundingComments(node);
+                final Module method = new MethodModule(name, stack.peek(), getContent(fragment, node));
                 modules.add(method);
                 if (requiresComments) {
                     modules.add(new CommentModule(method, getCommentContent(node)));
@@ -480,7 +481,8 @@ public class HistorageViaJDT implements BlobTranslator {
             if (requiresFields) {
                 for (final Object f : node.fragments()) {
                     final String name = ((VariableDeclarationFragment) f).getName().toString();
-                    final Module field = new FieldModule(name, stack.peek(), getContent(node));
+                    final Fragment fragment = getFragmentWithSurroundingComments(node);
+                    final Module field = new FieldModule(name, stack.peek(), getContent(fragment, node));
                     modules.add(field);
                     if (requiresComments) {
                         modules.add(new CommentModule(field, getCommentContent(node)));
