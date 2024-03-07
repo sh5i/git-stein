@@ -104,6 +104,10 @@ public class HistorageViaJDT implements BlobTranslator {
 
         protected final String content;
 
+        protected final int beginLine;
+
+        protected final int endLine;
+
         public String getBasename() {
             return name;
         }
@@ -120,13 +124,13 @@ public class HistorageViaJDT implements BlobTranslator {
 
     public static class FileModule extends Module {
         public FileModule(final String name) {
-            super(name, null, null, null);
+            super(name, null, null, null, -1, -1);
         }
     }
 
     public class ClassModule extends Module {
-        public ClassModule(final String name, final Module parent, final String content) {
-            super(name, classExtension, parent, content);
+        public ClassModule(final String name, final Module parent, final String content, final int beginLine, final int endLine) {
+            super(name, classExtension, parent, content, beginLine, endLine);
         }
 
         @Override
@@ -140,8 +144,8 @@ public class HistorageViaJDT implements BlobTranslator {
     }
 
     public class MethodModule extends Module {
-        public MethodModule(final String name, final Module parent, final String content) {
-            super(name, methodExtension, parent, content);
+        public MethodModule(final String name, final Module parent, final String content, final int beginLine, final int endLine) {
+            super(name, methodExtension, parent, content, beginLine, endLine);
         }
 
         @Override
@@ -151,8 +155,8 @@ public class HistorageViaJDT implements BlobTranslator {
     }
 
     public class FieldModule extends Module {
-        public FieldModule(final String name, final Module parent, final String content) {
-            super(name, fieldExtension, parent, content);
+        public FieldModule(final String name, final Module parent, final String content, final int beginLine, final int endLine) {
+            super(name, fieldExtension, parent, content, beginLine, endLine);
         }
 
         @Override
@@ -163,7 +167,7 @@ public class HistorageViaJDT implements BlobTranslator {
 
     public class CommentModule extends Module {
         public CommentModule(final Module parent, final String content) {
-            super(null, commentExtension, parent, content);
+            super(null, commentExtension, parent, content, -1, -1);
         }
 
         @Override
@@ -442,7 +446,9 @@ public class HistorageViaJDT implements BlobTranslator {
         protected boolean visitType(final AbstractTypeDeclaration node) {
             final String name = node.getName().getIdentifier();
             final Fragment fragment = getFragmentWithSurroundingComments(node);
-            final Module klass = new ClassModule(name, stack.peek(), getContent(fragment, node));
+            final int beginLine = unit.getLineNumber(fragment.getBegin());
+            final int endLine = unit.getLineNumber(fragment.getEnd());
+            final Module klass = new ClassModule(name, stack.peek(), getContent(fragment, node), beginLine, endLine);
             if (requiresClasses) {
                 modules.add(klass);
                 if (requiresComments) {
@@ -467,7 +473,9 @@ public class HistorageViaJDT implements BlobTranslator {
             if (requiresMethods) {
                 final String name = new MethodNameGenerator(node).generate();
                 final Fragment fragment = getFragmentWithSurroundingComments(node);
-                final Module method = new MethodModule(name, stack.peek(), getContent(fragment, node));
+                final int beginLine = unit.getLineNumber(fragment.getBegin());
+                final int endLine = unit.getLineNumber(fragment.getEnd());
+                final Module method = new MethodModule(name, stack.peek(), getContent(fragment, node), beginLine, endLine);
                 modules.add(method);
                 if (requiresComments) {
                     modules.add(new CommentModule(method, getCommentContent(node)));
@@ -482,7 +490,9 @@ public class HistorageViaJDT implements BlobTranslator {
                 for (final Object f : node.fragments()) {
                     final String name = ((VariableDeclarationFragment) f).getName().toString();
                     final Fragment fragment = getFragmentWithSurroundingComments(node);
-                    final Module field = new FieldModule(name, stack.peek(), getContent(fragment, node));
+                    final int beginLine = unit.getLineNumber(fragment.getBegin());
+                    final int endLine = unit.getLineNumber(fragment.getEnd());
+                    final Module field = new FieldModule(name, stack.peek(), getContent(fragment, node), beginLine, endLine);
                     modules.add(field);
                     if (requiresComments) {
                         modules.add(new CommentModule(field, getCommentContent(node)));
