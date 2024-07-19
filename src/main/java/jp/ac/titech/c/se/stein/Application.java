@@ -105,8 +105,11 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @Option(names = "--stream-size-limit", paramLabel = "<num>{,K,M,G}", description = "increase stream size limit", order = MIDDLE,
                 converter = SizeFilter.SizeConverter.class)
         void setSizeLimit(final long limit) {
+            // default: 50MB is too small
+            final int intLimit = (int) Math.min(limit, Integer.MAX_VALUE);
+            log.info("Set stream size limit: {}", intLimit);
             final WindowCacheConfig config = new WindowCacheConfig();
-            config.setStreamFileThreshold((int) limit);
+            config.setStreamFileThreshold(intLimit);
             config.install();
         }
 
