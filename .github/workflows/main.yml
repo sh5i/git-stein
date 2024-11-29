@@ -19,6 +19,8 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: ${{ matrix.java-version }}
+    - name: Show java version
+      run: java -version
     - name: Build with Gradle
       run: ./gradlew executableJar --no-daemon
     - name: Show help
@@ -29,10 +31,8 @@ jobs:
     steps:
     - name: Check out repository code
       uses: actions/checkout@v4
-    - name: Set up JDK
-      run: |
-          brew update
-          brew install java
+    - name: Show java version
+      run: java -version
     - name: Build with Gradle
       run: ./gradlew executableJar --no-daemon
     - name: Show help
