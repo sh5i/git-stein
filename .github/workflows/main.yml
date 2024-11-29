@@ -24,7 +24,7 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew executableJar --no-daemon
     - name: Show help
-      run: ./gradlew run --args='help'
+      run: build/libs/git-stein.jar help
 
   build-mac:
     runs-on: macos-latest
@@ -40,6 +40,6 @@ jobs:
       env: 
         JAVA_HOME: /opt/homebrew/opt/java
     - name: Show help
-      run: ./gradlew run --args='help'
+      run: build/libs/git-stein.jar help
       env:
         JAVA_HOME: /opt/homebrew/opt/java
