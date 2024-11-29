@@ -23,3 +23,17 @@ jobs:
       run: ./gradlew executableJar --no-daemon
     - name: Show help
       run: ./gradlew run --args='--help'
+
+  build-mac:
+    runs-on: macos-latest
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v4
+    - name: Set up JDK
+      run: |
+          brew update
+          brew install java
+    - name: Build with Gradle
+      run: ./gradlew executableJar --no-daemon
+    - name: Show help
+      run: ./gradlew run --args='--help'
