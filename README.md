@@ -13,8 +13,9 @@ Build:
 $ git clone https://github.com/sh5i/git-stein.git
 $ cd git-stein
 $ ./gradlew executableJar
-$ cp /path/to/git-stein/build/libs/git-stein.jar /path/to/git/exec/path/git-stein  # Add as a Git subcommand
+$ cp build/libs/git-stein.jar /path/to/git/exec/path/git-stein  # Add as a Git subcommand
 ```
+You can know the git subcommand path (`/path/to/git/exec/path` in this example) by `git --exec-path`.
 
 Run command:
 ```
@@ -23,12 +24,21 @@ $ build/libs/git-stein.jar [options...]   # In UNIX-like system
 $ git stein [options...]                  # When subcommand available
 ```
 
-Typical runs:
+## Recipes
+
+Converts a Java repository to a method one, and tokenize each method file in it
 ```
-$ git stein [general options...] path/to/source-repo [app] [app-options...] ...
-# Example: Converts a Java repository to a method repository
-$ git stein -o path/to/target-repo path/to/source-repo -o path/to/target-repo historage
+$ git stein path/to/source-repo -o path/to/target-repo \
+  @historage-jdt --no-original --no-classes \
+  @cregit --pattern='*.cjava' --ignore-case
 ```
+
+Applies a user script to all rust source code
+```
+$ git stein path/to/source-repo -o path/to/target-repo \
+  @convert-cmd --cmd=/usr/bin/xxx --pattern='*.rs' --ignore-case
+```
+
 
 ## General Options
 - `-o`, `--output=<path>`: Specify the destination repository path. If it is omitted, git-stein runs as _overwrite_ mode (rewriting the input repo).
@@ -107,7 +117,7 @@ Splits lines in input files so that each line contains mostly one token using a 
 More specifically, it rewrites all the line breaks into "\r" and inserts "\n" into all the token boundaries.
 
 #### @tokenize-jdt
-Splits lines in Java source files (_LineToken_ format) so that each line contains at most one Java token using [Eclipse-JDT](https://projects.eclipse.org/projects/eclipse.jdt)..
+Splits lines in Java source files (_LineToken_ format) so that each line contains at most one Java token using [Eclipse-JDT](https://projects.eclipse.org/projects/eclipse.jdt).
 More specifically, it rewrites all the line breaks into "\r" and inserts "\n" into all the token boundaries.
 
 #### @untokenize
@@ -149,7 +159,6 @@ Options:
 - `--pattern=<glob>`: Specify the target files as a wildcard glob.
 - `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
 - `-V`, `--invert-match`: Select non-matching items for targets.
-
 
 ### Commit Translators
 
