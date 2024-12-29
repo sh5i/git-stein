@@ -42,6 +42,11 @@ public class RepositoryRewriter implements RewriterCommand {
     protected Map<Entry, AnyColdEntry> entryMapping = new HashMap<>();
 
     /**
+     * Root tree-to-tree mapping.
+     */
+    protected Map<ObjectId, ObjectId> rootTreeMapping = new HashMap<>();
+
+    /**
      * Commit-to-commit mapping.
      */
     protected Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
@@ -301,12 +306,18 @@ public class RepositoryRewriter implements RewriterCommand {
      * Rewrites the root tree of a commit.
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
+        final ObjectId cache = rootTreeMapping.get(treeId);
+        if (cache != null) {
+            return cache;
+        }
+
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = Entry.of(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
         final AnyColdEntry newRoot = getEntry(root, c);
         final ObjectId newId = newRoot instanceof AnyColdEntry.Empty ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
         log.debug("Rewrite root tree: {} -> {} {}", treeId.name(), newId.name(), c);
+        rootTreeMapping.put(treeId, newId);
         return newId;
     }
 
