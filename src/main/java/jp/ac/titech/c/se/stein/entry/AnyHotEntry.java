@@ -5,6 +5,7 @@ import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import lombok.Getter;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,7 +24,11 @@ public interface AnyHotEntry {
 
     AnyColdEntry fold(RepositoryAccess target, Context c);
 
-    static Set set(Collection<HotEntry> entries) {
+    static Set set(final Collection<HotEntry> entries) {
+        return new Set(entries);
+    }
+
+    static Set set(final HotEntry... entries) {
         return new Set(entries);
     }
 
@@ -46,6 +51,10 @@ public interface AnyHotEntry {
 
         Set(final Collection<HotEntry> entries) {
             this.entries.addAll(entries);
+        }
+
+        Set(final HotEntry... entries) {
+            this(Arrays.asList(entries));
         }
 
         public void add(final HotEntry entry) {
