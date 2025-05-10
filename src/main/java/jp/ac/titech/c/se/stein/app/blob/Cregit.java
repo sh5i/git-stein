@@ -124,7 +124,8 @@ public class Cregit implements BlobTranslator {
     }
 
     static class Handler extends DefaultHandler {
-        StringBuilder content = new StringBuilder();
+        final StringBuilder content = new StringBuilder();
+        String contentType;
 
         final Stack<String> elements = new Stack<>();
 
@@ -143,12 +144,15 @@ public class Cregit implements BlobTranslator {
                                     "language:" + language + ";" +
                                     "cregit-version:" + CREGIT_VERSION);
                 } else {
-                    out.println("begin_" + qName);
+                    out.print("begin_" + qName + "\n");
                 }
             }
 
             if (content.length() > 0) {
-                out.println(content);
+                String trimmed = content.toString().trim().replace('\n', ' ').replace("\r", "");
+                if (!trimmed.isEmpty()) {
+                    out.print(contentType + "|" + trimmed + "\n");
+                }
                 content.setLength(0);
             }
             elements.push(qName);
@@ -157,21 +161,24 @@ public class Cregit implements BlobTranslator {
         @Override
         public void endElement(String uri, String localName, String qName) {
             if (content.length() > 0) {
-                out.println(content);
+                String trimmed = content.toString().trim().replace('\n', ' ').replace("\r", "");
+                if (!trimmed.isEmpty()) {
+                    out.print(contentType + "|" + trimmed + "\n");
+                }
                 content.setLength(0);
             }
             elements.pop();
             if (elements.size() <= 1)  {
-                out.println("end_" + qName);
+                out.print("end_" + qName + "\n");
             }
         }
 
         @Override
         public void characters(char[] ch, int start, int length) {
-            String s = new String(ch, start, length).trim().replace('\n', ' ');
+            String s = new String(ch, start, length);
             if (!s.isEmpty()) {
                 if (content.length() == 0) {
-                    content.append(elements.peek()).append("|");
+                    contentType = elements.peek();
                 }
                 content.append(s);
             }
