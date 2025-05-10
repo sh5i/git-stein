@@ -182,6 +182,11 @@ Options:
 - `--recipe=<file>`: Specify a _recipe_ JSON file that describe how the commit graph should be restructured.
 - `--dump-graph=<file>`: Dump the restructured graph in GML format.
 
+#### @extract-commit
+Extracts a specific change (a specific commit and its first-parent only).
+Options:
+- `--target=<commit>`: Specify the target commit to extract.
+
 #### @anonymize
 Anonymizes filenames, branch names, tag names, and file contents.
 

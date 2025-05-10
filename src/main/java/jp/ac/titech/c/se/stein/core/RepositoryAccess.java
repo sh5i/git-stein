@@ -89,12 +89,26 @@ public class RepositoryAccess {
     }
 
     /**
+     * Parses a revision-spec string to make an ObjectId.
+     */
+    public ObjectId resolve(final String rev) {
+        return Try.io(() -> repo.resolve(rev));
+    }
+
+    /**
      * Extracts a rev object.
      */
     public AnyObjectId parseAny(final ObjectId id) {
         try (final RevWalk walk = new RevWalk(repo)) {
             return Try.io(() -> walk.parseAny(id));
         }
+    }
+
+    /**
+     * Extracts a rev object.
+     */
+    public AnyObjectId parseAny(final String rev) {
+        return parseAny(resolve(rev));
     }
 
     /**
