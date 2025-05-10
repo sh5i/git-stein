@@ -25,7 +25,7 @@ public class NoteCommit extends RepositoryRewriter {
             // use the commit note for the original commit id
             return new String(note, StandardCharsets.UTF_8).substring(0, length) + " " + message;
         }
-        // no note or no valid note: use the current commit id
-        return current.name().substring(0, length) + " " + message;
+        // no note or no valid note: use the zero id
+        return RepositoryRewriter.ZERO.name().substring(0, length) + " " + message;
     }
 }
