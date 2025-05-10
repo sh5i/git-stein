@@ -124,7 +124,7 @@ public class Cregit implements BlobTranslator {
     }
 
     static class Handler extends DefaultHandler {
-        String content = "";
+        StringBuilder content = new StringBuilder();
 
         final Stack<String> elements = new Stack<>();
 
@@ -147,18 +147,18 @@ public class Cregit implements BlobTranslator {
                 }
             }
 
-            if (!content.isEmpty()) {
+            if (content.length() > 0) {
                 out.println(content);
-                content = "";
+                content.setLength(0);
             }
             elements.push(qName);
         }
 
         @Override
         public void endElement(String uri, String localName, String qName) {
-            if (!content.isEmpty()) {
+            if (content.length() > 0) {
                 out.println(content);
-                content = "";
+                content.setLength(0);
             }
             elements.pop();
             if (elements.size() <= 1)  {
@@ -170,10 +170,10 @@ public class Cregit implements BlobTranslator {
         public void characters(char[] ch, int start, int length) {
             String s = new String(ch, start, length).trim().replace('\n', ' ');
             if (!s.isEmpty()) {
-                if (content.isEmpty()) {
-                    content = elements.peek() + "|";
+                if (content.length() == 0) {
+                    content.append(elements.peek()).append("|");
                 }
-                content += s;
+                content.append(s);
             }
         }
 
