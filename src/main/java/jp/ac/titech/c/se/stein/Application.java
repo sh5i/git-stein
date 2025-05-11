@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-import jp.ac.titech.c.se.stein.app.blob.SizeFilter;
+import jp.ac.titech.c.se.stein.app.blob.FilterBlob;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.app.Identity;
 import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
@@ -103,7 +103,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
         @SuppressWarnings("unused")
         @Option(names = "--stream-size-limit", paramLabel = "<num>{,K,M,G}", description = "increase stream size limit", order = MIDDLE,
-                converter = SizeFilter.SizeConverter.class)
+                converter = FilterBlob.SizeConverter.class)
         void setSizeLimit(final long limit) {
             // default: 50MB is too small
             final int intLimit = (int) Math.min(limit, Integer.MAX_VALUE);

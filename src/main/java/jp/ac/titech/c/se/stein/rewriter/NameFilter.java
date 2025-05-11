@@ -24,6 +24,7 @@ public class NameFilter implements FileFilter {
         this.patterns = patterns;
         updateFilter();
     }
+    @Getter
     protected String[] patterns;
 
     @SuppressWarnings("unused")
@@ -32,6 +33,7 @@ public class NameFilter implements FileFilter {
         this.isIgnoringCase = isIgnoringCase;
         updateFilter();
     }
+    @Getter
     protected boolean isIgnoringCase = false;
 
     @SuppressWarnings("unused")
@@ -40,6 +42,7 @@ public class NameFilter implements FileFilter {
         this.invertMatch = isInvertMatch;
         updateFilter();
     }
+    @Getter
     protected boolean invertMatch = false;
 
     protected void updateFilter() {

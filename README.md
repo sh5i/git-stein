@@ -139,16 +139,11 @@ Options:
 - `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
 - `-V`, `--invert-match`: Select non-matching items for targets.
 
-#### @grep
-A blob filter by filename.
+#### @filter
+A blob filter by filename and/or file size.
 Options:
-- `--pattern=<glob>`: Specify the target files as a wildcard glob.
+- `--pattern=<glob>`: Specify the target files as a wildcard glob; remove non-matched files.
 - `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
-- `-V`, `--invert-match`: Select non-matching items for targets.
-
-#### @size-filter
-A blob filter by file size.
-Options:
 - `--size=<num>{,K,M,G}`: The blob size threshold; remove files larger than this size.
 - `-V`, `--invert-match`: Select non-matching items for targets.
 
