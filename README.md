@@ -13,9 +13,8 @@ Build:
 $ git clone https://github.com/sh5i/git-stein.git
 $ cd git-stein
 $ ./gradlew executableJar
-$ cp build/libs/git-stein.jar /path/to/git/exec/path/git-stein  # Add as a Git subcommand
+$ cp build/libs/git-stein.jar $(git --exec-path)/git-stein  # Add as a Git subcommand
 ```
-You can know the git subcommand path (`/path/to/git/exec/path` in this example) by `git --exec-path`.
 
 Run command:
 ```
@@ -36,7 +35,7 @@ $ git stein path/to/source-repo -o path/to/target-repo \
 Applies a user script to all rust source code
 ```
 $ git stein path/to/source-repo -o path/to/target-repo \
-  @convert-cmd --cmd=/usr/bin/xxx --pattern='*.rs' --ignore-case
+  @convert --cmd=/usr/bin/xxx --pattern='*.rs' --ignore-case
 ```
 
 
