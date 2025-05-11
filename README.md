@@ -123,17 +123,10 @@ More specifically, it rewrites all the line breaks into "\r" and inserts "\n" in
 #### @untokenize
 Decodes _LineToken_ files into the original one.
 
-#### @convert-http
-A general-purpose blob converter via an HTTP Web API.
+#### @convert
+A general-purpose blob converter via external runnables.
 Options:
 - `--endpoint=<url>`: Specify the endpoint URL of the HTTP Web API.
-- `--pattern=<glob>`: Specify the target files as a wildcard glob.
-- `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
-- `-V`, `--invert-match`: Select non-matching items for targets.
-
-#### @convert-cmd
-A general-purpose blob converter via an executable command.
-Options:
 - `--cmd=<cmdline>`: Command with arguments.
 - `--pattern=<glob>`: Specify the target files as a wildcard glob.
 - `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
