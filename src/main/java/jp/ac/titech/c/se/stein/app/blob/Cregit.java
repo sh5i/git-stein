@@ -147,26 +147,13 @@ public class Cregit implements BlobTranslator {
                     out.print("begin_" + qName + "\n");
                 }
             }
-
-            if (content.length() > 0) {
-                String trimmed = content.toString().trim().replace('\n', ' ').replace("\r", "");
-                if (!trimmed.isEmpty()) {
-                    out.print(contentType + "|" + trimmed + "\n");
-                }
-                content.setLength(0);
-            }
+            dump();
             elements.push(qName);
         }
 
         @Override
         public void endElement(String uri, String localName, String qName) {
-            if (content.length() > 0) {
-                String trimmed = content.toString().trim().replace('\n', ' ').replace("\r", "");
-                if (!trimmed.isEmpty()) {
-                    out.print(contentType + "|" + trimmed + "\n");
-                }
-                content.setLength(0);
-            }
+            dump();
             elements.pop();
             if (elements.size() <= 1)  {
                 out.print("end_" + qName + "\n");
@@ -181,6 +168,16 @@ public class Cregit implements BlobTranslator {
                     contentType = elements.peek();
                 }
                 content.append(s);
+            }
+        }
+
+        private void dump() {
+            if (content.length() > 0) {
+                String trimmed = content.toString().trim().replace('\n', ' ').replace("\r", "");
+                if (!trimmed.isEmpty()) {
+                    out.print(contentType + "|" + trimmed + "\n");
+                }
+                content.setLength(0);
             }
         }
 
