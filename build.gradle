@@ -2,8 +2,8 @@ plugins {
     id 'java-library'
     id 'application'
     id 'maven-publish'
-    id 'com.gradleup.shadow' version '8.3.5'
-    id 'com.github.ben-manes.versions' version '0.51.0'
+    id 'com.gradleup.shadow' version '8.3.6'
+    id 'com.github.ben-manes.versions' version '0.52.0'
 }
 
 repositories {
@@ -40,12 +40,12 @@ dependencies {
     implementation 'org.eclipse.platform:org.eclipse.osgi:3.11.2'
     implementation 'org.eclipse.platform:org.eclipse.text:3.6.0'
 
-    implementation 'org.slf4j:slf4j-api:2.0.7'
-    implementation 'ch.qos.logback:logback-classic:1.4.8'
+    implementation 'org.slf4j:slf4j-api:2.0.17'
+    implementation 'ch.qos.logback:logback-classic:1.5.18'
     implementation 'com.google.guava:guava:33.3.1-jre'
-    implementation 'com.google.code.gson:gson:2.11.0'
-    implementation 'info.picocli:picocli:4.7.6'
-    implementation 'commons-io:commons-io:2.18.0'
+    implementation 'com.google.code.gson:gson:2.13.1'
+    implementation 'info.picocli:picocli:4.7.7'
+    implementation 'commons-io:commons-io:2.19.0'
     implementation 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
 
     implementation 'org.jgrapht:jgrapht-core:1.5.2'
@@ -56,10 +56,10 @@ dependencies {
 
     testImplementation 'junit:junit:4.13.2'
 
-    compileOnly 'org.projectlombok:lombok:1.18.36'
-    annotationProcessor 'org.projectlombok:lombok:1.18.36'
-    testCompileOnly 'org.projectlombok:lombok:1.18.36'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.36'
+    compileOnly 'org.projectlombok:lombok:1.18.38'
+    annotationProcessor 'org.projectlombok:lombok:1.18.38'
+    testCompileOnly 'org.projectlombok:lombok:1.18.38'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.38'
 }
 
 jar {
