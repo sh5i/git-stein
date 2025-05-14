@@ -89,7 +89,7 @@ public class Historage implements BlobTranslator {
         private final Context c;
 
         public List<HotEntry> generate() throws IOException {
-            try (final TemporaryFile tmp = new TemporaryFile("_stein", "." + entry.getName())) {
+            try (final TemporaryFile tmp = TemporaryFile.of("_stein", "." + entry.getName())) {
                 try (final FileOutputStream out = new FileOutputStream(tmp.getPath().toFile())) {
                     out.write(text.getRaw());
                 }
