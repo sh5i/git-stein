@@ -165,13 +165,15 @@ public class RepositoryRewriter implements RewriterCommand {
         try (walk) {
             final int characteristics = Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.SIZED;
             final Spliterator<RevCommit> split = Spliterators.spliterator(walk.iterator(), count, characteristics);
-            final Stream<RevCommit> stream = StreamSupport.stream(split, true);
-            stream.forEach(commit -> {
-                final long id = Thread.currentThread().getId();
-                final Context uc = cxts.computeIfAbsent(id, k -> c.with(Key.inserter, target.getInserter()));
-                final Context uuc = uc.with(Key.rev, commit, Key.commit, commit);
-                rewriteRootTree(commit.getTree().getId(), uuc);
-            });
+            new ForkJoinPool(config.nthreads).submit(() -> {
+                final Stream<RevCommit> stream = StreamSupport.stream(split, true);
+                stream.forEach(commit -> {
+                    final long id = Thread.currentThread().getId();
+                    final Context uc = cxts.computeIfAbsent(id, k -> c.with(Key.inserter, target.getInserter()));
+                    final Context uuc = uc.with(Key.rev, commit, Key.commit, commit);
+                    rewriteRootTree(commit.getTree().getId(), uuc);
+                });
+            }).join();
         }
 
         // finalize
