@@ -15,6 +15,10 @@ import picocli.CommandLine.Option;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 @Slf4j
 @ToString
@@ -42,10 +46,11 @@ public class ConvertBlob implements BlobTranslator {
         if (!filter.accept(entry)) {
             return entry;
         }
-        final byte[] result = options.cmdline != null
-                ? processCommandline(entry.getBlob(), c)
-                : processEndpoint(entry.getName(), entry.getBlob(), c);
-        return entry.update(result);
+        if (options.cmdline != null) {
+            return entry.update(processCommandline(entry.getBlob(), c));
+        } else {
+            return entry.update(processEndpoint(entry.getName(), entry.getBlob(), c));
+        }
     }
 
     protected byte[] processCommandline(final byte[] content, final Context c) {
@@ -54,21 +59,38 @@ public class ConvertBlob implements BlobTranslator {
                     .command(options.cmdline)
                     .redirectError(ProcessBuilder.Redirect.INHERIT)
                     .start();
+
+            final ExecutorService executor = Executors.newSingleThreadExecutor();
+            final Future<ByteArrayOutputStream> future = executor.submit(() -> {
+                try (final InputStream in = proc.getInputStream();
+                     final ByteArrayOutputStream result = new ByteArrayOutputStream()) {
+                    final byte[] buffer = new byte[4096];
+                    int len;
+                    while ((len = in.read(buffer)) != -1) {
+                        result.write(buffer, 0, len);
+                    }
+                    return result;
+                }
+            });
+
             try (final OutputStream out = proc.getOutputStream()) {
                 out.write(content);
             }
-            try (final InputStream in = proc.getInputStream()) {
-                return in.readAllBytes();
-            } finally {
-                try (final BufferedReader err = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
-                    err.lines().forEach(line -> log.warn("stderr: {} {}", line, c));
-                }
+
+            final int status = proc.waitFor();
+            if (status != 0) {
+                log.debug("Command {} exited with status {}", options.cmdline, status);
             }
-        } catch (final IOException e) {
+            final byte[] result = future.get().toByteArray();
+            executor.shutdown();
+            return result;
+
+        } catch (final IOException | InterruptedException | ExecutionException e) {
             log.error(e.getMessage(), e);
             return content;
         }
     }
+
 
     protected byte[] processEndpoint(final String filename, final byte[] content, final Context c) {
         try {
