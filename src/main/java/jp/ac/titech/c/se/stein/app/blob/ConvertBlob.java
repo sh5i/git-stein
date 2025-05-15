@@ -1,10 +1,12 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.core.Context;
+import jp.ac.titech.c.se.stein.core.Try;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
+import jp.ac.titech.c.se.stein.util.TemporaryFile;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine.ArgGroup;
@@ -15,10 +17,15 @@ import picocli.CommandLine.Option;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @ToString
@@ -38,6 +45,9 @@ public class ConvertBlob implements BlobTranslator {
         protected URL endpoint;
     }
 
+    @Option(names = "--multiple", description = "Multiple output mode")
+    protected boolean isMultiple;
+
     @Mixin
     private final NameFilter filter = new NameFilter();
 
@@ -47,7 +57,11 @@ public class ConvertBlob implements BlobTranslator {
             return entry;
         }
         if (options.cmdline != null) {
-            return entry.update(processCommandline(entry.getBlob(), c));
+            if (isMultiple) {
+                return processCommandlineMultiple(entry, c);
+            } else {
+                return entry.update(processCommandline(entry.getBlob(), c));
+            }
         } else {
             return entry.update(processEndpoint(entry.getName(), entry.getBlob(), c));
         }
@@ -91,6 +105,37 @@ public class ConvertBlob implements BlobTranslator {
         }
     }
 
+    protected AnyHotEntry processCommandlineMultiple(final HotEntry entry, final Context c) {
+        try (final TemporaryFile tmp = TemporaryFile.directoryOf("_stein")) {
+            // write input
+            final Path inputPath = tmp.getPath().resolve(entry.getName());
+            Files.write(inputPath, entry.getBlob());
+
+            // execute command
+            final Process proc = new ProcessBuilder()
+                    .command(options.cmdline)
+                    .directory(tmp.getPath().toFile())
+                    .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT)
+                    .start();
+            proc.getOutputStream().close();
+            int status = proc.waitFor();
+            if (status != 0) {
+                log.debug("Command {} exited with status {}", options.cmdline, status);
+            }
+
+            // collect outputs
+            try (final Stream<Path> files = Files.list(tmp.getPath())) {
+                final List<HotEntry> entries = files.filter(Files::isRegularFile)
+                        .map(Try.io(f -> HotEntry.of(entry.getMode(), f.getFileName().toString(), Files.readAllBytes(f))))
+                        .collect(Collectors.toList());
+                return AnyHotEntry.set(entries);
+            }
+        } catch (final InterruptedException | IOException e) {
+            log.error(e.getMessage(), e);
+            return entry;
+        }
+    }
 
     protected byte[] processEndpoint(final String filename, final byte[] content, final Context c) {
         try {
