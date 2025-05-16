@@ -74,7 +74,7 @@ public class ConvertBlob implements BlobTranslator {
                 return processCommandline(entry, c);
             }
         } else {
-            return entry.update(processEndpoint(entry.getName(), entry.getBlob(), c));
+            return processEndpoint(entry, c);
         }
     }
 
@@ -149,7 +149,7 @@ public class ConvertBlob implements BlobTranslator {
         }
     }
 
-    protected byte[] processEndpoint(final String filename, final byte[] content, final Context c) {
+    protected HotEntry processEndpoint(final HotEntry entry, final Context c) {
         try {
             final HttpURLConnection conn = (HttpURLConnection) options.endpoint.openConnection();
             conn.setRequestMethod("POST");
@@ -157,21 +157,22 @@ public class ConvertBlob implements BlobTranslator {
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-type", "text/plain");
             conn.setRequestProperty("Accept", "text/plain");
-            conn.setRequestProperty("Content-Length", String.valueOf(content.length));
-            conn.setRequestProperty("X-Filename", filename);
+            conn.setRequestProperty("Content-Length", String.valueOf(entry.getBlob().length));
+            conn.setRequestProperty("X-Filename", entry.getName());
             try (final OutputStream out = conn.getOutputStream()) {
-                out.write(content);
+                out.write(entry.getBlob());
             }
             if (conn.getResponseCode() == 200) {
                 try (final InputStream in = conn.getInputStream()) {
-                    in.readAllBytes();
+                    return entry.update(in.readAllBytes());
                 }
             } else {
                 log.error("Bad status code in response: {} {} {}", conn.getResponseCode(), conn.getResponseMessage(), c);
+                return entry;
             }
         } catch (final IOException e) {
             log.error(e.getMessage(), e);
+            return entry;
         }
-        return content;
     }
 }
