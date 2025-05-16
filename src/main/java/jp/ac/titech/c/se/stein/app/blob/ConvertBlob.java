@@ -36,7 +36,7 @@ public class ConvertBlob implements BlobTranslator {
     public ConvertOptions options;
 
     public static class ConvertOptions {
-        @Option(names = "--cmd", paramLabel = "<cmdline>", description = "Commandline to run",
+        @Option(names = "--cmd", paramLabel = "<cmdline>", description = "Command to run",
                 required = true)
         protected String cmdline;
 
@@ -45,14 +45,22 @@ public class ConvertBlob implements BlobTranslator {
         protected URL endpoint;
     }
 
-    @Option(names = "--no-shell", negatable = true, description = "with[out] /bin/sh -c in command execution")
+    @Option(names = "--no-shell", negatable = true, description = "with[out] wrapped by /bin/sh -c")
     protected boolean requiresShell = true;
 
-    @Option(names = "--multiple", description = "Multiple output mode")
-    protected boolean isMultiple = false;
+    @Option(names = "--filter", description = "Filter mode, eating stdin and dumping to stdout")
+    protected boolean isFilter = false;
 
     @Mixin
     private final NameFilter filter = new NameFilter();
+
+    protected String[] makeCommand(final String inputFile) {
+        if (requiresShell) {
+            return new String[]{ "/bin/sh", "-c", options.cmdline, inputFile };
+        } else {
+            return new String[] { options.cmdline, inputFile };
+        }
+    }
 
     @Override
     public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
@@ -60,23 +68,20 @@ public class ConvertBlob implements BlobTranslator {
             return entry;
         }
         if (options.cmdline != null) {
-            if (isMultiple) {
-                return processCommandlineMultiple(entry, c);
+            if (isFilter) {
+                return processCommandlineFilter(entry, c);
             } else {
-                return entry.update(processCommandline(entry.getBlob(), c));
+                return processCommandline(entry, c);
             }
         } else {
             return entry.update(processEndpoint(entry.getName(), entry.getBlob(), c));
         }
     }
 
-    protected byte[] processCommandline(final byte[] content, final Context c) {
-        final String[] cmd = requiresShell
-                ? new String[]{ "/bin/sh", "-c", options.cmdline }
-                : options.cmdline.split(" ");
+    protected HotEntry processCommandlineFilter(final HotEntry entry, final Context c) {
         try {
             final Process proc = new ProcessBuilder()
-                    .command(cmd)
+                    .command(makeCommand(entry.getName()))
                     .redirectError(ProcessBuilder.Redirect.INHERIT)
                     .start();
 
@@ -94,28 +99,25 @@ public class ConvertBlob implements BlobTranslator {
             });
 
             try (final OutputStream out = proc.getOutputStream()) {
-                out.write(content);
+                out.write(entry.getBlob());
             }
 
             final int status = proc.waitFor();
             if (status != 0) {
                 log.debug("Command {} exited with status {}", options.cmdline, status);
             }
-            final byte[] result = future.get().toByteArray();
+
+            final ByteArrayOutputStream result = future.get();
             executor.shutdown();
-            return result;
+            return entry.update(result.toByteArray());
 
         } catch (final IOException | InterruptedException | ExecutionException e) {
             log.error(e.getMessage(), e);
-            return content;
+            return entry;
         }
     }
 
-    protected AnyHotEntry processCommandlineMultiple(final HotEntry entry, final Context c) {
-        final String[] cmd = requiresShell
-                ? new String[]{ "/bin/sh", "-c", options.cmdline, entry.getName() }
-                : options.cmdline.split(" ");
-
+    protected AnyHotEntry processCommandline(final HotEntry entry, final Context c) {
         try (final TemporaryFile tmp = TemporaryFile.directoryOf("_stein")) {
             // write input
             final Path inputPath = tmp.getPath().resolve(entry.getName());
@@ -123,7 +125,7 @@ public class ConvertBlob implements BlobTranslator {
 
             // execute command
             final Process proc = new ProcessBuilder()
-                    .command(cmd)
+                    .command(makeCommand(entry.getName()))
                     .directory(tmp.getPath().toFile())
                     .redirectOutput(ProcessBuilder.Redirect.INHERIT)
                     .redirectError(ProcessBuilder.Redirect.INHERIT)
