@@ -89,8 +89,8 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @Option(names = "--no-notes", negatable = true, description = "note original commit id to destination repo", order = MIDDLE)
         public boolean isAddingNotes = true;
 
-        @Option(names = "--no-pack", negatable = true, description = "pack objects (default: ${DEFAULT-VALUE})", order = MIDDLE)
-        public boolean isPackingEnabled = true;
+        @Option(names = "--pack", negatable = true, description = "pack objects (default: ${DEFAULT-VALUE})", order = MIDDLE)
+        public boolean isPackingEnabled = false;
 
         @Option(names = "--no-composite", negatable = true, description = "compose multiple blob translators (default: ${DEFAULT-VALUE})", order = MIDDLE)
         public boolean useComposite = true;
