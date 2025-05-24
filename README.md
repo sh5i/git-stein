@@ -2,7 +2,7 @@
 [![jitpack](https://jitpack.io/v/sh5i/git-stein.svg)](https://jitpack.io/#sh5i/git-stein)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/sh5i/git-stein/blob/master/LICENSE)
 
-_git-stein_ is a Java framework for rewriting Git repositories.
+_git-stein_ is a general-purpose Java framework for rewriting Git repositories.
 Users can use this framework to implement their desired history rewriting by customizing the default behavior of the framework.
 Several [bundle applications](#bundle-apps) using this framework are also available; they are not only practical but also helpful in understanding how to use this framework.
 
@@ -19,7 +19,7 @@ $ cp build/libs/git-stein.jar $(git --exec-path)/git-stein  # Add as a Git subco
 Run command:
 ```
 $ java -jar build/libs/git-stein.jar [options...]
-$ build/libs/git-stein.jar [options...]   # In UNIX-like system
+$ build/libs/git-stein.jar [options...]   # In UNIX-like system, it is self-executable
 $ git stein [options...]                  # When subcommand available
 ```
 
@@ -38,7 +38,6 @@ $ git stein path/to/source-repo -o path/to/target-repo \
   @convert --cmd=/usr/bin/xxx --pattern='*.rs' --ignore-case
 ```
 
-
 ## General Options
 - `-o`, `--output=<path>`: Specify the destination repository path. If it is omitted, git-stein runs as _overwrite_ mode (rewriting the input repo).
 - `-d`, `--duplicate`: Duplicate the source repository and overwrites it. **Requires `-o`**.
@@ -46,6 +45,7 @@ $ git stein path/to/source-repo -o path/to/target-repo \
 - `--bare`: Treat that the specified repositories are bare.
 - `-j`, `--jobs=<nthreads>`: Rewrites trees in parallel using `<nthreads>` threads. If the number of threads is omitted (just `-j` is given), _total number of processors - 1_ is used.
 - `-n`, `--dry-run`: Do not actually modify the target repository.
+- `--stream-size-limit=<num>{,K,M,G}`: increase the stream size limit.
 - `--no-notes`: Stop noting the source commit ID to the commits in the target repository.
 - `--no-pack`: Stop packing objects after transformation finished.
 - `--no-composite`: Stop composing multiple blob translators.
@@ -80,6 +80,7 @@ This cache can save the re-transformation of remaining objects during the second
 ## Bundle Apps
 
 ### Blob Translators
+_Blob transrators_ provide a blob-to-blob(s) translations.
 
 #### @historage
 Generates a [Historage](https://github.com/hideakihata/git2historage)-like repository using [Universal Ctags](https://ctags.io/).
@@ -123,10 +124,13 @@ More specifically, it rewrites all the line breaks into "\r" and inserts "\n" in
 Decodes _LineToken_ files into the original one.
 
 #### @convert
-A general-purpose blob converter via external runnables.
+A general-purpose blob converter via external runnables. 
+
 Options:
 - `--endpoint=<url>`: Specify the endpoint URL of the HTTP Web API.
 - `--cmd=<cmdline>`: Command with arguments.
+
+Options to limit the target:
 - `--pattern=<glob>`: Specify the target files as a wildcard glob.
 - `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
 - `-V`, `--invert-match`: Select non-matching items for targets.
@@ -143,11 +147,14 @@ Options:
 cregit format via [srcML](https://www.srcml.org/).
 Options:
 - `--srcml=<cmd>`: Location of executable `srcml` command. _Default: srcml_.
+
+Options to limit the target:
 - `--pattern=<glob>`: Specify the target files as a wildcard glob.
 - `-i`, `--ignore-case`: Perform case-insensitive mathcing for the given pattern.
 - `-V`, `--invert-match`: Select non-matching items for targets.
 
 ### Commit Translators
+_Commit translators_ provide a commit-to-commit(s) translations.
 
 #### @note-commit
 Note original commit ID on each commit message.
