@@ -111,7 +111,7 @@ public class Historage implements BlobTranslator {
         protected void resolveNameConflicts(final List<LanguageObject> los) {
             final Map<String, Integer> counter = new HashMap<>();
             for (final LanguageObject lo : los) {
-                final String name = lo.generateFileName();
+                final String name = lo.generateFileName(digestSignature);
                 if (counter.containsKey(name)) {
                     lo.index = counter.get(name) + 1;
                     counter.put(name, lo.index);
@@ -122,7 +122,7 @@ public class Historage implements BlobTranslator {
         }
 
         protected String generateName(final LanguageObject lo) {
-            final String moduleName = lo.generateFileName();
+            final String moduleName = lo.generateFileName(digestSignature);
             if (requiresOriginalExtension) {
                 final String name = entry.getName();
                 final int index = name.lastIndexOf('.');
@@ -177,20 +177,36 @@ public class Historage implements BlobTranslator {
             return name != null && line != 0 && end != 0;
         }
 
-        public String generateFileName() {
+        public String generateFileName(final boolean digestSignature) {
             final StringBuilder sb = new StringBuilder();
             if (scope != null) {
-                sb.append(scope.replace('/', '%')).append("$");
+                sb.append(escape(scope)).append("$");
             }
-            sb.append(name);
+            if (name != null) {
+                sb.append(escape(name));
+            }
             if (signature != null) {
-                sb.append("(~").append(HashUtils.digest(signature, 4)).append(")");
+                sb.append("(").append(generateSignature(signature, digestSignature)).append(")");
             }
             if (index >= 2) {
                 sb.append("@").append(index);
             }
-            sb.append(".").append(kind.replace('/', '%'));
+            sb.append(".").append(escape(kind));
             return sb.toString();
+        }
+
+        protected String generateSignature(String sig, final boolean digestSignature) {
+            sig = sig.replaceAll("\\s+", " ").trim();
+            if (sig.startsWith("(") && sig.endsWith(")")) {
+                sig = sig.substring(1, sig.length() - 1);
+            }
+            sig = sig.replaceAll(" ?([,;:]) ?", "$1");
+            if (digestSignature) {
+                sig = "~" + HashUtils.digest(sig, 6);
+            } else {
+                sig = escape(sig);
+            }
+            return sig;
         }
 
         public static final Comparator<LanguageObject> COMPARATOR = Comparator
@@ -206,5 +222,23 @@ public class Historage implements BlobTranslator {
         public int compareTo(@Nonnull final LanguageObject other) {
             return COMPARATOR.compare(this, other);
         }
+    }
+
+    public static String escape(String s) {
+        return escapeReservedCharacters(s.trim().replaceAll("\\s+", "~"));
+    }
+
+    public static String escapeReservedCharacters(String s) {
+        // https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+        return s.replace('<', '[')
+                .replace('>', ']')
+                .replace(':', ';')
+                .replace('"', '\'')
+                .replace('/', '%')
+                .replace('\\', '%')
+                .replace('|', '!')
+                .replace('?', '#')
+                .replace('*', '+')
+                .replaceAll("[\\x00-\\x1F]", "");
     }
 }
