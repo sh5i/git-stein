@@ -12,6 +12,11 @@ import picocli.CommandLine.Mixin;
 
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Restores linetoken-encoded source files back to their original form.
+ * The inverse of {@link Tokenize}: removes line breaks between tokens and
+ * restores {@code \r} back to {@code \n}.
+ */
 @ToString
 @Command(name = "@untokenize", description = "Restore linetoken format to its original")
 public class Untokenize implements BlobTranslator {
