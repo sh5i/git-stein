@@ -88,7 +88,7 @@ public class SourceTextTest {
     @Test
     public void testWithSampleSource() throws IOException {
         final SourceText src;
-        try (InputStream is = getClass().getResourceAsStream("/sample/Hello.java")) {
+        try (InputStream is = getClass().getResourceAsStream("/sample/Hello.java.v3")) {
             src = SourceText.of(is.readAllBytes());
         }
 
