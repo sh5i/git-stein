@@ -15,12 +15,15 @@ import picocli.CommandLine.ITypeConverter;
 import picocli.CommandLine.Option;
 
 
+/**
+ * Filters (removes) blob entries by filename pattern and/or size threshold.
+ */
 @Slf4j
 @ToString
 @Command(name = "@filter", description = "Filter blobs by name and/or size")
 public class FilterBlob implements BlobTranslator {
     @Mixin
-    private final NameFilter nameFilter = new NameFilter();
+    protected final NameFilter nameFilter = new NameFilter();
 
     @Option(names = "--size", paramLabel = "<num>{,K,M,G}", description = "threshold for size upperbound",
             converter = SizeConverter.class)

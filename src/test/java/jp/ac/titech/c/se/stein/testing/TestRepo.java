@@ -5,6 +5,7 @@ import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RefEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
@@ -52,6 +53,13 @@ public class TestRepo implements AutoCloseable {
         final TestRepo testRepo = new TestRepo();
         testRepo.populate();
         return testRepo;
+    }
+
+    /**
+     * Runs the given blob translator against this repository and returns a {@link RewriteResult}.
+     */
+    public RewriteResult rewrite(BlobTranslator translator) {
+        return rewrite(translator.create());
     }
 
     /**
