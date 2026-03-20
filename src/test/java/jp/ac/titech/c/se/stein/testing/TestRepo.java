@@ -110,19 +110,15 @@ public class TestRepo implements AutoCloseable {
                     withTime(AUTHOR, DATE3), withTime(COMMITTER, DATE3),
                     "modern syntax", c);
 
-            inserter.flush();
-        }
-
-        // refs
-        access.applyRefUpdate(new RefEntry("refs/heads/main", commit3));
-        access.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
-
-        // tag v1.0 (annotated)
-        try (final ObjectInserter inserter = repo.newObjectInserter()) {
-            final Context c = Context.init().with(Context.Key.inserter, inserter);
+            // tag v1.0 (annotated)
             final ObjectId tagId = access.writeTag(commit3, Constants.OBJ_COMMIT, "v1.0",
                     withTime(AUTHOR, DATE3), "release v1.0", c);
+
             inserter.flush();
+
+            // refs
+            access.applyRefUpdate(new RefEntry("refs/heads/main", commit3));
+            access.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
             access.applyRefUpdate(new RefEntry("refs/tags/v1.0", tagId));
         }
     }
