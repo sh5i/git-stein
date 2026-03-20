@@ -418,6 +418,7 @@ public class RepositoryAccess {
     public void openInserter(final Consumer<ObjectInserter> f) {
         try (final ObjectInserter ins = repo.newObjectInserter()) {
             f.accept(ins);
+            Try.io(ins::flush);
         }
     }
 
@@ -438,7 +439,9 @@ public class RepositoryAccess {
             return Try.io(f).apply(inserterContext);
         }
         try (final ObjectInserter inserter = repo.newObjectInserter()) {
-            return Try.io(f).apply(inserter);
+            final R result = Try.io(f).apply(inserter);
+            Try.io(inserter::flush);
+            return result;
         }
     }
 }
