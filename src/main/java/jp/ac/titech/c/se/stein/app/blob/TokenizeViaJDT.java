@@ -17,6 +17,11 @@ import org.eclipse.jdt.core.compiler.InvalidInputException;
 import jp.ac.titech.c.se.stein.core.Context;
 import picocli.CommandLine.Command;
 
+/**
+ * Encodes Java source files to linetoken format using the JDT scanner.
+ * Unlike {@link Tokenize}, this tokenizer is Java-aware and preserves comments
+ * and string literals as single tokens. Only targets {@code *.java} files.
+ */
 @Slf4j
 @ToString
 @Command(name = "@tokenize-jdt", description = "Encode Java source files to linetoken format via JDT")
