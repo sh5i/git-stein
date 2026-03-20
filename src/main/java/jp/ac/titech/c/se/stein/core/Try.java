@@ -54,7 +54,7 @@ public interface Try {
         try {
             f.run();
         } catch (final Exception e) {
-            throw new RuntimeException("Exception raised (" + c + ")", e);
+            throw new RuntimeException("Exception raised " + c, e);
         }
     }
 
@@ -70,7 +70,7 @@ public interface Try {
         try {
             return f.get();
         } catch (final Exception e) {
-            throw new RuntimeException("Exception raised (" + c + ")", e);
+            throw new RuntimeException("Exception raised " + c, e);
         }
     }
 
@@ -89,7 +89,7 @@ public interface Try {
             try {
                 return f.apply(x);
             } catch (final Exception e) {
-                throw new RuntimeException("Exception raised (" + c + ")", e);
+                throw new RuntimeException("Exception raised " + c, e);
             }
         };
     }
@@ -108,7 +108,7 @@ public interface Try {
         try {
             f.run();
         } catch (final IOException e) {
-            throw new UncheckedIOException("Exception raised (" + c + ")", e);
+            throw new UncheckedIOException("Exception raised " + c, e);
         }
     }
 
@@ -124,7 +124,7 @@ public interface Try {
         try {
             return f.get();
         } catch (final IOException e) {
-            throw new UncheckedIOException("Exception raised (" + c + ")", e);
+            throw new UncheckedIOException("Exception raised " + c, e);
         }
     }
 
@@ -143,7 +143,7 @@ public interface Try {
             try {
                 return f.apply(x);
             } catch (final IOException e) {
-                throw new UncheckedIOException("Exception raised (" + c + ")", e);
+                throw new UncheckedIOException("Exception raised " + c, e);
             }
         };
     }
