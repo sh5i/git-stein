@@ -1,9 +1,11 @@
 package jp.ac.titech.c.se.stein.testing;
 
+import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RefEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
 import org.eclipse.jgit.lib.*;
@@ -52,6 +54,35 @@ public class TestRepo implements AutoCloseable {
         return testRepo;
     }
 
+    /**
+     * Runs the given rewriter against this repository and returns a {@link RewriteResult}.
+     */
+    public RewriteResult rewrite(RepositoryRewriter rewriter) {
+        final Repository targetRepo = new InMemoryRepository(new DfsRepositoryDescription("target"));
+        rewriter.setConfig(new Application.Config());
+        rewriter.initialize(repo, targetRepo);
+        rewriter.rewrite(Context.init());
+        return new RewriteResult(targetRepo);
+    }
+
+    /**
+     * The result of a rewrite operation, holding the target repository.
+     */
+    public static class RewriteResult implements AutoCloseable {
+        public final Repository repo;
+        public final RepositoryAccess access;
+
+        RewriteResult(Repository repo) {
+            this.repo = repo;
+            this.access = new RepositoryAccess(repo);
+        }
+
+        @Override
+        public void close() {
+            repo.close();
+        }
+    }
+
     @Override
     public void close() {
         repo.close();
@@ -86,14 +117,14 @@ public class TestRepo implements AutoCloseable {
         access.applyRefUpdate(new RefEntry("refs/heads/main", commit3));
         access.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
 
-        // tag v1.0
+        // tag v1.0 (annotated)
         try (final ObjectInserter inserter = repo.newObjectInserter()) {
             final Context c = Context.init().with(Context.Key.inserter, inserter);
-            access.writeTag(commit3, Constants.OBJ_COMMIT, "v1.0",
+            final ObjectId tagId = access.writeTag(commit3, Constants.OBJ_COMMIT, "v1.0",
                     withTime(AUTHOR, DATE3), "release v1.0", c);
             inserter.flush();
+            access.applyRefUpdate(new RefEntry("refs/tags/v1.0", tagId));
         }
-        access.applyRefUpdate(new RefEntry("refs/tags/v1.0", commit3));
     }
 
     /**

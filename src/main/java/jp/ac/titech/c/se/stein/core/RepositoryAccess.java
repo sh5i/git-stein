@@ -64,6 +64,22 @@ public class RepositoryAccess {
         return walk;
     }
 
+    /**
+     * Returns all commits reachable from the given ref in topological-reverse order (oldest first).
+     */
+    public List<RevCommit> collectCommits(final String refName) {
+        final Ref ref = getRef(refName);
+        if (ref == null) {
+            return List.of();
+        }
+        final List<RevCommit> result = new ArrayList<>();
+        try (final RevWalk walk = walk()) {
+            Try.io(() -> walk.memoMarkStart(walk.parseCommit(ref.getObjectId())));
+            walk.forEach(result::add);
+        }
+        return result;
+    }
+
     // Retrieving and checking objects
 
     /**
