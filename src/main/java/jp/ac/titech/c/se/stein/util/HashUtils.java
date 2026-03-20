@@ -13,30 +13,46 @@ import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Utility methods for computing SHA-1 hashes of data, blobs, and trees.
+ */
 @Slf4j
 public class HashUtils {
+    /**
+     * Computes the SHA-1 hash of the given data, returning the first {@code length} hex characters.
+     */
     public static String digest(final byte[] data, final int length) {
         final SHA1 sha1 = SHA1.newInstance();
         sha1.update(data);
         return ObjectId.fromRaw(sha1.digest()).abbreviate(length).name();
     }
 
+    /**
+     * Computes the full SHA-1 hash (40 hex characters) of the given data.
+     */
     public static String digest(final byte[] data) {
         final SHA1 sha1 = SHA1.newInstance();
         sha1.update(data);
         return ObjectId.fromRaw(sha1.digest()).name();
     }
 
+    /**
+     * String variant of {@link #digest(byte[], int)}.
+     */
     public static String digest(final String data, final int length) {
         return digest(data.getBytes(StandardCharsets.UTF_8), length);
     }
 
+    /**
+     * String variant of {@link #digest(byte[])}.
+     */
     public static String digest(final String data) {
         return digest(data.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
-     * Computes blob id from blob.
+     * Computes the Git blob object ID for the given data.
+     * Unlike {@link #digest}, this includes the Git object header ({@code "blob <size>\0"}).
      */
     public static ObjectId idFor(final byte[] blob) {
         try (ObjectInserter inserter = new ObjectInserter.Formatter()) {
@@ -45,7 +61,9 @@ public class HashUtils {
     }
 
     /**
-     * Computes tree id from tree.
+     * Computes the Git tree object ID for the given entries.
+     * Entries are sorted by {@link Entry#sortKey()} and name conflicts are resolved
+     * before computing the ID.
      */
     public static ObjectId idFor(final List<Entry> entries) {
         try (ObjectInserter inserter = new ObjectInserter.Formatter()) {
