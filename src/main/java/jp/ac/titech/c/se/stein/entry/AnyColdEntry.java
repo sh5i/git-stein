@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.entry;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
@@ -11,31 +12,62 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Abstract tree entry.
+ * A polymorphic Cold entry that represents zero, one, or multiple {@link Entry} instances.
+ *
+ * @see AnyHotEntry
+ * @see Set
+ * @see Empty
  */
 public interface AnyColdEntry extends Serializable {
+    /**
+     * Returns the contained entries as a stream.
+     */
     Stream<Entry> stream();
 
+    /**
+     * Returns the number of contained entries.
+     */
     int size();
 
+    /**
+     * Normalizes this entry. A {@link Set} of size 0 becomes {@link Empty},
+     * size 1 is unwrapped to its sole {@link Entry}, and others remain as-is.
+     */
     default AnyColdEntry pack() {
         return this;
     }
 
+    /**
+     * Creates a {@link Set} from the given collection.
+     */
     static Set set(Collection<Entry> entries) {
         return new Set(entries);
     }
 
+    /**
+     * Creates a {@link Set} from the given entries.
+     */
+    static Set set(Entry... entries) {
+        return new Set(Arrays.asList(entries));
+    }
+
+    /**
+     * Creates an empty {@link Set}. Entries can be added later via {@link Set#add(Entry)}.
+     */
     static Set set() {
         return new Set();
     }
 
+    /**
+     * Creates an {@link Empty} instance.
+     */
     static Empty empty() {
         return new Empty();
     }
 
     /**
-     * A set of multiple tree entries.
+     * A collection of multiple {@link Entry} instances.
+     * Use {@link #pack()} to normalize after construction.
      */
     @NoArgsConstructor
     @EqualsAndHashCode
@@ -82,7 +114,7 @@ public interface AnyColdEntry extends Serializable {
     }
 
     /**
-     * An empty set of hash entries.
+     * An entry containing no entries.
      */
     @EqualsAndHashCode
     class Empty implements AnyColdEntry {
@@ -98,6 +130,11 @@ public interface AnyColdEntry extends Serializable {
         @Override
         public int size() {
             return 0;
+        }
+
+        @Override
+        public String toString() {
+            return "[]";
         }
     }
 }

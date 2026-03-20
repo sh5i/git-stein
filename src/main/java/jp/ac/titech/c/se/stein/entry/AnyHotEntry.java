@@ -12,36 +12,59 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * The general interface for tree/blob entries.
+ * A polymorphic Hot entry that represents zero, one, or multiple {@link HotEntry} instances.
+ *
+ * @see AnyColdEntry
+ * @see Set
+ * @see Empty
  */
 public interface AnyHotEntry {
     /**
-     * Entry = a sequence of single entries.
+     * Returns the contained entries as a stream.
      */
     Stream<? extends HotEntry> stream();
 
+    /**
+     * Returns the number of contained entries.
+     */
     int size();
 
+    /**
+     * Converts this Hot entry to a Cold entry by writing blob data to the target repository.
+     */
     AnyColdEntry fold(RepositoryAccess target, Context c);
 
+    /**
+     * Creates a {@link Set} from the given collection.
+     */
     static Set set(final Collection<HotEntry> entries) {
         return new Set(entries);
     }
 
+    /**
+     * Creates a {@link Set} from the given entries.
+     */
     static Set set(final HotEntry... entries) {
         return new Set(entries);
     }
 
+    /**
+     * Creates an empty {@link Set}. Entries can be added later via {@link Set#add(HotEntry)}.
+     */
     static Set set() {
         return new Set();
     }
 
+    /**
+     * Creates an {@link Empty} instance.
+     */
     static Empty empty() {
         return new Empty();
     }
 
     /**
-     * A set of multiple tree entries.
+     * A collection of multiple {@link HotEntry} instances.
+     * Used when a blob transformation produces multiple output entries.
      */
     class Set implements AnyHotEntry {
         @Getter
@@ -85,6 +108,9 @@ public interface AnyHotEntry {
         }
     }
 
+    /**
+     * An entry containing no entries.
+     */
     class Empty implements AnyHotEntry {
         Empty() {}
 
@@ -101,6 +127,11 @@ public interface AnyHotEntry {
         @Override
         public AnyColdEntry.Empty fold(RepositoryAccess target, Context c) {
             return AnyColdEntry.empty();
+        }
+
+        @Override
+        public String toString() {
+            return "[]";
         }
     }
 }

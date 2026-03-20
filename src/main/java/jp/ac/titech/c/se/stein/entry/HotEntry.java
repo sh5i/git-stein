@@ -15,19 +15,42 @@ import org.eclipse.jgit.lib.ObjectInserter;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
 
+/**
+ * A Hot (data-bearing) single tree entry that holds or lazily loads the actual blob content.
+ *
+ * <p>This is the abstract base on the Hot side of the entry hierarchy, implementing both
+ * {@link AnyHotEntry} (as a singleton collection) and {@link SingleEntry}.</p>
+ *
+ * @see Entry
+ * @see AnyHotEntry
+ * @see SourceBlob
+ * @see NewBlob
+ */
 public abstract class HotEntry implements AnyHotEntry, SingleEntry {
+    /**
+     * Creates a {@link SourceBlob} that lazily reads blob content from the given source.
+     */
     public static SourceBlob of(Entry e, RepositoryAccess source) {
         return new SourceBlob(e, source);
     }
 
+    /**
+     * Creates a {@link NewBlob} by replacing the blob content of an existing entry.
+     */
     public static NewBlob of(Entry e, byte[] updatedBlob) {
         return new NewBlob(e.getMode(), e.getName(), updatedBlob, e.getDirectory());
     }
 
+    /**
+     * Creates a {@link NewBlob} with the given properties.
+     */
     public static NewBlob of(int mode, String name, byte[] blob) {
         return new NewBlob(mode, name, blob, null);
     }
 
+    /**
+     * Creates a {@link NewBlob} with the given properties.
+     */
     public static NewBlob of(int mode, String name, byte[] blob, String directory) {
         return new NewBlob(mode, name, blob, directory);
     }
@@ -51,20 +74,30 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
         return Entry.of(getMode(), getName(), target.writeBlob(getBlob(), c), getDirectory());
     }
 
+    /**
+     * Returns a new {@link NewBlob} with the given name, keeping the blob content unchanged.
+     */
     public NewBlob rename(final String newName) {
         return of(getMode(), newName, getBlob(), getDirectory());
     }
 
+    /**
+     * Returns a new {@link NewBlob} with the given blob content, keeping the name unchanged.
+     */
     public NewBlob update(final byte[] newBlob) {
         return of(getMode(), getName(), newBlob, getDirectory());
     }
 
+    /**
+     * String variant of {@link #update(byte[])}.
+     */
     public NewBlob update(final String newContent) {
         return update(newContent.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
-     * A normal tree entry.
+     * A Hot entry backed by an existing blob in a repository.
+     * The blob content is lazily loaded on the first call to {@link #getBlob()}.
      */
     @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
     public static class SourceBlob extends HotEntry {
@@ -95,7 +128,7 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
     }
 
     /**
-     * A normal tree entry.
+     * A Hot entry holding new or transformed blob data directly.
      */
     @Slf4j
     @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
@@ -117,9 +150,15 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
             return blob.length;
         }
 
+        /**
+         * Computes and returns the SHA-1 hash of the blob data.
+         * Since a {@link NewBlob} has no pre-existing object ID, this requires
+         * hash computation on every call and logs a warning, as it is typically
+         * not intended in normal usage.
+         */
         @Override
         public ObjectId getId() {
-            log.warn("Getting Object ID for NewFileEntry requires hash computation");
+            log.warn("Getting Object ID for NewBlob requires hash computation");
             return HashUtils.idFor(blob);
         }
 
