@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import jp.ac.titech.c.se.stein.Application;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -16,11 +17,18 @@ import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevTag;
 
 /**
- * An array for preserving the rewriting context.
+ * An immutable context that carries the current state through the rewriting pipeline.
+ *
+ * <p>Contexts are created via {@link #init()} and extended via {@link #with}, which returns
+ * a new instance without modifying the original. Internally backed by an array indexed by
+ * {@link Key#ordinal()}, making lookups and copies lightweight.</p>
+ *
+ * <p>Implements {@link Map} as a read-only view; mutation methods throw
+ * {@link UnsupportedOperationException}.</p>
  */
 public class Context implements Map<Context.Key, Object> {
     /**
-     * The keys of the values in a context.
+     * The keys that can be stored in a context.
      */
     public enum Key {
         commit, path, entry, rev, tag, ref, conf, inserter;
@@ -30,31 +38,28 @@ public class Context implements Map<Context.Key, Object> {
     }
 
     /**
-     * A cache of toString() result.
+     * Cached result of {@link #toString()}.
      */
     private transient String cache;
 
     /**
-     * All values in this context.
+     * Values indexed by {@link Key#ordinal()}.
      */
     private final Object[] values;
 
-    /**
-     * The constructor.
-     */
     private Context(final Object[] values) {
         this.values = values;
     }
 
     /**
-     * Returns an empty context.
+     * Creates an empty context.
      */
     public static Context init() {
         return new Context(new Object[Key.SIZE]);
     }
 
     /**
-     * Returns an updated context by the given key-value pair.
+     * Returns a new context with the given key-value pair added (or replaced).
      */
     public Context with(final Key k, final Object v) {
         final Object[] newValues = values.clone();
@@ -63,7 +68,7 @@ public class Context implements Map<Context.Key, Object> {
     }
 
     /**
-     * Returns an updated context by the given key-value pairs.
+     * Returns a new context with the given two key-value pairs added (or replaced).
      */
     public Context with(final Key k1, final Object v1, final Key k2, final Object v2) {
         final Object[] newValues = values.clone();
@@ -181,45 +186,52 @@ public class Context implements Map<Context.Key, Object> {
         return v != null ? new AbstractMap.SimpleEntry<>(k, v) : null;
     }
 
-    // Utility methods
+    // Typed accessors
 
     /**
-     * Returns the revision object in the context.
+     * Returns the current revision object, or {@code null} if not set.
      */
     public RevObject getRev() {
         return (RevObject) get(Key.rev);
     }
 
     /**
-     * Returns the commit object in the context.
+     * Returns the current commit, or {@code null} if not set.
      */
     public RevCommit getCommit() {
         return (RevCommit) get(Key.commit);
     }
 
     /**
-     * Returns the path in the context.
+     * Returns the current tree path, or {@code null} if not set.
      */
     public String getPath() {
         return (String) get(Key.path);
     }
 
     /**
-     * Returns the entry object in the context.
+     * Returns the current entry, or {@code null} if not set.
      */
     public jp.ac.titech.c.se.stein.entry.Entry getEntry() {
         return (jp.ac.titech.c.se.stein.entry.Entry) get(Key.entry);
     }
 
     /**
-     * Returns the ref object in the context.
+     * Returns the current ref, or {@code null} if not set.
      */
     public Ref getRef() {
         return (Ref) get(Key.ref);
     }
 
     /**
-     * Returns the inserter in the context.
+     * Returns the current config, or {@code null} if not set.
+     */
+    public Application.Config getConfig() {
+        return (Application.Config) get(Key.conf);
+    }
+
+    /**
+     * Returns the current object inserter, or {@code null} if not set.
      */
     public ObjectInserter getInserter() {
         return (ObjectInserter) get(Key.inserter);
