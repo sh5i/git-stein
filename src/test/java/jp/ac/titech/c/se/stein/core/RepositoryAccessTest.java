@@ -5,6 +5,7 @@ import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.notes.NoteMap;
+import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -239,5 +240,26 @@ public class RepositoryAccessTest {
     @Test
     public void testWalk() {
         assertNotNull(ra.walk());
+    }
+
+    @Test
+    public void testCollectCommits() {
+        Entry[] entries = new Entry[]{Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c))};
+        ObjectId treeId = ra.writeTree(List.of(entries), c);
+        final ObjectId commit1 = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT, "first", c);
+        final ObjectId commit2 = ra.writeCommit(new ObjectId[]{commit1}, treeId, IDENT, IDENT, "second", c);
+        flush();
+
+        ra.applyRefUpdate(new RefEntry("refs/heads/main", commit2));
+
+        final List<RevCommit> commits = ra.collectCommits("refs/heads/main");
+        assertEquals(2, commits.size());
+        assertEquals(commit1, commits.get(0).getId());
+        assertEquals(commit2, commits.get(1).getId());
+        assertEquals("first", commits.get(0).getFullMessage());
+        assertEquals("second", commits.get(1).getFullMessage());
+
+        // non-existent ref returns empty
+        assertTrue(ra.collectCommits("refs/heads/nonexistent").isEmpty());
     }
 }
