@@ -1,0 +1,56 @@
+package com.example;
+
+/**
+ * A sample class for testing blob converters.
+ *
+ * @see Greeter
+ */
+public class Hello implements Greeter {
+    private final String name;
+
+    private int count = 0;
+
+    // Default constructor
+    public Hello() {
+        this("World");
+    }
+
+    public Hello(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public String greet() {
+        return "Hello, " + name + "!";
+    }
+
+    public int getCount() {
+        return count;
+    }
+
+    @FunctionalInterface
+    interface Greeter {
+        String greet();
+    }
+
+    enum Color {
+        RED(0xFF0000),
+        GREEN(0x00FF00),
+        BLUE(0x0000FF);
+
+        final int rgb;
+
+        Color(int rgb) {
+            this.rgb = rgb;
+        }
+
+        /* Returns hex representation */
+        public String toHex() {
+            try {
+                return String.format("#%06x", rgb);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+    }
+}

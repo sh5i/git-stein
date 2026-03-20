@@ -2,7 +2,6 @@ package com.example;
 
 import java.util.List;
 import java.util.ArrayList;
-import java.util.function.Function;
 import static java.util.Collections.unmodifiableList;
 
 /**
@@ -58,36 +57,6 @@ public class Hello implements Greeter {
         return list.toArray(new String[0]);
     }
 
-    public String process(Function<String, String> transform) {
-        return transform.apply(name);
-    }
-
-    public String processUpper() {
-        return process(s -> s.toUpperCase());
-    }
-
-    public boolean isLongName() {
-        return name instanceof String s && s.length() > 10;
-    }
-
-    public String describeColor(Color color) {
-        return switch (color) {
-            case RED -> "warm";
-            case GREEN -> "neutral";
-            case BLUE -> "cool";
-        };
-    }
-
-    public double getVersion() {
-        return VERSION;
-    }
-
-    record Pair(String first, String second) {
-        String joined() {
-            return first + SEPARATOR + second;
-        }
-    }
-
     static class Formatter {
         private final String prefix;
 
@@ -109,24 +78,6 @@ public class Hello implements Greeter {
 
         default String greetLoud() {
             return greet().toUpperCase();
-        }
-    }
-
-    sealed interface Shape permits Circle, Rect {
-        double area();
-    }
-
-    record Circle(double radius) implements Shape {
-        @Override
-        public double area() {
-            return Math.PI * radius * radius;
-        }
-    }
-
-    record Rect(double width, double height) implements Shape {
-        @Override
-        public double area() {
-            return width * height;
         }
     }
 

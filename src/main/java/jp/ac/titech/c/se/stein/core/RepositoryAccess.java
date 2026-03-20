@@ -22,6 +22,10 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.core.Try.IOThrowableFunction;
 
+/**
+ * Low-level operations on a Git repository: reading and writing blobs, trees, commits, tags,
+ * notes, and refs.
+ */
 public class RepositoryAccess {
     private static final Logger log = LoggerFactory.getLogger(RepositoryAccess.class);
 
@@ -34,6 +38,10 @@ public class RepositoryAccess {
 
     protected boolean isDryRunning = false;
 
+    /**
+     * Enables or disables dry-run mode.
+     * When enabled, write operations compute object IDs without persisting to the repository.
+     */
     public void setDryRunning(final boolean isDryRunning) {
         this.isDryRunning = isDryRunning;
         log.debug("Set the dry running mode of {} to {}", repo.getDirectory(), isDryRunning);
@@ -47,7 +55,7 @@ public class RepositoryAccess {
     // walk
 
     /**
-     * Returns a RevWalk object.
+     * Creates a {@link RevWalk} sorted in topological-reverse order.
      */
     public RevWalk walk() {
         final RevWalk walk = new RevWalk(repo);
@@ -58,7 +66,9 @@ public class RepositoryAccess {
 
     // Retrieving and checking objects
 
-    /** Retrieve Ref object of given name. */
+    /**
+     * Returns the {@link Ref} for the given name, or {@code null} if not found.
+     */
     public Ref getRef(final String name) {
         return Try.io(() -> repo.getRefDatabase().findRef(name));
     }
@@ -71,7 +81,7 @@ public class RepositoryAccess {
     }
 
     /**
-     * Specifies the target object that the given ref indicates.
+     * Returns the ultimate target object ID of the given ref, peeling annotated tags.
      */
     public ObjectId getRefTarget(final Ref ref) {
         final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
@@ -79,7 +89,7 @@ public class RepositoryAccess {
     }
 
     /**
-     * Specifies the type of the given object.
+     * Returns the object type (e.g., {@link Constants#OBJ_COMMIT}) of the given object.
      */
     public int getObjectType(final ObjectId id) {
         try (final RevWalk walk = new RevWalk(repo)) {
@@ -96,7 +106,7 @@ public class RepositoryAccess {
     }
 
     /**
-     * Extracts a rev object.
+     * Parses the given object ID into a {@link RevObject}.
      */
     public AnyObjectId parseAny(final ObjectId id) {
         try (final RevWalk walk = new RevWalk(repo)) {
@@ -105,14 +115,14 @@ public class RepositoryAccess {
     }
 
     /**
-     * Extracts a rev object.
+     * Resolves a revision-spec string and parses it into a {@link RevObject}.
      */
     public AnyObjectId parseAny(final String rev) {
         return parseAny(resolve(rev));
     }
 
     /**
-     * Extracts a tag object.
+     * Parses the given object ID as a tag.
      */
     public RevTag parseTag(final ObjectId id) {
         try (final RevWalk walk = new RevWalk(repo)) {
@@ -161,7 +171,7 @@ public class RepositoryAccess {
     }
 
     /**
-     * Resolve name conflicts.
+     * Resolves name conflicts by appending {@code @N} suffixes to duplicate names.
      */
     public static List<Entry> resolveNameConflicts(final Collection<Entry> entries) {
         final Map<String, Integer> counter = new HashMap<>();
@@ -256,6 +266,9 @@ public class RepositoryAccess {
         return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_COMMIT, builder.build()) : ins.insert(builder), writingContext);
     }
 
+    /**
+     * Shorthand for {@link #writeCommit} without encoding or signature.
+     */
     public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer, final String message, final Context writingContext) {
         return writeCommit(parentIds, treeId, author, committer, message, null, null, writingContext);
     }
@@ -263,7 +276,7 @@ public class RepositoryAccess {
     // Notes
 
     /**
-     * Add a note to notes.
+     * Adds a note (as a blob) to the given note map.
      */
     public void addNote(final NoteMap notes, final ObjectId commitId, final byte[] content, final Context writingContext) {
         if (content != null) {
@@ -272,6 +285,9 @@ public class RepositoryAccess {
         }
     }
 
+    /**
+     * Reads a note for the given commit from the note map, or returns {@code null} if absent.
+     */
     public byte[] readNote(final NoteMap notes, final ObjectId commitId) {
         final ObjectId blobId = Try.io(() -> notes.get(commitId));
         if (blobId == null) {
@@ -281,12 +297,15 @@ public class RepositoryAccess {
     }
 
     /**
-     * Writes notes.
+     * Writes notes to the default notes ref ({@code refs/notes/commits}).
      */
     public void writeNotes(final NoteMap notes, final Context writingContext) {
         writeNotes(notes, Constants.R_NOTES_COMMITS, writingContext);
     }
 
+    /**
+     * Writes notes to the specified ref.
+     */
     public void writeNotes(final NoteMap notes, final String ref, final Context writingContext) {
         final ObjectId treeId = isDryRunning ? ObjectId.zeroId() : insert(notes::writeTree, writingContext);
         // TODO building PersonIdent better.
@@ -298,6 +317,9 @@ public class RepositoryAccess {
 
     }
 
+    /**
+     * Iterates over all notes in the given map, passing each commit ID and note body.
+     */
     public void forEachNote(final NoteMap notes, final BiConsumer<ObjectId, byte[]> f) {
         for (final Note note : notes) {
             final ObjectId id = ObjectId.fromString(note.getName());
@@ -306,10 +328,16 @@ public class RepositoryAccess {
         }
     }
 
+    /**
+     * Reads notes from the default notes ref ({@code refs/notes/commits}).
+     */
     public NoteMap readNotes() {
         return readNotes(Constants.R_NOTES_COMMITS);
     }
 
+    /**
+     * Reads notes from the specified ref, returning an empty map if the ref does not exist.
+     */
     public NoteMap readNotes(final String noteRef) {
         final Ref targetRef = getRef(noteRef);
         if (targetRef == null) {
@@ -340,7 +368,7 @@ public class RepositoryAccess {
     // Ref manipulation
 
     /**
-     * Applies ref update.
+     * Creates or updates a ref. Handles both direct and symbolic refs.
      */
     public void applyRefUpdate(final RefEntry entry) {
         if (isDryRunning) {
@@ -359,7 +387,7 @@ public class RepositoryAccess {
     }
 
     /**
-     * Applies ref delete.
+     * Deletes the specified ref.
      */
     public void applyRefDelete(final RefEntry entry) {
         if (isDryRunning) {
@@ -373,7 +401,7 @@ public class RepositoryAccess {
     }
 
     /**
-     * Applies ref rename.
+     * Renames a ref.
      */
     public void applyRefRename(final String name, final String newName) {
         if (isDryRunning) {
@@ -385,7 +413,7 @@ public class RepositoryAccess {
     // Handling ObjectInserter
 
     /**
-     * Opens and provides an object inserter.
+     * Opens an {@link ObjectInserter} and executes the given operation, then closes it.
      */
     public void openInserter(final Consumer<ObjectInserter> f) {
         try (final ObjectInserter ins = repo.newObjectInserter()) {
@@ -394,14 +422,15 @@ public class RepositoryAccess {
     }
 
     /**
-     * Generates an object inserter.
+     * Creates a new {@link ObjectInserter}. The caller is responsible for closing it.
      */
     public ObjectInserter getInserter() {
         return repo.newObjectInserter();
     }
 
     /**
-     * Inserts objects using a prepared object inserter.
+     * Executes an insert operation, using the inserter from the context if available,
+     * or creating a new one otherwise.
      */
     public <R> R insert(final IOThrowableFunction<ObjectInserter, R> f, final Context writingContext) {
         final ObjectInserter inserterContext = writingContext.getInserter();
