@@ -1,11 +1,9 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -13,7 +11,6 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -130,10 +127,9 @@ public class CregitTest {
 
     @Test
     public void testCregitFormat() {
-        final List<RevCommit> commits = getResult().access.collectCommits("refs/heads/main");
-        final RevCommit latest = commits.get(commits.size() - 1);
+        final RevCommit latest = getResult().access.getHead("refs/heads/main");
 
-        final List<Entry> files = flattenTree(getResult().access, latest.getTree().getId(), null);
+        final List<Entry> files = getResult().access.flattenTree(latest.getTree().getId());
 
         // Hello.java should be converted to cregit format
         final Entry hello = files.stream()
@@ -150,16 +146,15 @@ public class CregitTest {
 
     @Test
     public void testNonJavaFileUnchanged() {
-        final List<RevCommit> commits = getResult().access.collectCommits("refs/heads/main");
-        final RevCommit latest = commits.get(commits.size() - 1);
+        final RevCommit latest = getResult().access.getHead("refs/heads/main");
 
         // README.md should have same blob id as source
-        final Entry targetReadme = flattenTree(getResult().access, latest.getTree().getId(), null).stream()
+        final Entry targetReadme = getResult().access.flattenTree(latest.getTree().getId()).stream()
                 .filter(e -> e.getName().equals("README.md"))
                 .findFirst().orElseThrow();
 
-        final List<RevCommit> sourceCommits = source.access.collectCommits("refs/heads/main");
-        final Entry sourceReadme = flattenTree(source.access, sourceCommits.get(sourceCommits.size() - 1).getTree().getId(), null).stream()
+        final RevCommit sourceHead = source.access.getHead("refs/heads/main");
+        final Entry sourceReadme = source.access.flattenTree(sourceHead.getTree().getId()).stream()
                 .filter(e -> e.getName().equals("README.md"))
                 .findFirst().orElseThrow();
 
@@ -169,7 +164,7 @@ public class CregitTest {
     @Test
     public void testAllCommitsConverted() {
         for (RevCommit commit : getResult().access.collectCommits("refs/heads/main")) {
-            final List<Entry> files = flattenTree(getResult().access, commit.getTree().getId(), null);
+            final List<Entry> files = getResult().access.flattenTree(commit.getTree().getId());
             final Entry hello = files.stream()
                     .filter(e -> e.getName().equals("Hello.java"))
                     .findFirst().orElseThrow();
@@ -179,16 +174,4 @@ public class CregitTest {
         }
     }
 
-    private static List<Entry> flattenTree(RepositoryAccess ra, ObjectId treeId, String path) {
-        final List<Entry> entries = ra.readTree(treeId, path);
-        final List<Entry> files = new ArrayList<>();
-        for (Entry e : entries) {
-            if (e.isTree()) {
-                files.addAll(flattenTree(ra, e.getId(), e.getPath()));
-            } else {
-                files.add(e);
-            }
-        }
-        return files;
-    }
 }

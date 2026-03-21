@@ -3,19 +3,16 @@ package jp.ac.titech.c.se.stein.rewriter;
 import jp.ac.titech.c.se.stein.app.blob.HistorageViaJDT;
 import jp.ac.titech.c.se.stein.app.blob.TokenizeViaJDT;
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.lib.FileMode;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -111,11 +108,11 @@ public class BlobTranslatorTest {
                  TestRepo.RewriteResult step1 = source.rewrite(new HistorageViaJDT());
                  TestRepo.RewriteResult sequentialResult = step1.rewrite(new TokenizeViaJDT())) {
 
-                final RevCommit compositeHead = last(compositeResult.access.collectCommits("refs/heads/main"));
-                final RevCommit sequentialHead = last(sequentialResult.access.collectCommits("refs/heads/main"));
+                final RevCommit compositeHead = compositeResult.access.getHead("refs/heads/main");
+                final RevCommit sequentialHead = sequentialResult.access.getHead("refs/heads/main");
 
-                final List<Entry> compositeFiles = flattenTree(compositeResult.access, compositeHead.getTree().getId());
-                final List<Entry> sequentialFiles = flattenTree(sequentialResult.access, sequentialHead.getTree().getId());
+                final List<Entry> compositeFiles = compositeResult.access.flattenTree(compositeHead.getTree().getId());
+                final List<Entry> sequentialFiles = sequentialResult.access.flattenTree(sequentialHead.getTree().getId());
 
                 assertEquals(
                         compositeFiles.stream().map(Entry::getName).sorted().collect(Collectors.toList()),
@@ -131,24 +128,4 @@ public class BlobTranslatorTest {
         }
     }
 
-    static RevCommit last(List<RevCommit> commits) {
-        return commits.get(commits.size() - 1);
-    }
-
-    static List<Entry> flattenTree(RepositoryAccess ra, ObjectId treeId) {
-        return flattenTree(ra, treeId, null);
-    }
-
-    static List<Entry> flattenTree(RepositoryAccess ra, ObjectId treeId, String path) {
-        final List<Entry> entries = ra.readTree(treeId, path);
-        final List<Entry> files = new ArrayList<>();
-        for (Entry e : entries) {
-            if (e.isTree()) {
-                files.addAll(flattenTree(ra, e.getId(), e.getPath()));
-            } else {
-                files.add(e);
-            }
-        }
-        return files;
-    }
 }

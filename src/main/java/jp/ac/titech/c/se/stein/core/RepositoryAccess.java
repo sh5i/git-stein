@@ -80,6 +80,42 @@ public class RepositoryAccess {
         return result;
     }
 
+    /**
+     * Returns the head commit of the given ref, or {@code null} if the ref does not exist.
+     */
+    public RevCommit getHead(final String refName) {
+        final Ref ref = getRef(refName);
+        if (ref == null) {
+            return null;
+        }
+        try (final RevWalk walk = new RevWalk(repo)) {
+            return Try.io(() -> walk.parseCommit(ref.getObjectId()));
+        }
+    }
+
+    /**
+     * Recursively flattens a tree, returning all blob entries.
+     */
+    public List<Entry> flattenTree(final ObjectId treeId) {
+        return flattenTree(treeId, null);
+    }
+
+    /**
+     * Recursively flattens a tree, returning all blob entries.
+     */
+    public List<Entry> flattenTree(final ObjectId treeId, final String path) {
+        final List<Entry> entries = readTree(treeId, path);
+        final List<Entry> files = new ArrayList<>();
+        for (final Entry e : entries) {
+            if (e.isTree()) {
+                files.addAll(flattenTree(e.getId(), e.getPath()));
+            } else {
+                files.add(e);
+            }
+        }
+        return files;
+    }
+
     // Retrieving and checking objects
 
     /**

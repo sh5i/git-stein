@@ -1,10 +1,8 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
-import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -120,8 +118,8 @@ public class HistorageTest {
 
     @Test
     public void testModuleNames() {
-        final List<RevCommit> commits = getResult().access.collectCommits("refs/heads/main");
-        final Set<String> names = collectFileNames(commits.get(commits.size() - 1));
+        final RevCommit head = getResult().access.getHead("refs/heads/main");
+        final Set<String> names = collectFileNames(head);
 
         assertEquals(Set.of(
                 // originals
@@ -175,15 +173,15 @@ public class HistorageTest {
 
     @Test
     public void testModuleContent() {
-        final List<RevCommit> commits = getResult().access.collectCommits("refs/heads/main");
-        final List<Entry> files = collectFiles(commits.get(commits.size() - 1));
+        final RevCommit head = getResult().access.getHead("refs/heads/main");
+        final List<Entry> files = collectFiles(head);
 
         // original Hello.java should have the same blob id as in the source repo
         final Entry orig = files.stream()
                 .filter(e -> e.getName().equals("Hello.java"))
                 .findFirst().orElseThrow();
-        final List<RevCommit> sourceCommits = source.access.collectCommits("refs/heads/main");
-        final Entry sourceHello = flattenSourceTree(sourceCommits.get(sourceCommits.size() - 1)).stream()
+        final RevCommit sourceHead = source.access.getHead("refs/heads/main");
+        final Entry sourceHello = source.access.flattenTree(sourceHead.getTree().getId()).stream()
                 .filter(e -> e.getName().equals("Hello.java"))
                 .findFirst().orElseThrow();
         assertEquals(sourceHello.getId(), orig.getId());
@@ -205,23 +203,6 @@ public class HistorageTest {
     }
 
     private List<Entry> collectFiles(RevCommit commit) {
-        return flattenTree(getResult().access, commit.getTree().getId(), null);
-    }
-
-    private List<Entry> flattenSourceTree(RevCommit commit) {
-        return flattenTree(source.access, commit.getTree().getId(), null);
-    }
-
-    private static List<Entry> flattenTree(RepositoryAccess ra, ObjectId treeId, String path) {
-        final List<Entry> entries = ra.readTree(treeId, path);
-        final List<Entry> files = new java.util.ArrayList<>();
-        for (Entry e : entries) {
-            if (e.isTree()) {
-                files.addAll(flattenTree(ra, e.getId(), e.getPath()));
-            } else {
-                files.add(e);
-            }
-        }
-        return files;
+        return getResult().access.flattenTree(commit.getTree().getId());
     }
 }

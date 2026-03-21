@@ -1,16 +1,13 @@
 package jp.ac.titech.c.se.stein.app;
 
-import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -67,8 +64,8 @@ public class AnonymizeTest {
 
     @Test
     public void testBlobContentAnonymized() {
-        final RevCommit latest = result.access.collectCommits("refs/heads/main").get(2);
-        final List<Entry> files = flattenTree(result.access, latest.getTree().getId(), null);
+        final RevCommit latest = result.access.getHead("refs/heads/main");
+        final List<Entry> files = result.access.flattenTree(latest.getTree().getId());
         for (Entry file : files) {
             if (file.isBlob()) {
                 final String content = new String(result.access.readBlob(file.getId()));
@@ -80,8 +77,8 @@ public class AnonymizeTest {
 
     @Test
     public void testBlobNameAnonymized() {
-        final RevCommit latest = result.access.collectCommits("refs/heads/main").get(2);
-        final List<Entry> files = flattenTree(result.access, latest.getTree().getId(), null);
+        final RevCommit latest = result.access.getHead("refs/heads/main");
+        final List<Entry> files = result.access.flattenTree(latest.getTree().getId());
         final List<String> blobNames = files.stream().filter(Entry::isBlob)
                 .map(Entry::getName).sorted().collect(Collectors.toList());
         assertEquals(List.of("f1", "f2"), blobNames);
@@ -89,7 +86,7 @@ public class AnonymizeTest {
 
     @Test
     public void testTreeNameAnonymized() {
-        final RevCommit latest = result.access.collectCommits("refs/heads/main").get(2);
+        final RevCommit latest = result.access.getHead("refs/heads/main");
         final List<Entry> root = result.access.readTree(latest.getTree().getId(), null);
         final Entry tree = root.stream().filter(Entry::isTree).findFirst().orElseThrow();
         // com is renamed after example (depth-first), so com → t2
@@ -107,16 +104,4 @@ public class AnonymizeTest {
         assertNotNull(result.access.getRef("refs/tags/t1"));
     }
 
-    private static List<Entry> flattenTree(RepositoryAccess ra, ObjectId treeId, String path) {
-        final List<Entry> entries = ra.readTree(treeId, path);
-        final List<Entry> files = new ArrayList<>();
-        for (Entry e : entries) {
-            if (e.isTree()) {
-                files.addAll(flattenTree(ra, e.getId(), e.getPath()));
-            } else {
-                files.add(e);
-            }
-        }
-        return files;
-    }
 }
