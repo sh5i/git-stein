@@ -26,6 +26,11 @@ import jp.ac.titech.c.se.stein.core.Try;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+/**
+ * Clusters and merges commits according to a recipe JSON file.
+ * The recipe specifies edges to add/remove and groups of commits to merge
+ * on the commit graph.
+ */
 @Slf4j
 @ToString
 @Command(name = "@cluster", description = "Cluster and merge commits")
