@@ -13,6 +13,11 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+/**
+ * Extracts a specific commit and its ancestors into a new repository.
+ * The target commit and its first-parent chain are preserved;
+ * non-first parents are pruned.
+ */
 @Slf4j
 @ToString
 @Command(name = "@extract-commit", description = "Extract a specific commit")

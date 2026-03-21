@@ -80,7 +80,7 @@ public class TestRepo implements AutoCloseable {
         public final Repository repo;
         public final RepositoryAccess access;
 
-        RewriteResult(Repository repo) {
+        public RewriteResult(Repository repo) {
             this.repo = repo;
             this.access = new RepositoryAccess(repo);
         }
