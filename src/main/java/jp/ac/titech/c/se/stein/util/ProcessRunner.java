@@ -32,6 +32,9 @@ public class ProcessRunner implements AutoCloseable {
 
     private final Context c;
 
+    /**
+     * Runs the given command without stdin input.
+     */
     public ProcessRunner(final String[] cmdline, final Context c) throws IOException {
         this.proc = new ProcessBuilder()
                 .command(cmdline)
@@ -40,6 +43,9 @@ public class ProcessRunner implements AutoCloseable {
         this.c = c;
     }
 
+    /**
+     * Runs the given command, writing {@code input} to its stdin.
+     */
     public ProcessRunner(final String[] cmdline, final byte[] input, final Context c) throws IOException {
         this.proc = new ProcessBuilder()
                 .command(cmdline)
@@ -52,11 +58,17 @@ public class ProcessRunner implements AutoCloseable {
         this.c = c;
     }
 
+    /**
+     * Returns a reader for the process's stdout. The reader is closed when this runner is closed.
+     */
     public BufferedReader getResultReader() {
         reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
         return reader;
     }
 
+    /**
+     * Reads and returns the entire stdout as a byte array.
+     */
     public byte[] getResult() {
         try (final InputStream in = proc.getInputStream()) {
             return in.readAllBytes();

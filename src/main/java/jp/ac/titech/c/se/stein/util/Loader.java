@@ -12,6 +12,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.stream.Collectors;
 
+/**
+ * Loads and instantiates {@link RewriterCommand} classes by name or by package scanning.
+ * Supports fully qualified names and short names resolved against built-in packages.
+ */
 @Slf4j
 public class Loader {
     /**
