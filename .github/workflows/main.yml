@@ -1,10 +1,6 @@
 # https://docs.github.com/ja/actions/guides/building-and-testing-java-with-gradle
 name: Java CI
 on: [push]
-#  push:
-#    branches: [ master ]
-#  pull_request:
-#    branches: [ master ]
 jobs:
   build-ubuntu:
     runs-on: ubuntu-latest
