@@ -275,12 +275,12 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         if (parseResult.subcommands().isEmpty()) {
             throw new ParameterException(parseResult.commandSpec().commandLine(), "No subcommands");
         }
-        final List<RewriterCommand> commands = parseResult.subcommands().stream()
+        List<RewriterCommand> commands = parseResult.subcommands().stream()
                 .map(pr -> (RewriterCommand) pr.commandSpec().userObject())
                 .collect(Collectors.toList());
         if (conf.useComposite) {
             log.debug("Optimizing rewriters...");
-            optimizeRewriters(commands);
+            commands = optimizeRewriters(commands);
         }
         this.rewriters.addAll(prepareRewriters(commands));
 
@@ -305,24 +305,33 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         return result;
     }
 
-    public void optimizeRewriters(final List<RewriterCommand> commands) {
-        for (int i = 0; i < commands.size(); i++) {
-            if (commands.get(i) instanceof BlobTranslator) {
-                // extract a sequence of blob translators
-                final List<BlobTranslator> translators = new ArrayList<>();
-                do {
-                    translators.add((BlobTranslator) commands.remove(i));
-                } while (i < commands.size() && commands.get(i) instanceof BlobTranslator);
+    public List<RewriterCommand> optimizeRewriters(final List<RewriterCommand> commands) {
+        final List<RewriterCommand> result = new ArrayList<>();
+        final List<BlobTranslator> pending = new ArrayList<>();
 
-                // insert new rewriter
-                if (translators.size() >= 2) {
-                    log.info("Compose {} blob translators: {}", translators.size(), translators);
-                    commands.add(new BlobTranslator.Composite(translators));
-                } else {
-                    commands.add(new BlobTranslator.Single(translators.get(0)));
-                }
+        for (final RewriterCommand cmd : commands) {
+            if (cmd instanceof BlobTranslator) {
+                pending.add((BlobTranslator) cmd);
+            } else {
+                flushPendingTranslators(pending, result);
+                result.add(cmd);
             }
         }
+        flushPendingTranslators(pending, result);
+        return result;
+    }
+
+    private void flushPendingTranslators(final List<BlobTranslator> pending, final List<RewriterCommand> result) {
+        if (pending.isEmpty()) {
+            return;
+        }
+        if (pending.size() >= 2) {
+            log.info("Compose {} blob translators: {}", pending.size(), pending);
+            result.add(new BlobTranslator.Composite(pending));
+        } else {
+            result.add(new BlobTranslator.Single(pending.get(0)));
+        }
+        pending.clear();
     }
 
     /**
