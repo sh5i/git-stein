@@ -106,6 +106,9 @@ public class HistorageViaJDT implements BlobTranslator {
         return result;
     }
 
+    /**
+     * A generated Historage module representing a class, method, field, or comment.
+     */
     @AllArgsConstructor
     public abstract static class Module {
         protected final String name;
@@ -139,6 +142,9 @@ public class HistorageViaJDT implements BlobTranslator {
         }
     }
 
+    /**
+     * A virtual root module representing the source file itself.
+     */
     public static class FileModule extends Module {
         public FileModule(final String name) {
             super(name, null, null, null, -1, -1);
@@ -242,6 +248,9 @@ public class HistorageViaJDT implements BlobTranslator {
                 .collect(Collectors.joining());
     }
 
+    /**
+     * Walks the JDT AST and generates {@link Module} instances for classes, methods, and fields.
+     */
     public class ModuleGenerator extends ASTVisitor {
         private final SourceText text;
         private final CompilationUnit unit;
@@ -540,6 +549,9 @@ public class HistorageViaJDT implements BlobTranslator {
         }
     }
 
+    /**
+     * Generates FinerGit-compatible method names including type parameters and parameter types.
+     */
     public class MethodNameGenerator {
         private final MethodDeclaration node;
         private final StringBuilder buffer = new StringBuilder();
