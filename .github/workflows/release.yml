@@ -1,0 +1,27 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v4
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    - name: Test
+      run: ./gradlew test --no-daemon
+    - name: Build
+      run: ./gradlew executableJar --no-daemon
+    - name: Rename JAR
+      run: cp build/libs/git-stein.jar "build/libs/git-stein-${GITHUB_REF_NAME}.jar"
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: build/libs/git-stein-*.jar
+        generate_release_notes: true
