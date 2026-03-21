@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        java-version: [ 11, 17, 21 ]
+        java-version: [ 11, 17, 21, 25 ]
     steps:
     - name: Check out repository code
       uses: actions/checkout@v4
@@ -21,6 +21,8 @@ jobs:
         java-version: ${{ matrix.java-version }}
     - name: Show java version
       run: java -version
+    - name: Test with Gradle
+      run: ./gradlew test --no-daemon
     - name: Build with Gradle
       run: ./gradlew executableJar --no-daemon
     - name: Show help
@@ -35,9 +37,13 @@ jobs:
       run: java -version
       env: 
         JAVA_HOME: /opt/homebrew/opt/java
+    - name: Test with Gradle
+      run: ./gradlew test --no-daemon
+      env:
+        JAVA_HOME: /opt/homebrew/opt/java
     - name: Build with Gradle
       run: ./gradlew executableJar --no-daemon
-      env: 
+      env:
         JAVA_HOME: /opt/homebrew/opt/java
     - name: Show help
       run: build/libs/git-stein.jar help
