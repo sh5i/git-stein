@@ -6,6 +6,10 @@ import lombok.ToString;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
+/**
+ * Loads and runs an external {@link RepositoryRewriter} implementation by class name.
+ * The rewriter class is instantiated and configured with the given arguments via PicoCLI.
+ */
 @ToString
 @Command(name = "@external", description = "Run external rewriter")
 public class External implements RepositoryRewriter.Factory {
@@ -18,9 +22,11 @@ public class External implements RepositoryRewriter.Factory {
     @Override
     public RepositoryRewriter create() {
         final RepositoryRewriter result = (RepositoryRewriter) Loader.newInstance(klass);
-        new CommandLine(result)
-                .setExpandAtFiles(false)
-                .parseArgs(args);
+        if (args != null) {
+            new CommandLine(result)
+                    .setExpandAtFiles(false)
+                    .parseArgs(args);
+        }
         return result;
     }
 }
