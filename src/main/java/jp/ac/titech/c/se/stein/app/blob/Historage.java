@@ -177,6 +177,19 @@ public class Historage implements BlobTranslator {
             return GSON.fromJson(source, TYPE_TOKEN.getType());
         }
 
+        /**
+         * Creates a LanguageObject (mainly for testing purposes).
+         */
+        public static LanguageObject of(String name, String kind, String signature, String scope, int index) {
+            final LanguageObject lo = new LanguageObject();
+            lo.name = name;
+            lo.kind = kind;
+            lo.signature = signature;
+            lo.scope = scope;
+            lo.index = index;
+            return lo;
+        }
+
         public boolean isValid() {
             return name != null && line != 0 && end != 0;
         }

@@ -6,8 +6,25 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
 
+/**
+ * Runs an external process and provides access to its output.
+ */
 @Slf4j
 public class ProcessRunner implements AutoCloseable {
+    /**
+     * Returns {@code true} if the given command is available on the system PATH.
+     */
+    public static boolean isAvailable(String command) {
+        try {
+            final Process p = new ProcessBuilder(command, "--version")
+                    .redirectErrorStream(true).start();
+            p.getInputStream().readAllBytes();
+            return p.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @Getter
     private final Process proc;
 

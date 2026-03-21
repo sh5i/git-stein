@@ -24,9 +24,7 @@ public class HistorageTest {
 
     @BeforeAll
     static void setUp() throws IOException {
-        assumeTrue(ProcessRunner.isAvailable("ctags"), "ctags not available");
         source = TestRepo.create();
-        result = source.rewrite(new Historage());
     }
 
     @AfterAll
@@ -35,14 +33,94 @@ public class HistorageTest {
         if (source != null) source.close();
     }
 
+    static TestRepo.RewriteResult getResult() {
+        if (result == null) {
+            assumeTrue(ProcessRunner.isAvailable("ctags"), "ctags not available");
+            result = source.rewrite(new Historage());
+        }
+        return result;
+    }
+
+    // --- Static tests (no ctags required) ---
+
+    @Test
+    public void testEscape() {
+        // whitespace → ~, trim
+        assertEquals("int~int", Historage.escape("int int"));
+        assertEquals("int", Historage.escape("  int  "));
+        assertEquals("", Historage.escape("   "));
+
+        // < > → [ ]
+        assertEquals("Map[String,~List[int]]", Historage.escape("Map<String, List<int>>"));
+
+        // ? → #
+        assertEquals("List[#~extends~T]", Historage.escape("List<? extends T>"));
+
+        // : → ;
+        assertEquals("Map.Entry[K;V]", Historage.escape("Map.Entry<K:V>"));
+
+        // " → '
+        assertEquals("'hello'", Historage.escape("\"hello\""));
+
+        // / → %, \ → %
+        assertEquals("a%b%c", Historage.escape("a/b\\c"));
+
+        // | → !
+        assertEquals("a!b", Historage.escape("a|b"));
+
+        // * → +
+        assertEquals("T+", Historage.escape("T*"));
+
+        // control characters removed
+        assertEquals("ab", Historage.escape("a\u0001b"));
+
+        // combined: realistic signature
+        assertEquals("void~foo(int,~String)", Historage.escape("void foo(int, String)"));
+    }
+
+    @Test
+    public void testGenerateFileName() {
+        // basic: name + kind
+        assertEquals("greet.method",
+                Historage.LanguageObject.of("greet", "method", null, null, 1).generateFileName(true));
+
+        // with scope
+        assertEquals("Hello$greet.method",
+                Historage.LanguageObject.of("greet", "method", null, "Hello", 1).generateFileName(true));
+
+        // with signature (digested): "(int, String)" → normalize → "int,String" → digest(6)
+        assertEquals("greet(~f3299f).method",
+                Historage.LanguageObject.of("greet", "method", "(int, String)", null, 1).generateFileName(true));
+
+        // with signature (not digested): comma-adjacent spaces are removed, others become ~
+        assertEquals("greet(int).method",
+                Historage.LanguageObject.of("greet", "method", "(int)", null, 1).generateFileName(false));
+        assertEquals("greet(int,String~name).method",
+                Historage.LanguageObject.of("greet", "method", "(int, String name)", null, 1).generateFileName(false));
+
+        // with index (before kind)
+        assertEquals("greet@3.method",
+                Historage.LanguageObject.of("greet", "method", null, null, 3).generateFileName(true));
+
+        // full: scope + name + signature (not digested) + kind
+        assertEquals("MyClass$getValue(Map[String,Object]).method",
+                Historage.LanguageObject.of("getValue", "method", "(Map<String, Object>)", "MyClass", 1).generateFileName(false));
+
+        // full: scope + name + signature (digested) + kind
+        assertEquals("MyClass$getValue(~42c8a7).method",
+                Historage.LanguageObject.of("getValue", "method", "(Map<String, Object>)", "MyClass", 1).generateFileName(true));
+    }
+
+    // --- Integration tests (ctags required) ---
+
     @Test
     public void testCommitCount() {
-        assertEquals(3, result.access.collectCommits("refs/heads/main").size());
+        assertEquals(3, getResult().access.collectCommits("refs/heads/main").size());
     }
 
     @Test
     public void testModuleNames() {
-        final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        final List<RevCommit> commits = getResult().access.collectCommits("refs/heads/main");
         final Set<String> names = collectFileNames(commits.get(commits.size() - 1));
 
         assertEquals(Set.of(
@@ -97,7 +175,7 @@ public class HistorageTest {
 
     @Test
     public void testModuleContent() {
-        final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        final List<RevCommit> commits = getResult().access.collectCommits("refs/heads/main");
         final List<Entry> files = collectFiles(commits.get(commits.size() - 1));
 
         // original Hello.java should have the same blob id as in the source repo
@@ -115,8 +193,10 @@ public class HistorageTest {
                 .filter(e -> e.getName().equals("Hello!Hello$getCount(~da39a3).method.java"))
                 .findFirst().orElseThrow();
         assertEquals("    public int getCount() {\n        return count;\n    }\n",
-                new String(result.access.readBlob(getCountModule.getId())));
+                new String(getResult().access.readBlob(getCountModule.getId())));
     }
+
+    // --- Helpers ---
 
     private Set<String> collectFileNames(RevCommit commit) {
         return collectFiles(commit).stream()
@@ -125,13 +205,7 @@ public class HistorageTest {
     }
 
     private List<Entry> collectFiles(RevCommit commit) {
-        // flatten: root has README.md + com/ tree, but Historage splits blobs,
-        // so modules appear alongside the original in the same tree level
-        return flattenTree(commit.getTree().getId(), null);
-    }
-
-    private List<Entry> flattenTree(ObjectId treeId, String path) {
-        return flattenTree(result.access, treeId, path);
+        return flattenTree(getResult().access, commit.getTree().getId(), null);
     }
 
     private List<Entry> flattenSourceTree(RevCommit commit) {
