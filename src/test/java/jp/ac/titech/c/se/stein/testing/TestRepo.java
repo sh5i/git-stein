@@ -85,6 +85,24 @@ public class TestRepo implements AutoCloseable {
             this.access = new RepositoryAccess(repo);
         }
 
+        /**
+         * Runs a further rewrite on this result's repository.
+         */
+        public RewriteResult rewrite(RepositoryRewriter rewriter) {
+            final Repository targetRepo = new InMemoryRepository(new DfsRepositoryDescription("target"));
+            rewriter.setConfig(new Application.Config());
+            rewriter.initialize(repo, targetRepo);
+            rewriter.rewrite(Context.init());
+            return new RewriteResult(targetRepo);
+        }
+
+        /**
+         * Runs a further rewrite on this result's repository using a blob translator.
+         */
+        public RewriteResult rewrite(BlobTranslator translator) {
+            return rewrite(translator.create());
+        }
+
         @Override
         public void close() {
             repo.close();

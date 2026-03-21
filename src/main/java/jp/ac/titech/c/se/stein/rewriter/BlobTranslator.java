@@ -6,7 +6,9 @@ import jp.ac.titech.c.se.stein.entry.HotEntry;
 import lombok.Getter;
 import lombok.ToString;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -14,6 +16,13 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
     default void setUp(final Context c) {}
 
     AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c);
+
+    /**
+     * Creates a {@link BlobTranslator} from a String-to-String function.
+     */
+    static BlobTranslator of(Function<String, String> f) {
+        return (entry, c) -> entry.update(f.apply(new String(entry.getBlob(), StandardCharsets.UTF_8)));
+    }
 
     default RepositoryRewriter create() {
         return new Single(this);
