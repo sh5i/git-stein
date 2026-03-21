@@ -24,8 +24,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
- * A cregit implementation.
- * This is based on the <a href="https://github.com/dmgerman/tokenizers">cregit tokenizer</a>.
+ * Converts source files to cregit format using srcML.
+ * Each token is output as {@code type|content} on a separate line.
+ *
+ * <p>Based on the <a href="https://github.com/dmgerman/tokenizers">cregit tokenizer</a>.
+ * Requires the {@code srcml} command to be available on the system.</p>
  */
 @Slf4j
 @ToString
