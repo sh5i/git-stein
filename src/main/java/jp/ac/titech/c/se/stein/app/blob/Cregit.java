@@ -92,17 +92,26 @@ public class Cregit implements BlobTranslator {
         }
 
         log.debug("Generate cregit module for {} as {} language {}", entry, lang, c);
+        final byte[] result = convert(entry.getBlob(), lang, c);
+        return result != null ? entry.update(result) : entry;
+    }
 
+    /**
+     * Converts source code to cregit format using srcml.
+     *
+     * @return the cregit-formatted output, or {@code null} on failure
+     */
+    public byte[] convert(byte[] source, String lang, Context c) {
         final String[] cmd = { srcml, "--language", lang };
-        try (final ProcessRunner proc = new ProcessRunner(cmd, entry.getBlob(), c)) {
+        try (final ProcessRunner proc = new ProcessRunner(cmd, source, c)) {
             final InputSource input = new InputSource(new ByteArrayInputStream(proc.getResult()));
             final SAXParser parser = SAXParserFactory.newInstance().newSAXParser();
             final Handler handler = new Handler();
             parser.parse(input, handler);
-            return entry.update(handler.getResult());
+            return handler.getResult();
         } catch (final IOException | ParserConfigurationException | SAXException e) {
             log.error(e.getMessage(), e);
-            return entry;
+            return null;
         }
     }
 
