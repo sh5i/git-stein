@@ -224,17 +224,40 @@ public class RepositoryAccessTest {
         final ObjectId id1 = ObjectId.fromString("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         final ObjectId id2 = ObjectId.fromString("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
         final ObjectId id3 = ObjectId.fromString("cccccccccccccccccccccccccccccccccccccccc");
-        final List<Entry> entries = List.of(
+
+        // no duplicates: unchanged
+        assertEquals("hello", RepositoryAccess.resolveNameConflicts(
+                List.of(Entry.of(BLOB_MODE, "hello", id1))).get(0).name);
+
+        // empty list
+        assertTrue(RepositoryAccess.resolveNameConflicts(List.of()).isEmpty());
+
+        // duplicate gets @2 suffix, preserving id and order
+        final List<Entry> dup2 = RepositoryAccess.resolveNameConflicts(List.of(
                 Entry.of(BLOB_MODE, "hello", id1),
                 Entry.of(BLOB_MODE, "world", id2),
-                Entry.of(BLOB_MODE, "hello", id3));
-        final List<Entry> result = RepositoryAccess.resolveNameConflicts(entries);
-        assertEquals("hello", result.get(0).name);
-        assertEquals(id1, result.get(0).id);
-        assertEquals("world", result.get(1).name);
-        assertEquals(id2, result.get(1).id);
-        assertEquals("hello@2", result.get(2).name);
-        assertEquals(id3, result.get(2).id);
+                Entry.of(BLOB_MODE, "hello", id3)));
+        assertEquals("hello", dup2.get(0).name);
+        assertEquals(id1, dup2.get(0).id);
+        assertEquals("world", dup2.get(1).name);
+        assertEquals("hello@2", dup2.get(2).name);
+        assertEquals(id3, dup2.get(2).id);
+
+        // triple duplicate gets incrementing suffixes
+        final List<Entry> dup3 = RepositoryAccess.resolveNameConflicts(List.of(
+                Entry.of(BLOB_MODE, "hello", id1),
+                Entry.of(BLOB_MODE, "hello", id2),
+                Entry.of(BLOB_MODE, "hello", id3)));
+        assertEquals("hello", dup3.get(0).name);
+        assertEquals("hello@2", dup3.get(1).name);
+        assertEquals("hello@3", dup3.get(2).name);
+
+        // directory preserved
+        final List<Entry> withDir = RepositoryAccess.resolveNameConflicts(List.of(
+                Entry.of(BLOB_MODE, "hello", id1, "dir"),
+                Entry.of(BLOB_MODE, "hello", id2, "dir")));
+        assertEquals("dir", withDir.get(1).directory);
+        assertEquals(id2, withDir.get(1).id);
     }
 
     @Test
