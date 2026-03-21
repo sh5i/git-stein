@@ -18,7 +18,6 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Mixin;
 
-import javax.annotation.Nonnull;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -236,7 +235,7 @@ public class Historage implements BlobTranslator {
                 .thenComparing(LanguageObject::getIndex);
 
         @Override
-        public int compareTo(@Nonnull final LanguageObject other) {
+        public int compareTo(final LanguageObject other) {
             return COMPARATOR.compare(this, other);
         }
     }

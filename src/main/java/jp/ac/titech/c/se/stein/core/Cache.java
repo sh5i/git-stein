@@ -2,7 +2,6 @@ package jp.ac.titech.c.se.stein.core;
 
 import lombok.AllArgsConstructor;
 
-import javax.annotation.Nonnull;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashSet;
@@ -37,7 +36,7 @@ public class Cache<K, V> extends AbstractMap<K, V> {
     }
 
     @Override
-    @Nonnull
+
     public Set<Entry<K, V>> entrySet() {
         final Set<Entry<K, V>> result = new HashSet<>();
         result.addAll(frontend.entrySet());
@@ -77,7 +76,7 @@ public class Cache<K, V> extends AbstractMap<K, V> {
         }
 
         @Override
-        @Nonnull
+    
         public Set<Entry<K, V>> entrySet() {
             return delegatee.entrySet();
         }
@@ -95,7 +94,7 @@ public class Cache<K, V> extends AbstractMap<K, V> {
         }
 
         @Override
-        @Nonnull
+    
         public Set<Entry<K, V>> entrySet() {
             return Collections.emptySet();
         }

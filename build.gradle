@@ -2,8 +2,8 @@ plugins {
     id 'java-library'
     id 'application'
     id 'maven-publish'
-    id 'com.gradleup.shadow' version '9.0.0'
-    id 'com.github.ben-manes.versions' version '0.52.0'
+    id 'com.gradleup.shadow' version '9.4.0'
+    id 'com.github.ben-manes.versions' version '0.53.0'
 }
 
 repositories {
@@ -16,15 +16,16 @@ java {
         // v55 (Java 11, LTS)
         // v61 (Java 17, LTS)
         // v65 (Java 21, LTS)
-        // v67 (Java 23)
+        // v69 (Java 25, LTS)
         languageVersion = JavaLanguageVersion.of(11)
     }
 }
 
 dependencies {
-    api 'org.eclipse.jgit:org.eclipse.jgit:6.10.0.202406032230-r'
+    // jgit 7.x requires Java 17; staying on 6.x for Java 11 compatibility
+    api 'org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r'
 
-    // JDK17: 3.28.0
+    // JDT 3.29+ and eclipse platform require Java 17; staying on 3.28.x for Java 11 compatibility
     implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.28.0'
     implementation 'org.eclipse.platform:org.eclipse.core.commands:3.8.0'
     implementation 'org.eclipse.platform:org.eclipse.core.contenttype:3.5.100'
@@ -41,27 +42,27 @@ dependencies {
     implementation 'org.eclipse.platform:org.eclipse.text:3.6.0'
 
     implementation 'org.slf4j:slf4j-api:2.0.17'
-    implementation 'ch.qos.logback:logback-classic:1.5.18'
-    implementation 'com.google.guava:guava:33.3.1-jre'
-    implementation 'com.google.code.gson:gson:2.13.1'
+    implementation 'ch.qos.logback:logback-classic:1.5.32'
+    implementation 'com.google.guava:guava:33.5.0-jre'
+    implementation 'com.google.code.gson:gson:2.13.2'
     implementation 'info.picocli:picocli:4.7.7'
-    implementation 'commons-io:commons-io:2.19.0'
+    implementation 'commons-io:commons-io:2.21.0'
     implementation 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
 
     implementation 'org.jgrapht:jgrapht-core:1.5.2'
     implementation 'org.jgrapht:jgrapht-io:1.5.2'
 
-    implementation 'org.xerial:sqlite-jdbc:3.47.1.0'
+    implementation 'org.xerial:sqlite-jdbc:3.51.3.0'
     implementation 'com.j256.ormlite:ormlite-jdbc:5.7'
 
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.14.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testImplementation 'org.mockito:mockito-junit-jupiter:5.14.2'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.23.0'
 
-    compileOnly 'org.projectlombok:lombok:1.18.38'
-    annotationProcessor 'org.projectlombok:lombok:1.18.38'
-    testCompileOnly 'org.projectlombok:lombok:1.18.38'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.38'
+    compileOnly 'org.projectlombok:lombok:1.18.44'
+    annotationProcessor 'org.projectlombok:lombok:1.18.44'
+    testCompileOnly 'org.projectlombok:lombok:1.18.44'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.44'
 }
 
 test {
