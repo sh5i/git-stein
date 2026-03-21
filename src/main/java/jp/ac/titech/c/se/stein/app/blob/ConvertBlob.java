@@ -27,6 +27,20 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Converts blob content by delegating to an external command or HTTP Web API.
+ *
+ * <p>Three modes are supported:</p>
+ * <ul>
+ *   <li><b>Command mode</b> ({@code --cmd}): the blob is written to a temporary file,
+ *       the command is executed in that directory, and all output files are collected.</li>
+ *   <li><b>Filter mode</b> ({@code --cmd --filter}): the blob is piped to stdin
+ *       and stdout is captured as the result.</li>
+ *   <li><b>Endpoint mode</b> ({@code --endpoint}): the blob is POSTed to an HTTP endpoint
+ *       and the response body is used as the result. The filename is sent in the
+ *       {@code X-Filename} header.</li>
+ * </ul>
+ */
 @Slf4j
 @ToString
 @Command(name = "@convert", description = "Convert blobs via command execution or Web API")
