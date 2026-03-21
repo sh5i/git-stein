@@ -12,6 +12,13 @@ import java.io.File;
 import java.io.FileFilter;
 import java.util.stream.Stream;
 
+/**
+ * A filename filter that supports glob patterns, case-insensitive matching, and inversion.
+ * Used as a {@link picocli.CommandLine.Mixin} in rewriters to select target files.
+ *
+ * <p>When no patterns are set, all files are accepted.
+ * Patterns like {@code *.java} are optimized to suffix matching.</p>
+ */
 @Slf4j
 @ToString
 public class NameFilter implements FileFilter {
@@ -45,6 +52,9 @@ public class NameFilter implements FileFilter {
     @Getter
     protected boolean invertMatch = false;
 
+    /**
+     * Rebuilds the internal filter from the current settings.
+     */
     protected void updateFilter() {
         if (patterns == null) {
             filter = TrueFileFilter.TRUE;
@@ -62,6 +72,9 @@ public class NameFilter implements FileFilter {
         }
     }
 
+    /**
+     * Returns {@code true} if all patterns are simple suffix patterns (e.g., {@code *.java}).
+     */
     protected boolean isSuffixFilterCompatible(final String[] patterns) {
         return Stream.of(patterns).allMatch(p -> p.matches("\\*\\.\\w+"));
     }
@@ -77,6 +90,9 @@ public class NameFilter implements FileFilter {
         this(false, patterns);
     }
 
+    /**
+     * Returns {@code true} if no patterns are set (accepts everything).
+     */
     public boolean isDefault() {
         return filter instanceof TrueFileFilter;
     }
