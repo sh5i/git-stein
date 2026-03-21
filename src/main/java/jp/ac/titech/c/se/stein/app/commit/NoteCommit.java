@@ -10,6 +10,10 @@ import picocli.CommandLine.Option;
 
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Prepends the original commit ID (from Git notes) to each commit message.
+ * If no note exists, the zero ID is used instead.
+ */
 @Slf4j
 @ToString
 @Command(name = "@note-commit", description = "Note original commit id on each commit message")
