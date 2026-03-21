@@ -11,6 +11,10 @@ import jp.ac.titech.c.se.stein.core.Try;
 
 import java.util.Date;
 
+/**
+ * High-level Git operations (reset, clean, checkout, repack) via JGit's porcelain API.
+ * Used for post-rewrite cleanup on file-based repositories.
+ */
 @Slf4j
 public class PorcelainAPI implements AutoCloseable {
     private final FileRepository repo;

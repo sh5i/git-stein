@@ -21,6 +21,11 @@ import jp.ac.titech.c.se.stein.core.Try;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+/**
+ * Prepends SVN revision numbers to commit messages using mapping files from svn2git.
+ * Requires a SVN mapping file ({@code log-git-repository}) and an object mapping file
+ * ({@code marks-git-repository}).
+ */
 @Slf4j
 @ToString
 @Command(name = "@svn-metadata", description = "Attach metadata obtained from svn2git")

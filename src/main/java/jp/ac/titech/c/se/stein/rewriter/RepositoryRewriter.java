@@ -31,6 +31,13 @@ import jp.ac.titech.c.se.stein.Application.Config;
 import jp.ac.titech.c.se.stein.core.Context.Key;
 import jp.ac.titech.c.se.stein.entry.AnyColdEntry;
 
+/**
+ * The core rewriting engine that copies a Git repository while transforming its contents.
+ * Subclasses override hook methods to customize the transformation.
+ *
+ * <p>The main entry point is {@link #rewrite(Context)}, which walks the source repository's
+ * commits, rewrites trees and blobs, writes new commits to the target, and updates refs.</p>
+ */
 public class RepositoryRewriter implements RewriterCommand {
     private static final Logger log = LoggerFactory.getLogger(RepositoryRewriter.class);
 
