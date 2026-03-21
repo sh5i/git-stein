@@ -79,7 +79,7 @@ public class Anonymize extends RepositoryRewriter {
             return cache.computeIfAbsent(name, n -> {
                 final String result = prefix + increment();
                 log.debug("New {}: {} -> {}", type, name, result);
-                return prefix + increment();
+                return result;
             });
         }
     }
