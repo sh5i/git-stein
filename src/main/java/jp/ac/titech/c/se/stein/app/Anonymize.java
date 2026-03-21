@@ -16,6 +16,11 @@ import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+/**
+ * Anonymizes a repository by replacing filenames, blob content, commit messages,
+ * branch/tag names, and author/committer identities with generated or hashed values.
+ * Each category can be enabled independently via options.
+ */
 @Slf4j
 @ToString
 @Command(name = "@anonymize", description = "Anonymize filenames and contents")
