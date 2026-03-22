@@ -19,7 +19,7 @@ public class IdentityTest {
     @BeforeAll
     static void setUp() throws IOException {
         source = TestRepo.createSample();
-        result = TestRepo.rewrite(source, TestRepo.create(), new Identity());
+        result = TestRepo.rewrite(source,new Identity());
     }
 
     @AfterAll

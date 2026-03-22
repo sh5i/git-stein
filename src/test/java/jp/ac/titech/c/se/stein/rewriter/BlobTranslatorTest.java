@@ -105,9 +105,9 @@ public class BlobTranslatorTest {
             final RepositoryRewriter composite =
                     new BlobTranslator.Composite(new HistorageViaJDT(), new TokenizeViaJDT());
 
-            try (RepositoryAccess compositeResult = TestRepo.rewrite(source, TestRepo.create(), composite);
-                 RepositoryAccess step1 = TestRepo.rewrite(source, TestRepo.create(), new HistorageViaJDT());
-                 RepositoryAccess sequentialResult = TestRepo.rewrite(step1, TestRepo.create(), new TokenizeViaJDT())) {
+            try (RepositoryAccess compositeResult = TestRepo.rewrite(source,composite);
+                 RepositoryAccess step1 = TestRepo.rewrite(source,new HistorageViaJDT());
+                 RepositoryAccess sequentialResult = TestRepo.rewrite(step1,new TokenizeViaJDT())) {
 
                 final RevCommit compositeHead = compositeResult.getHead("refs/heads/main");
                 final RevCommit sequentialHead = sequentialResult.getHead("refs/heads/main");

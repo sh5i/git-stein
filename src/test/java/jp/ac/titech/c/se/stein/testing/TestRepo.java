@@ -94,6 +94,24 @@ public class TestRepo {
     }
 
     /**
+     * Runs the given rewriter into a new target matching the source type (in-memory or on-disk).
+     */
+    public static TemporaryRepositoryAccess rewrite(RepositoryAccess source, RepositoryRewriter rewriter) {
+        return rewrite(source, create(isOnDisk(source)), rewriter);
+    }
+
+    /**
+     * Runs the given blob translator into a new target matching the source type.
+     */
+    public static TemporaryRepositoryAccess rewrite(RepositoryAccess source, BlobTranslator translator) {
+        return rewrite(source, create(isOnDisk(source)), translator.create());
+    }
+
+    private static boolean isOnDisk(RepositoryAccess ra) {
+        return !(ra.repo instanceof InMemoryRepository);
+    }
+
+    /**
      * Runs the given rewriter from source into target and returns the target.
      */
     public static <T extends RepositoryAccess> T rewrite(RepositoryAccess source, T target, RepositoryRewriter rewriter) {

@@ -31,7 +31,7 @@ public class NoteCommitTest {
     @Test
     public void testNoTransform() {
         // NoteCommit directly on source: no prior notes → zero id prefix
-        try (RepositoryAccess result = TestRepo.rewrite(source, TestRepo.create(), new NoteCommit())) {
+        try (RepositoryAccess result = TestRepo.rewrite(source,new NoteCommit())) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
 
@@ -50,8 +50,8 @@ public class NoteCommitTest {
         // Tokenize → NoteCommit: notes contain original commit IDs
         final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
 
-        try (RepositoryAccess tokenized = TestRepo.rewrite(source, TestRepo.create(), new TokenizeViaJDT());
-             RepositoryAccess noted = TestRepo.rewrite(tokenized, TestRepo.create(), new NoteCommit())) {
+        try (RepositoryAccess tokenized = TestRepo.rewrite(source,new TokenizeViaJDT());
+             RepositoryAccess noted = TestRepo.rewrite(tokenized,new NoteCommit())) {
 
             final List<RevCommit> commits = noted.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
@@ -70,9 +70,9 @@ public class NoteCommitTest {
         // Historage → Tokenize → NoteCommit: notes should still trace back to original
         final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
 
-        try (RepositoryAccess step1 = TestRepo.rewrite(source, TestRepo.create(), new HistorageViaJDT());
-             RepositoryAccess step2 = TestRepo.rewrite(step1, TestRepo.create(), new TokenizeViaJDT());
-             RepositoryAccess noted = TestRepo.rewrite(step2, TestRepo.create(), new NoteCommit())) {
+        try (RepositoryAccess step1 = TestRepo.rewrite(source,new HistorageViaJDT());
+             RepositoryAccess step2 = TestRepo.rewrite(step1,new TokenizeViaJDT());
+             RepositoryAccess noted = TestRepo.rewrite(step2,new NoteCommit())) {
 
             final List<RevCommit> commits = noted.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());

@@ -34,7 +34,7 @@ public class HistorageTest {
     static RepositoryAccess getResult() {
         if (result == null) {
             assumeTrue(ProcessRunner.isAvailable("ctags"), "ctags not available");
-            result = TestRepo.rewrite(source, TestRepo.create(), new Historage());
+            result = TestRepo.rewrite(source,new Historage());
         }
         return result;
     }

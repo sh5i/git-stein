@@ -22,7 +22,7 @@ public class AnonymizeTest {
         source = TestRepo.createSample();
         final Anonymize anonymize = new Anonymize();
         anonymize.setAllEnabled(true);
-        result = TestRepo.rewrite(source, TestRepo.create(), anonymize);
+        result = TestRepo.rewrite(source,anonymize);
     }
 
     @AfterAll

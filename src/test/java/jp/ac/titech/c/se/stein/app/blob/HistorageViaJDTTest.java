@@ -35,7 +35,7 @@ public class HistorageViaJDTTest {
             sampleSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
         source = TestRepo.createSample();
-        result = TestRepo.rewrite(source, TestRepo.create(), new HistorageViaJDT());
+        result = TestRepo.rewrite(source,new HistorageViaJDT());
     }
 
     @AfterAll

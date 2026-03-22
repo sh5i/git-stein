@@ -42,7 +42,7 @@ public class ExternalTest {
         external.klass = Identity.class;
         external.args = null;
 
-        try (RepositoryAccess result = TestRepo.rewrite(source, TestRepo.create(), external.create())) {
+        try (RepositoryAccess result = TestRepo.rewrite(source,external.create())) {
             final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
             final List<RevCommit> targetCommits = result.collectCommits("refs/heads/main");
 

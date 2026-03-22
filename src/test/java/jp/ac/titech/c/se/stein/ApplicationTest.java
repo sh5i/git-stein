@@ -33,7 +33,7 @@ public class ApplicationTest {
 
     @Test
     public void testAlternates() throws Exception {
-        try (RepositoryAccess without = TestRepo.rewrite(source, TestRepo.create(true), new Identity());
+        try (RepositoryAccess without = TestRepo.rewrite(source, new Identity());
              RepositoryAccess with = TestRepo.rewrite(source, TestRepo.create(true).setupAlternates(source.repo, true), new Identity())) {
 
             // same commit IDs

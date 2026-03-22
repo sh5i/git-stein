@@ -36,7 +36,7 @@ public class CregitTest {
             assumeTrue(ProcessRunner.isAvailable("srcml"), "srcml not available");
             final Cregit cregit = new Cregit();
             cregit.setLanguage("Java");
-            result = TestRepo.rewrite(source, TestRepo.create(), cregit);
+            result = TestRepo.rewrite(source,cregit);
         }
         return result;
     }
