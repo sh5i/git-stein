@@ -44,7 +44,7 @@ public class TestRepo implements AutoCloseable {
     private static final int TREE_MODE = FileMode.TREE.getBits();
 
     public final TemporaryRepositoryAccess access;
-    public ObjectId commit1, commit2, commit3;
+    private ObjectId commit1, commit2, commit3;
 
     private TestRepo(TemporaryRepositoryAccess access) {
         this.access = access;

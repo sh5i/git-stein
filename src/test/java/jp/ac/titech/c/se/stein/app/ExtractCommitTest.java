@@ -21,10 +21,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class ExtractCommitTest {
     static TestRepo source;
+    static List<RevCommit> commits;
 
     @BeforeAll
     static void setUp() throws IOException {
         source = TestRepo.create();
+        commits = source.access.collectCommits("refs/heads/main");
     }
 
     @AfterAll
@@ -46,7 +48,7 @@ public class ExtractCommitTest {
     @Test
     public void testExtractLastCommit() {
         // extract commit3 → should get commit2 + commit3
-        try (RepositoryAccess result = extract(source.commit3.name())) {
+        try (RepositoryAccess result = extract(commits.get(2).name())) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(2, commits.size());
             assertEquals("add features", commits.get(0).getFullMessage());
@@ -60,7 +62,7 @@ public class ExtractCommitTest {
     @Test
     public void testExtractMiddleCommit() {
         // extract commit2 → should get commit1 + commit2
-        try (RepositoryAccess result = extract(source.commit2.name())) {
+        try (RepositoryAccess result = extract(commits.get(1).name())) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(2, commits.size());
             assertEquals("initial", commits.get(0).getFullMessage());
@@ -71,7 +73,7 @@ public class ExtractCommitTest {
     @Test
     public void testExtractFirstCommit() {
         // extract commit1 → should get only commit1
-        try (RepositoryAccess result = extract(source.commit1.name())) {
+        try (RepositoryAccess result = extract(commits.get(0).name())) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(1, commits.size());
             assertEquals("initial", commits.get(0).getFullMessage());
@@ -81,7 +83,7 @@ public class ExtractCommitTest {
 
     @Test
     public void testExtractedContentPreserved() {
-        try (RepositoryAccess result = extract(source.commit3.name())) {
+        try (RepositoryAccess result = extract(commits.get(2).name())) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             final RevCommit latest = commits.get(commits.size() - 1);
 
@@ -94,7 +96,7 @@ public class ExtractCommitTest {
 
     @Test
     public void testExtractedRefsAreMainAndHead() {
-        try (RepositoryAccess result = extract(source.commit3.name())) {
+        try (RepositoryAccess result = extract(commits.get(2).name())) {
             assertNotNull(result.getRef("refs/heads/main"));
             // tags should not be carried over
             assertNull(result.getRef("refs/tags/v1.0"));

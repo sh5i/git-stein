@@ -13,7 +13,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,10 +22,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class ClusterTest {
     static TestRepo source;
+    static List<RevCommit> sourceCommits;
 
     @BeforeAll
     static void setUp() throws IOException {
         source = TestRepo.create();
+        sourceCommits = source.access.collectCommits("refs/heads/main");
     }
 
     @AfterAll
@@ -69,7 +70,7 @@ public class ClusterTest {
         // force merge commit2 into commit1 (they are parent-child, so safe merge would refuse)
         final String recipe = String.format(
                 "{\"forcedClusters\": [[\"%s\", \"%s\"]]}",
-                source.commit1.name(), source.commit2.name());
+                sourceCommits.get(0).name(), sourceCommits.get(1).name());
 
         try (RepositoryAccess result = clusterWith(recipe)) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");
@@ -82,7 +83,7 @@ public class ClusterTest {
         // force merge all three into commit1
         final String recipe = String.format(
                 "{\"forcedClusters\": [[\"%s\", \"%s\", \"%s\"]]}",
-                source.commit1.name(), source.commit2.name(), source.commit3.name());
+                sourceCommits.get(0).name(), sourceCommits.get(1).name(), sourceCommits.get(2).name());
 
         try (RepositoryAccess result = clusterWith(recipe)) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");
