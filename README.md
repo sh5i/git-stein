@@ -122,6 +122,7 @@ public class MyTranslator implements BlobTranslator {
 - `--stream-size-limit=<num>{,K,M,G}`: increase the stream size limit.
 - `--no-notes`: Stop noting the source commit ID to the commits in the target repository.
 - `--no-pack`: Stop packing objects after transformation finished.
+- `--alternates`: Share source objects via Git alternates to skip writing unchanged objects. Significantly speeds up transformations where many objects are unchanged. The target repository will depend on the source's object store until repacked (`git repack -a -d`).
 - `--no-composite`: Stop composing multiple blob translators.
 - `--extra-attributes`: Allow opportunity to rewrite the encoding and the signature fields in commits.
 - `--cache=<level>,...`: Specify the object types for caching (`commit`, `blob`, `tree`. See [Incremental transformation](#incremental-transformation) for the details). Default: none. `commit` is recommended.
