@@ -1,6 +1,9 @@
 package jp.ac.titech.c.se.stein.core;
 
+import java.io.File;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -50,6 +53,26 @@ public class RepositoryAccess {
     public RepositoryAccess(final Repository repo) {
         this.repo = repo;
         this.defaultNotes = readNotes();
+    }
+
+    /**
+     * Sets up alternates so that this repository shares objects from {@code source},
+     * skipping writes for objects that already exist.
+     *
+     * @param useRelative if true, write a relative path; otherwise, write an absolute path
+     */
+    public void setupAlternates(final Repository source, final boolean useRelative) {
+        Try.io(() -> {
+            final Path objs = repo.getDirectory().toPath().resolve("objects");
+            final Path srcObjs = source.getDirectory().toPath().resolve("objects");
+            final String entry = useRelative
+                    ? objs.toAbsolutePath().relativize(srcObjs.toAbsolutePath()).toString()
+                    : srcObjs.toAbsolutePath().toString();
+            final Path info = objs.resolve("info");
+            Files.createDirectories(info);
+            Files.writeString(info.resolve("alternates"), entry + "\n");
+            log.debug("Set alternates: {}", entry);
+        });
     }
 
     // walk
