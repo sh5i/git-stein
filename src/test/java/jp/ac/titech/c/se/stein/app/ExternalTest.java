@@ -32,7 +32,7 @@ public class ExternalTest {
         external.klass = Identity.class;
         external.args = null;
 
-        final RepositoryRewriter rewriter = external.create();
+        final RepositoryRewriter rewriter = external.toRewriter();
         assertInstanceOf(Identity.class, rewriter);
     }
 
@@ -41,8 +41,7 @@ public class ExternalTest {
         final External external = new External();
         external.klass = Identity.class;
         external.args = null;
-
-        try (RepositoryAccess result = TestRepo.rewrite(source,external.create())) {
+        try (RepositoryAccess result = TestRepo.rewrite(source, external.toRewriter())) {
             final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
             final List<RevCommit> targetCommits = result.collectCommits("refs/heads/main");
 

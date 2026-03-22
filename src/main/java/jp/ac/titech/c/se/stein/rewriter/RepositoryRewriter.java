@@ -664,11 +664,13 @@ public class RepositoryRewriter implements RewriterCommand {
     protected void cleanUp(@SuppressWarnings("unused") final Context c) {}
 
     @Override
+    public RepositoryRewriter toRewriter() {
+        return this;
+    }
+
+    @Override
     public String toString() {
         return getClass().getName();
     }
 
-    public interface Factory extends RewriterCommand {
-        RepositoryRewriter create();
-    }
 }

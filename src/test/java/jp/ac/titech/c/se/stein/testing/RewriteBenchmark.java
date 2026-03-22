@@ -50,8 +50,8 @@ public class RewriteBenchmark {
         final List<JsonObject> results = new ArrayList<>();
 
         results.add(benchmark("identity", sourceDir, new Identity(), alternates));
-        results.add(benchmark("tokenize-jdt", sourceDir, new TokenizeViaJDT().create(), alternates));
-        results.add(benchmark("historage-jdt", sourceDir, new HistorageViaJDT().create(), alternates));
+        results.add(benchmark("tokenize-jdt", sourceDir, new TokenizeViaJDT().toRewriter(), alternates));
+        results.add(benchmark("historage-jdt", sourceDir, new HistorageViaJDT().toRewriter(), alternates));
         results.add(benchmark("historage+tokenize", sourceDir,
                 new BlobTranslator.Composite(new HistorageViaJDT(), new TokenizeViaJDT()), alternates));
 

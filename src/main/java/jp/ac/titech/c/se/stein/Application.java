@@ -302,17 +302,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     }
 
     public List<RepositoryRewriter> prepareRewriters(final List<RewriterCommand> commands) {
-        final List<RepositoryRewriter> result = new ArrayList<>();
-        for (final RewriterCommand cmd : commands) {
-            if (cmd instanceof RepositoryRewriter) {
-                result.add((RepositoryRewriter) cmd);
-            } else if (cmd instanceof RepositoryRewriter.Factory) {
-                result.add(((RepositoryRewriter.Factory) cmd).create());
-            } else {
-                log.error("Unknown command: {}", cmd.getClass());
-            }
-        }
-        return result;
+        return commands.stream().map(RewriterCommand::toRewriter).collect(Collectors.toList());
     }
 
     public List<RewriterCommand> optimizeRewriters(final List<RewriterCommand> commands) {

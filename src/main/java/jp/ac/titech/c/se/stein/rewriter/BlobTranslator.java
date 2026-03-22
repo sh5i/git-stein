@@ -12,7 +12,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public interface BlobTranslator extends RepositoryRewriter.Factory {
+public interface BlobTranslator extends RewriterCommand {
     default void setUp(final Context c) {}
 
     AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c);
@@ -24,7 +24,7 @@ public interface BlobTranslator extends RepositoryRewriter.Factory {
         return (entry, c) -> entry.update(f.apply(new String(entry.getBlob(), StandardCharsets.UTF_8)));
     }
 
-    default RepositoryRewriter create() {
+    default RepositoryRewriter toRewriter() {
         return new Single(this);
     }
 

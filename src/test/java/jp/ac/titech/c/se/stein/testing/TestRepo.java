@@ -5,8 +5,8 @@ import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RefEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.Entry;
-import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
 import jp.ac.titech.c.se.stein.util.TemporaryFile;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
@@ -94,38 +94,25 @@ public class TestRepo {
     }
 
     /**
-     * Runs the given rewriter into a new target matching the source type (in-memory or on-disk).
+     * Runs the given command into a new target matching the source type (in-memory or on-disk).
      */
-    public static TemporaryRepositoryAccess rewrite(RepositoryAccess source, RepositoryRewriter rewriter) {
-        return rewrite(source, create(isOnDisk(source)), rewriter);
+    public static TemporaryRepositoryAccess rewrite(RepositoryAccess source, RewriterCommand command) {
+        return rewrite(source, create(isOnDisk(source)), command);
     }
 
     /**
-     * Runs the given blob translator into a new target matching the source type.
+     * Runs the given command from source into target and returns the target.
      */
-    public static TemporaryRepositoryAccess rewrite(RepositoryAccess source, BlobTranslator translator) {
-        return rewrite(source, create(isOnDisk(source)), translator.create());
-    }
-
-    private static boolean isOnDisk(RepositoryAccess ra) {
-        return !(ra.repo instanceof InMemoryRepository);
-    }
-
-    /**
-     * Runs the given rewriter from source into target and returns the target.
-     */
-    public static <T extends RepositoryAccess> T rewrite(RepositoryAccess source, T target, RepositoryRewriter rewriter) {
+    public static <T extends RepositoryAccess> T rewrite(RepositoryAccess source, T target, RewriterCommand cmd) {
+        final RepositoryRewriter rewriter = cmd.toRewriter();
         rewriter.setConfig(new Application.Config());
         rewriter.initialize(source.repo, target.repo);
         rewriter.rewrite(Context.init());
         return target;
     }
 
-    /**
-     * Runs the given blob translator from source into target and returns the target.
-     */
-    public static <T extends RepositoryAccess> T rewrite(RepositoryAccess source, T target, BlobTranslator translator) {
-        return rewrite(source, target, translator.create());
+    private static boolean isOnDisk(RepositoryAccess ra) {
+        return !(ra.repo instanceof InMemoryRepository);
     }
 
     private static void populate(RepositoryAccess ra) throws IOException {
