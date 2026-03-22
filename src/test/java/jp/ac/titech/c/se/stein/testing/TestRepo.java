@@ -7,10 +7,13 @@ import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.util.TemporaryFile;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
 import org.eclipse.jgit.lib.*;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
@@ -40,17 +43,38 @@ public class TestRepo implements AutoCloseable {
     private static final int BLOB_MODE = FileMode.REGULAR_FILE.getBits();
     private static final int TREE_MODE = FileMode.TREE.getBits();
 
-    public final InMemoryRepository repo = new InMemoryRepository(new DfsRepositoryDescription("test-repo"));
-    public final RepositoryAccess access = new RepositoryAccess(repo);
+    public final Repository repo;
+    public final RepositoryAccess access;
     public ObjectId commit1, commit2, commit3;
 
-    private TestRepo() {}
+    private TemporaryFile.Directory tmpDir; // non-null for on-disk repos
+
+    private TestRepo(Repository repo) {
+        this.repo = repo;
+        this.access = new RepositoryAccess(repo);
+    }
 
     /**
-     * Creates and populates the test repository.
+     * Creates and populates an in-memory test repository.
      */
     public static TestRepo create() throws IOException {
-        final TestRepo testRepo = new TestRepo();
+        final TestRepo testRepo = new TestRepo(new InMemoryRepository(new DfsRepositoryDescription("test-repo")));
+        testRepo.populate();
+        return testRepo;
+    }
+
+    /**
+     * Creates and populates a file-based test repository in a temporary directory.
+     */
+    public static TestRepo createOnDisk() throws IOException {
+        final TemporaryFile.Directory dir = TemporaryFile.directoryOf("test-repo-");
+        final Repository repo = new FileRepositoryBuilder()
+                .setGitDir(new File(dir.getPath().toFile(), ".git"))
+                .setWorkTree(dir.getPath().toFile())
+                .build();
+        repo.create();
+        final TestRepo testRepo = new TestRepo(repo);
+        testRepo.tmpDir = dir;
         testRepo.populate();
         return testRepo;
     }
@@ -74,15 +98,59 @@ public class TestRepo implements AutoCloseable {
     }
 
     /**
+     * Runs the given rewriter using a file-based target repository.
+     * The target is created in a temporary directory and cleaned up on close.
+     */
+    public RewriteResult rewriteOnDisk(RepositoryRewriter rewriter) throws IOException {
+        return rewriteOnDisk(rewriter, false);
+    }
+
+    /**
+     * Runs the given rewriter using a file-based target repository.
+     * If {@code useAlternates} is true, alternates are set up so the target shares
+     * objects from this repository.
+     */
+    public RewriteResult rewriteOnDisk(RepositoryRewriter rewriter, boolean useAlternates) throws IOException {
+        final TemporaryFile.Directory dir = TemporaryFile.directoryOf("test-target-");
+        Repository targetRepo = new FileRepositoryBuilder()
+                .setGitDir(new File(dir.getPath().toFile(), ".git"))
+                .setWorkTree(dir.getPath().toFile())
+                .build();
+        targetRepo.create();
+
+        if (useAlternates) {
+            new RepositoryAccess(targetRepo).setupAlternates(repo, true);
+            targetRepo.close();
+            targetRepo = new FileRepositoryBuilder()
+                    .setGitDir(new File(dir.getPath().toFile(), ".git"))
+                    .setWorkTree(dir.getPath().toFile())
+                    .build();
+        }
+
+        rewriter.setConfig(new Application.Config());
+        rewriter.initialize(repo, targetRepo);
+        rewriter.rewrite(Context.init());
+        return new RewriteResult(targetRepo, dir);
+    }
+
+
+
+    /**
      * The result of a rewrite operation, holding the target repository.
      */
     public static class RewriteResult implements AutoCloseable {
         public final Repository repo;
         public final RepositoryAccess access;
+        private TemporaryFile.Directory tmpDir;
 
         public RewriteResult(Repository repo) {
             this.repo = repo;
             this.access = new RepositoryAccess(repo);
+        }
+
+        RewriteResult(Repository repo, TemporaryFile.Directory tmpDir) {
+            this(repo);
+            this.tmpDir = tmpDir;
         }
 
         /**
@@ -106,12 +174,18 @@ public class TestRepo implements AutoCloseable {
         @Override
         public void close() {
             repo.close();
+            if (tmpDir != null) {
+                try { tmpDir.close(); } catch (IOException e) { /* ignore */ }
+            }
         }
     }
 
     @Override
     public void close() {
         repo.close();
+        if (tmpDir != null) {
+            try { tmpDir.close(); } catch (IOException e) { /* ignore */ }
+        }
     }
 
     private void populate() throws IOException {
