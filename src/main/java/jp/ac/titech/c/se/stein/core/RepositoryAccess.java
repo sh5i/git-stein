@@ -29,12 +29,12 @@ import jp.ac.titech.c.se.stein.core.Try.IOThrowableFunction;
  * Low-level operations on a Git repository: reading and writing blobs, trees, commits, tags,
  * notes, and refs.
  */
-public class RepositoryAccess {
+public class RepositoryAccess implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(RepositoryAccess.class);
 
     public static final ObjectId[] NO_PARENTS = new ObjectId[0];
 
-    protected final Repository repo;
+    public final Repository repo;
 
     @Getter
     protected final NoteMap defaultNotes;
@@ -53,6 +53,11 @@ public class RepositoryAccess {
     public RepositoryAccess(final Repository repo) {
         this.repo = repo;
         this.defaultNotes = readNotes();
+    }
+
+    @Override
+    public void close() {
+        repo.close();
     }
 
     /**

@@ -2,6 +2,8 @@ package jp.ac.titech.c.se.stein.app.commit;
 
 import jp.ac.titech.c.se.stein.app.blob.HistorageViaJDT;
 import jp.ac.titech.c.se.stein.app.blob.TokenizeViaJDT;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
+import jp.ac.titech.c.se.stein.testing.TemporaryRepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -30,8 +32,8 @@ public class NoteCommitTest {
     @Test
     public void testNoTransform() {
         // NoteCommit directly on source: no prior notes → zero id prefix
-        try (TestRepo.RewriteResult result = source.rewrite(new NoteCommit())) {
-            final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = source.rewrite(new NoteCommit())) {
+            final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
 
             final String zeroId = ObjectId.zeroId().name();
@@ -49,10 +51,10 @@ public class NoteCommitTest {
         // Tokenize → NoteCommit: notes contain original commit IDs
         final List<RevCommit> sourceCommits = source.access.collectCommits("refs/heads/main");
 
-        try (TestRepo.RewriteResult tokenized = source.rewrite(new TokenizeViaJDT());
-             TestRepo.RewriteResult noted = tokenized.rewrite(new NoteCommit())) {
+        try (TemporaryRepositoryAccess tokenized = source.rewrite(new TokenizeViaJDT());
+             RepositoryAccess noted = tokenized.rewrite(new NoteCommit())) {
 
-            final List<RevCommit> commits = noted.access.collectCommits("refs/heads/main");
+            final List<RevCommit> commits = noted.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
 
             for (int i = 0; i < 3; i++) {
@@ -69,11 +71,11 @@ public class NoteCommitTest {
         // Historage → Tokenize → NoteCommit: notes should still trace back to original
         final List<RevCommit> sourceCommits = source.access.collectCommits("refs/heads/main");
 
-        try (TestRepo.RewriteResult step1 = source.rewrite(new HistorageViaJDT());
-             TestRepo.RewriteResult step2 = step1.rewrite(new TokenizeViaJDT());
-             TestRepo.RewriteResult noted = step2.rewrite(new NoteCommit())) {
+        try (TemporaryRepositoryAccess step1 = source.rewrite(new HistorageViaJDT());
+             TemporaryRepositoryAccess step2 = step1.rewrite(new TokenizeViaJDT());
+             RepositoryAccess noted = step2.rewrite(new NoteCommit())) {
 
-            final List<RevCommit> commits = noted.access.collectCommits("refs/heads/main");
+            final List<RevCommit> commits = noted.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
 
             for (int i = 0; i < 3; i++) {

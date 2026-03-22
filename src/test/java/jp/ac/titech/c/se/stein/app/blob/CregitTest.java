@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -18,7 +19,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 public class CregitTest {
     static TestRepo source;
-    static TestRepo.RewriteResult result;
+    static RepositoryAccess result;
 
     @BeforeAll
     static void setUp() throws IOException {
@@ -31,7 +32,7 @@ public class CregitTest {
         if (source != null) source.close();
     }
 
-    static TestRepo.RewriteResult getResult() {
+    static RepositoryAccess getResult() {
         if (result == null) {
             assumeTrue(ProcessRunner.isAvailable("srcml"), "srcml not available");
             final Cregit cregit = new Cregit();
@@ -122,20 +123,20 @@ public class CregitTest {
 
     @Test
     public void testCommitCount() {
-        assertEquals(3, getResult().access.collectCommits("refs/heads/main").size());
+        assertEquals(3, getResult().collectCommits("refs/heads/main").size());
     }
 
     @Test
     public void testCregitFormat() {
-        final RevCommit latest = getResult().access.getHead("refs/heads/main");
+        final RevCommit latest = getResult().getHead("refs/heads/main");
 
-        final List<Entry> files = getResult().access.flattenTree(latest.getTree().getId());
+        final List<Entry> files = getResult().flattenTree(latest.getTree().getId());
 
         // Hello.java should be converted to cregit format
         final Entry hello = files.stream()
                 .filter(e -> e.getName().equals("Hello.java"))
                 .findFirst().orElseThrow();
-        final String content = new String(getResult().access.readBlob(hello.getId()), StandardCharsets.UTF_8);
+        final String content = new String(getResult().readBlob(hello.getId()), StandardCharsets.UTF_8);
 
         assertTrue(content.startsWith("begin_unit"));
         assertTrue(content.contains("end_unit"));
@@ -146,10 +147,10 @@ public class CregitTest {
 
     @Test
     public void testNonJavaFileUnchanged() {
-        final RevCommit latest = getResult().access.getHead("refs/heads/main");
+        final RevCommit latest = getResult().getHead("refs/heads/main");
 
         // README.md should have same blob id as source
-        final Entry targetReadme = getResult().access.flattenTree(latest.getTree().getId()).stream()
+        final Entry targetReadme = getResult().flattenTree(latest.getTree().getId()).stream()
                 .filter(e -> e.getName().equals("README.md"))
                 .findFirst().orElseThrow();
 
@@ -163,12 +164,12 @@ public class CregitTest {
 
     @Test
     public void testAllCommitsConverted() {
-        for (RevCommit commit : getResult().access.collectCommits("refs/heads/main")) {
-            final List<Entry> files = getResult().access.flattenTree(commit.getTree().getId());
+        for (RevCommit commit : getResult().collectCommits("refs/heads/main")) {
+            final List<Entry> files = getResult().flattenTree(commit.getTree().getId());
             final Entry hello = files.stream()
                     .filter(e -> e.getName().equals("Hello.java"))
                     .findFirst().orElseThrow();
-            final String content = new String(getResult().access.readBlob(hello.getId()), StandardCharsets.UTF_8);
+            final String content = new String(getResult().readBlob(hello.getId()), StandardCharsets.UTF_8);
             assertTrue(content.startsWith("begin_unit"),
                     "Expected cregit format in commit: " + commit.getFullMessage());
         }

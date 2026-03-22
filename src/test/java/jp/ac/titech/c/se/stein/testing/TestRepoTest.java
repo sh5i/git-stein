@@ -115,7 +115,7 @@ public class TestRepoTest {
 
     private List<Entry> readTree(ObjectId commitId, String path) {
         return testRepo.access.readTree(Try.io(() -> {
-            try (RevWalk w = new RevWalk(testRepo.repo)) {
+            try (RevWalk w = new RevWalk(testRepo.access.repo)) {
                 return w.parseCommit(commitId).getTree().getId();
             }
         }), path);

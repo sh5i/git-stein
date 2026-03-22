@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
@@ -44,11 +45,11 @@ public class FilterBlobTest {
         final FilterBlob filter = new FilterBlob();
         filter.maxSize = 100;
 
-        try (TestRepo.RewriteResult result = source.rewrite(filter)) {
-            final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = source.rewrite(filter)) {
+            final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
             for (RevCommit commit : commits) {
-                final List<Entry> root = result.access.readTree(commit.getTree().getId(), null);
+                final List<Entry> root = result.readTree(commit.getTree().getId(), null);
                 assertTrue(root.stream().anyMatch(e -> e.getName().equals("README.md")),
                         "README.md should remain in commit: " + commit.getFullMessage());
                 assertFalse(root.stream().anyMatch(e -> e.getName().equals("com")),
@@ -64,11 +65,11 @@ public class FilterBlobTest {
         filter.nameFilter.setPatterns("*.java");
         filter.nameFilter.setInvertMatch(true);
 
-        try (TestRepo.RewriteResult result = source.rewrite(filter)) {
-            final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = source.rewrite(filter)) {
+            final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
             for (RevCommit commit : commits) {
-                final List<Entry> root = result.access.readTree(commit.getTree().getId(), null);
+                final List<Entry> root = result.readTree(commit.getTree().getId(), null);
                 assertTrue(root.stream().anyMatch(e -> e.getName().equals("README.md")),
                         "README.md should remain in commit: " + commit.getFullMessage());
                 assertFalse(root.stream().anyMatch(e -> e.getName().equals("com")),

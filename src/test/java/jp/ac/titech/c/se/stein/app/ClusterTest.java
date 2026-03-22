@@ -2,6 +2,8 @@ package jp.ac.titech.c.se.stein.app;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
+import jp.ac.titech.c.se.stein.testing.TemporaryRepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
@@ -32,7 +34,7 @@ public class ClusterTest {
         source.close();
     }
 
-    TestRepo.RewriteResult clusterWith(String recipeJson) throws IOException {
+    TemporaryRepositoryAccess clusterWith(String recipeJson) throws IOException {
         final Path recipeFile = Files.createTempFile("recipe", ".json");
         Files.writeString(recipeFile, recipeJson);
 
@@ -42,9 +44,9 @@ public class ClusterTest {
             cluster.setConfig(new Application.Config());
 
             final Repository targetRepo = new InMemoryRepository(new DfsRepositoryDescription("target"));
-            cluster.initialize(source.repo, targetRepo);
+            cluster.initialize(source.access.repo, targetRepo);
             cluster.rewrite(Context.init());
-            return new TestRepo.RewriteResult(targetRepo);
+            return new TemporaryRepositoryAccess(targetRepo);
         } finally {
             Files.deleteIfExists(recipeFile);
         }
@@ -53,8 +55,8 @@ public class ClusterTest {
     @Test
     public void testNoOpRecipe() throws IOException {
         // empty recipe: no changes
-        try (TestRepo.RewriteResult result = clusterWith("{}")) {
-            final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = clusterWith("{}")) {
+            final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
             assertEquals("initial", commits.get(0).getFullMessage());
             assertEquals("add features", commits.get(1).getFullMessage());
@@ -69,8 +71,8 @@ public class ClusterTest {
                 "{\"forcedClusters\": [[\"%s\", \"%s\"]]}",
                 source.commit1.name(), source.commit2.name());
 
-        try (TestRepo.RewriteResult result = clusterWith(recipe)) {
-            final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = clusterWith(recipe)) {
+            final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(2, commits.size());
         }
     }
@@ -82,8 +84,8 @@ public class ClusterTest {
                 "{\"forcedClusters\": [[\"%s\", \"%s\", \"%s\"]]}",
                 source.commit1.name(), source.commit2.name(), source.commit3.name());
 
-        try (TestRepo.RewriteResult result = clusterWith(recipe)) {
-            final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = clusterWith(recipe)) {
+            final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(1, commits.size());
         }
     }

@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein;
 
 import jp.ac.titech.c.se.stein.app.Identity;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
@@ -32,12 +33,12 @@ public class ApplicationTest {
 
     @Test
     public void testAlternates() throws Exception {
-        try (TestRepo.RewriteResult without = source.rewriteOnDisk(new Identity());
-             TestRepo.RewriteResult with = source.rewriteOnDisk(new Identity(), true)) {
+        try (RepositoryAccess without = source.rewriteOnDisk(new Identity());
+             RepositoryAccess with = source.rewriteOnDisk(new Identity(), true)) {
 
             // same commit IDs
-            final List<RevCommit> commitsWithout = without.access.collectCommits("refs/heads/main");
-            final List<RevCommit> commitsWith = with.access.collectCommits("refs/heads/main");
+            final List<RevCommit> commitsWithout = without.collectCommits("refs/heads/main");
+            final List<RevCommit> commitsWith = with.collectCommits("refs/heads/main");
             assertEquals(commitsWithout.size(), commitsWith.size());
             for (int i = 0; i < commitsWithout.size(); i++) {
                 assertEquals(commitsWithout.get(i).getId(), commitsWith.get(i).getId());

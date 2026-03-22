@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.app;
 
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
@@ -41,9 +42,9 @@ public class ExternalTest {
         external.klass = Identity.class;
         external.args = null;
 
-        try (TestRepo.RewriteResult result = source.rewrite(external.create())) {
+        try (RepositoryAccess result = source.rewrite(external.create())) {
             final List<RevCommit> sourceCommits = source.access.collectCommits("refs/heads/main");
-            final List<RevCommit> targetCommits = result.access.collectCommits("refs/heads/main");
+            final List<RevCommit> targetCommits = result.collectCommits("refs/heads/main");
 
             assertEquals(sourceCommits.size(), targetCommits.size());
             for (int i = 0; i < sourceCommits.size(); i++) {
