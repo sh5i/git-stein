@@ -19,6 +19,8 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Arrays;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -40,16 +42,18 @@ public class RewriteBenchmark {
             System.exit(1);
         }
 
-        System.out.println("Benchmarking: " + sourceDir.getAbsolutePath());
+        final boolean alternates = Arrays.asList(args).contains("--alternates");
+
+        System.out.println("Benchmarking: " + sourceDir.getAbsolutePath() + (alternates ? " (alternates)" : ""));
         System.out.println();
 
         final List<JsonObject> results = new ArrayList<>();
 
-        results.add(benchmark("identity", sourceDir, new Identity()));
-        results.add(benchmark("tokenize-jdt", sourceDir, new TokenizeViaJDT().create()));
-        results.add(benchmark("historage-jdt", sourceDir, new HistorageViaJDT().create()));
+        results.add(benchmark("identity", sourceDir, new Identity(), alternates));
+        results.add(benchmark("tokenize-jdt", sourceDir, new TokenizeViaJDT().create(), alternates));
+        results.add(benchmark("historage-jdt", sourceDir, new HistorageViaJDT().create(), alternates));
         results.add(benchmark("historage+tokenize", sourceDir,
-                new BlobTranslator.Composite(new HistorageViaJDT(), new TokenizeViaJDT())));
+                new BlobTranslator.Composite(new HistorageViaJDT(), new TokenizeViaJDT()), alternates));
 
         // summary
         System.out.println();
@@ -72,14 +76,25 @@ public class RewriteBenchmark {
         System.out.println(GSON.toJson(report));
     }
 
-    static JsonObject benchmark(String name, File sourceDir, RepositoryRewriter rewriter) throws IOException {
+    static JsonObject benchmark(String name, File sourceDir, RepositoryRewriter rewriter, boolean useAlternates) throws IOException {
         System.out.printf("Running %-25s ... ", name);
         System.out.flush();
 
         try (TemporaryFile.Directory tmp = TemporaryFile.directoryOf("git-stein-bench-")) {
             final boolean isBare = !new File(sourceDir, ".git").exists();
             final FileRepository sourceRepo = openRepository(sourceDir, isBare);
-            final FileRepository targetRepo = createRepository(tmp.getPath().toFile());
+            FileRepository targetRepo = createRepository(tmp.getPath().toFile());
+
+            if (useAlternates) {
+                final File objectsInfo = new File(targetRepo.getObjectDatabase().getDirectory(), "info");
+                objectsInfo.mkdirs();
+                final File alternatesFile = new File(objectsInfo, "alternates");
+                final String sourceObjects = sourceRepo.getObjectDatabase().getDirectory().getAbsolutePath();
+                Files.writeString(alternatesFile.toPath(), sourceObjects + "\n");
+                // reopen to pick up alternates
+                targetRepo.close();
+                targetRepo = openRepository(tmp.getPath().toFile(), true);
+            }
 
             rewriter.setConfig(new Application.Config());
             rewriter.initialize(sourceRepo, targetRepo);

@@ -99,7 +99,10 @@ tasks.register('benchmark', JavaExec) {
     dependsOn 'testClasses'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'jp.ac.titech.c.se.stein.testing.RewriteBenchmark'
-    args = project.hasProperty('benchRepo') ? [project.property('benchRepo')] : ['.']
+
+    def benchArgs = project.hasProperty('benchRepo') ? [project.property('benchRepo')] : ['.']
+    if (project.hasProperty('alternates')) benchArgs.add('--alternates')
+    args = benchArgs
     jvmArgs = ['-Xmx1g']
 }
 
