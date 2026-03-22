@@ -10,6 +10,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import jp.ac.titech.c.se.stein.core.*;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
@@ -368,7 +369,7 @@ public class RepositoryRewriter implements RewriterCommand {
         }
     }
 
-    protected AnyHotEntry rewriteBlobEntry(HotEntry entry, Context c) {
+    protected AnyHotEntry rewriteBlobEntry(BlobEntry entry, Context c) {
         return entry;
     }
 

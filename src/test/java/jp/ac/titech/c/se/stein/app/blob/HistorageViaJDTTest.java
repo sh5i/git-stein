@@ -5,6 +5,7 @@ import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
@@ -166,7 +167,7 @@ public class HistorageViaJDTTest {
 
     @Test
     public void testNonJavaFilePassedThrough() {
-        HotEntry entry = HotEntry.of(BLOB_MODE, "README.md", "# Hello".getBytes(StandardCharsets.UTF_8));
+        BlobEntry entry = HotEntry.of(BLOB_MODE, "README.md", "# Hello".getBytes(StandardCharsets.UTF_8));
         HistorageViaJDT historage = new HistorageViaJDT();
         AnyHotEntry result = historage.rewriteBlobEntry(entry, Context.init());
         assertEquals(1, result.size());
@@ -177,7 +178,7 @@ public class HistorageViaJDTTest {
     public void testRequiresOriginals() {
         HistorageViaJDT historage = new HistorageViaJDT();
         historage.requiresOriginals = false;
-        HotEntry entry = HotEntry.of(BLOB_MODE, "Hello.java", sampleSource.getBytes(StandardCharsets.UTF_8));
+        BlobEntry entry = HotEntry.of(BLOB_MODE, "Hello.java", sampleSource.getBytes(StandardCharsets.UTF_8));
         AnyHotEntry result = historage.rewriteBlobEntry(entry, Context.init());
 
         // original should NOT be included

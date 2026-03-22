@@ -5,6 +5,7 @@ import jp.ac.titech.c.se.stein.app.blob.TokenizeViaJDT;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
@@ -23,12 +24,12 @@ public class BlobTranslatorTest {
     static final int BLOB_MODE = FileMode.REGULAR_FILE.getBits();
     static final Context CTX = Context.init();
 
-    HotEntry blob(String name, String content) {
+    BlobEntry blob(String name, String content) {
         return HotEntry.of(BLOB_MODE, name, content.getBytes(StandardCharsets.UTF_8));
     }
 
-    String content(HotEntry entry) {
-        return new String(entry.getBlob(), StandardCharsets.UTF_8);
+    String content(AnyHotEntry entry) {
+        return new String(((BlobEntry) entry.stream().findFirst().orElseThrow()).getBlob(), StandardCharsets.UTF_8);
     }
 
     @Test

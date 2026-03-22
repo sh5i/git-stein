@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
@@ -81,7 +82,7 @@ public class Cregit implements BlobTranslator {
     protected String language;
 
     @Override
-    public AnyHotEntry rewriteBlobEntry(HotEntry entry, Context c) {
+    public AnyHotEntry rewriteBlobEntry(BlobEntry entry, Context c) {
         if (!filter.accept(entry)) {
             return entry;
         }

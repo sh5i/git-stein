@@ -1,7 +1,7 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
-import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import lombok.ToString;
@@ -30,7 +30,7 @@ public class FilterBlob implements BlobTranslator {
     protected long maxSize = -1L;
 
     @Override
-    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
         // name
         if (nameFilter.getPatterns() != null) {
             if (!nameFilter.accept(entry)) {

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
@@ -59,7 +60,7 @@ public class Historage implements BlobTranslator {
     protected Set<String> moduleKinds;
 
     @Override
-    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
         if (!filter.accept(entry)) {
             return entry;
         }

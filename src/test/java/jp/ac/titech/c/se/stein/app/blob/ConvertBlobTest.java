@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.app.blob;
 import com.sun.net.httpserver.HttpServer;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import org.eclipse.jgit.lib.FileMode;
@@ -51,11 +52,11 @@ public class ConvertBlobTest {
         convert.requiresShell = true;
         convert.isFilter = true;
 
-        final HotEntry entry = HotEntry.of(BLOB_MODE, "hello.txt", "hello".getBytes(StandardCharsets.UTF_8));
+        final BlobEntry entry = HotEntry.of(BLOB_MODE, "hello.txt", "hello".getBytes(StandardCharsets.UTF_8));
         final AnyHotEntry result = convert.rewriteBlobEntry(entry, C);
 
         assertEquals(1, result.size());
-        assertEquals("HELLO", new String(result.stream().findFirst().orElseThrow().getBlob(), StandardCharsets.UTF_8));
+        assertEquals("HELLO", new String(((BlobEntry) result.stream().findFirst().orElseThrow()).getBlob(), StandardCharsets.UTF_8));
     }
 
     @Test
@@ -78,11 +79,11 @@ public class ConvertBlobTest {
             convert.options = new ConvertBlob.ConvertOptions();
             convert.options.endpoint = new URL("http://127.0.0.1:" + port + "/convert");
 
-            final HotEntry entry = HotEntry.of(BLOB_MODE, "hello.txt", "hello".getBytes(StandardCharsets.UTF_8));
+            final BlobEntry entry = HotEntry.of(BLOB_MODE, "hello.txt", "hello".getBytes(StandardCharsets.UTF_8));
             final AnyHotEntry result = convert.rewriteBlobEntry(entry, C);
 
             assertEquals(1, result.size());
-            assertEquals("HELLO", new String(result.stream().findFirst().orElseThrow().getBlob(), StandardCharsets.UTF_8));
+            assertEquals("HELLO", new String(((BlobEntry) result.stream().findFirst().orElseThrow()).getBlob(), StandardCharsets.UTF_8));
         } finally {
             server.stop(0);
         }

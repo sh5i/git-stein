@@ -14,7 +14,7 @@ public class HotEntryTest {
     static final int BLOB_MODE = FileMode.REGULAR_FILE.getBits();
     static final byte[] HELLO = "hello".getBytes(StandardCharsets.UTF_8);
 
-    final HotEntry.NewBlob nb = HotEntry.of(BLOB_MODE, "hello", HELLO);
+    final BlobEntry nb = HotEntry.of(BLOB_MODE, "hello", HELLO);
 
     @Test
     public void testFactories() {
@@ -23,7 +23,7 @@ public class HotEntryTest {
         assertArrayEquals(HELLO, nb.getBlob());
         assertNull(nb.getDirectory());
 
-        final HotEntry withDir = HotEntry.of(BLOB_MODE, "hello", HELLO, "src");
+        final BlobEntry withDir = HotEntry.of(BLOB_MODE, "hello", HELLO, "src");
         assertEquals("src", withDir.getDirectory());
 
         final Entry entry = Entry.of(BLOB_MODE, "hello", ObjectId.zeroId());
@@ -38,7 +38,7 @@ public class HotEntryTest {
 
     @Test
     public void testSingleEntryMethods() {
-        final HotEntry withDir = HotEntry.of(BLOB_MODE, "hello", HELLO, "src");
+        final BlobEntry withDir = HotEntry.of(BLOB_MODE, "hello", HELLO, "src");
         assertEquals("src/hello", withDir.getPath());
         assertTrue(withDir.isBlob());
         assertEquals(SingleEntry.Type.BLOB, withDir.getType());
@@ -52,8 +52,8 @@ public class HotEntryTest {
 
     @Test
     public void testRename() {
-        final HotEntry withDir = HotEntry.of(BLOB_MODE, "hello", HELLO, "dir");
-        final HotEntry renamed = withDir.rename("world");
+        final BlobEntry withDir = HotEntry.of(BLOB_MODE, "hello", HELLO, "dir");
+        final BlobEntry renamed = withDir.rename("world");
         assertNotSame(withDir, renamed);
         assertEquals("world", renamed.getName());
         assertEquals("hello", withDir.getName());
@@ -65,7 +65,7 @@ public class HotEntryTest {
     public void testUpdate() {
         final byte[] newData = "world".getBytes(StandardCharsets.UTF_8);
 
-        final HotEntry updated = nb.update(newData);
+        final BlobEntry updated = nb.update(newData);
         assertNotSame(nb, updated);
         assertArrayEquals(newData, updated.getBlob());
         assertEquals("hello", updated.getName());

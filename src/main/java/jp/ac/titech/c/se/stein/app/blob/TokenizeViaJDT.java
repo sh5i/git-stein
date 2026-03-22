@@ -4,7 +4,7 @@ import java.nio.charset.StandardCharsets;
 
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
-import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +27,7 @@ import picocli.CommandLine.Command;
 @Command(name = "@tokenize-jdt", description = "Encode Java source files to linetoken format via JDT")
 public class TokenizeViaJDT implements BlobTranslator {
     @Override
-    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
         if (!HistorageViaJDT.JAVA.accept(entry)) {
             return entry;
         }
