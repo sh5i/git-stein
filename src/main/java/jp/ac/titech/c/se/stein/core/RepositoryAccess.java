@@ -66,7 +66,7 @@ public class RepositoryAccess implements AutoCloseable {
      *
      * @param useRelative if true, write a relative path; otherwise, write an absolute path
      */
-    public void setupAlternates(final Repository source, final boolean useRelative) {
+    public RepositoryAccess setupAlternates(final Repository source, final boolean useRelative) {
         Try.io(() -> {
             final Path objs = repo.getDirectory().toPath().resolve("objects");
             final Path srcObjs = source.getDirectory().toPath().resolve("objects");
@@ -78,6 +78,7 @@ public class RepositoryAccess implements AutoCloseable {
             Files.writeString(info.resolve("alternates"), entry + "\n");
             log.debug("Set alternates: {}", entry);
         });
+        return this;
     }
 
     // walk

@@ -19,11 +19,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * Integration tests for CLI features, using file-based repositories.
  */
 public class ApplicationTest {
-    static TestRepo source;
+    static RepositoryAccess source;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.createOnDisk();
+        source = TestRepo.createSample(true);
     }
 
     @AfterAll
@@ -33,8 +33,8 @@ public class ApplicationTest {
 
     @Test
     public void testAlternates() throws Exception {
-        try (RepositoryAccess without = source.rewriteOnDisk(new Identity());
-             RepositoryAccess with = source.rewriteOnDisk(new Identity(), true)) {
+        try (RepositoryAccess without = TestRepo.rewrite(source, TestRepo.create(true), new Identity());
+             RepositoryAccess with = TestRepo.rewrite(source, TestRepo.create(true).setupAlternates(source.repo, true), new Identity())) {
 
             // same commit IDs
             final List<RevCommit> commitsWithout = without.collectCommits("refs/heads/main");

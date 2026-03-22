@@ -27,16 +27,15 @@ public class HistorageViaJDTTest {
     static final int BLOB_MODE = FileMode.REGULAR_FILE.getBits();
 
     static String sampleSource;
-    static TestRepo source;
-    static RepositoryAccess result;
+    static RepositoryAccess source, result;
 
     @BeforeAll
     static void setUp() throws IOException {
         try (InputStream is = HistorageViaJDTTest.class.getResourceAsStream("/sample/Hello.java.v3")) {
             sampleSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
-        source = TestRepo.create();
-        result = source.rewrite(new HistorageViaJDT());
+        source = TestRepo.createSample();
+        result = TestRepo.rewrite(source, TestRepo.create(), new HistorageViaJDT());
     }
 
     @AfterAll

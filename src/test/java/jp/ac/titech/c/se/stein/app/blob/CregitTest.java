@@ -18,12 +18,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 public class CregitTest {
-    static TestRepo source;
-    static RepositoryAccess result;
+    static RepositoryAccess source, result;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
+        source = TestRepo.createSample();
     }
 
     @AfterAll
@@ -37,7 +36,7 @@ public class CregitTest {
             assumeTrue(ProcessRunner.isAvailable("srcml"), "srcml not available");
             final Cregit cregit = new Cregit();
             cregit.setLanguage("Java");
-            result = source.rewrite(cregit);
+            result = TestRepo.rewrite(source, TestRepo.create(), cregit);
         }
         return result;
     }
@@ -154,8 +153,8 @@ public class CregitTest {
                 .filter(e -> e.getName().equals("README.md"))
                 .findFirst().orElseThrow();
 
-        final RevCommit sourceHead = source.access.getHead("refs/heads/main");
-        final Entry sourceReadme = source.access.flattenTree(sourceHead.getTree().getId()).stream()
+        final RevCommit sourceHead = source.getHead("refs/heads/main");
+        final Entry sourceReadme = source.flattenTree(sourceHead.getTree().getId()).stream()
                 .filter(e -> e.getName().equals("README.md"))
                 .findFirst().orElseThrow();
 

@@ -14,13 +14,12 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class IdentityTest {
-    static TestRepo source;
-    static RepositoryAccess result;
+    static RepositoryAccess source, result;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
-        result = source.rewrite(new Identity());
+        source = TestRepo.createSample();
+        result = TestRepo.rewrite(source, TestRepo.create(), new Identity());
     }
 
     @AfterAll
@@ -39,7 +38,7 @@ public class IdentityTest {
 
     @Test
     public void testRefs() {
-        final Ref sourceMain = source.access.getRef("refs/heads/main");
+        final Ref sourceMain = source.getRef("refs/heads/main");
         final Ref targetMain = result.getRef("refs/heads/main");
         assertNotNull(targetMain);
         assertEquals(sourceMain.getObjectId(), targetMain.getObjectId());
@@ -47,7 +46,7 @@ public class IdentityTest {
 
     @Test
     public void testTagRef() {
-        final Ref sourceTag = source.access.getRef("refs/tags/v1.0");
+        final Ref sourceTag = source.getRef("refs/tags/v1.0");
         final Ref targetTag = result.getRef("refs/tags/v1.0");
         assertNotNull(targetTag);
         assertEquals(sourceTag.getObjectId(), targetTag.getObjectId());
@@ -63,7 +62,7 @@ public class IdentityTest {
 
     @Test
     public void testCommitIds() {
-        final List<RevCommit> sourceCommits = source.access.collectCommits("refs/heads/main");
+        final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
         final List<RevCommit> targetCommits = result.collectCommits("refs/heads/main");
 
         assertEquals(sourceCommits.size(), targetCommits.size());

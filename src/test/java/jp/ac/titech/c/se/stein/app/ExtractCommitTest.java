@@ -20,13 +20,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ExtractCommitTest {
-    static TestRepo source;
+    static RepositoryAccess source;
     static List<RevCommit> commits;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
-        commits = source.access.collectCommits("refs/heads/main");
+        source = TestRepo.createSample();
+        commits = source.collectCommits("refs/heads/main");
     }
 
     @AfterAll
@@ -34,13 +34,13 @@ public class ExtractCommitTest {
         source.close();
     }
 
-    TemporaryRepositoryAccess extract(String commitSpec) {
+    RepositoryAccess extract(String commitSpec) {
         final ExtractCommit extractor = new ExtractCommit();
         extractor.targetCommitSpec = commitSpec;
         extractor.setConfig(new Application.Config());
 
         final Repository targetRepo = new InMemoryRepository(new DfsRepositoryDescription("target"));
-        extractor.initialize(source.access.repo, targetRepo);
+        extractor.initialize(source.repo, targetRepo);
         extractor.rewrite(Context.init());
         return new TemporaryRepositoryAccess(targetRepo);
     }

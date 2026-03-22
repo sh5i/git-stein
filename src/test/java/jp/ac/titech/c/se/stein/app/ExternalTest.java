@@ -14,11 +14,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ExternalTest {
-    static TestRepo source;
+    static RepositoryAccess source;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
+        source = TestRepo.createSample();
     }
 
     @AfterAll
@@ -42,8 +42,8 @@ public class ExternalTest {
         external.klass = Identity.class;
         external.args = null;
 
-        try (RepositoryAccess result = source.rewrite(external.create())) {
-            final List<RevCommit> sourceCommits = source.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = TestRepo.rewrite(source, TestRepo.create(), external.create())) {
+            final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
             final List<RevCommit> targetCommits = result.collectCommits("refs/heads/main");
 
             assertEquals(sourceCommits.size(), targetCommits.size());

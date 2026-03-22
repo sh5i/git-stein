@@ -15,16 +15,14 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class AnonymizeTest {
-    static TestRepo source;
-    static RepositoryAccess result;
+    static RepositoryAccess source, result;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
-
+        source = TestRepo.createSample();
         final Anonymize anonymize = new Anonymize();
         anonymize.setAllEnabled(true);
-        result = source.rewrite(anonymize);
+        result = TestRepo.rewrite(source, TestRepo.create(), anonymize);
     }
 
     @AfterAll

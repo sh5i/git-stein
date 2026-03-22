@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.testing;
 
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -13,13 +14,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TestRepoTest {
-    static TestRepo testRepo;
+    static RepositoryAccess testRepo;
     static List<RevCommit> commits;
 
     @BeforeAll
     static void setUp() throws IOException {
-        testRepo = TestRepo.create();
-        commits = testRepo.access.collectCommits("refs/heads/main");
+        testRepo = TestRepo.createSample();
+        commits = testRepo.collectCommits("refs/heads/main");
     }
 
     @AfterAll
@@ -48,11 +49,11 @@ public class TestRepoTest {
 
     @Test
     public void testRefs() {
-        final Ref main = testRepo.access.getRef("refs/heads/main");
+        final Ref main = testRepo.getRef("refs/heads/main");
         assertNotNull(main);
         assertEquals(commits.get(2).getId(), main.getObjectId());
 
-        assertNotNull(testRepo.access.getRef("refs/tags/v1.0"));
+        assertNotNull(testRepo.getRef("refs/tags/v1.0"));
     }
 
     @Test
@@ -64,11 +65,11 @@ public class TestRepoTest {
 
         // com/example/Hello.java
         final Entry comDir = root.stream().filter(e -> e.getName().equals("com")).findFirst().orElseThrow();
-        final List<Entry> comEntries = testRepo.access.readTree(comDir.getId(), "com");
+        final List<Entry> comEntries = testRepo.readTree(comDir.getId(), "com");
         assertEquals(1, comEntries.size());
         assertEquals("example", comEntries.get(0).getName());
 
-        final List<Entry> exampleEntries = testRepo.access.readTree(comEntries.get(0).getId(), "com/example");
+        final List<Entry> exampleEntries = testRepo.readTree(comEntries.get(0).getId(), "com/example");
         assertEquals(1, exampleEntries.size());
         assertEquals("Hello.java", exampleEntries.get(0).getName());
     }
@@ -79,7 +80,7 @@ public class TestRepoTest {
         final Entry readme = root.stream()
                 .filter(e -> e.getName().equals("README.md"))
                 .findFirst().orElseThrow();
-        assertTrue(new String(testRepo.access.readBlob(readme.getId())).contains("# Hello"));
+        assertTrue(new String(testRepo.readBlob(readme.getId())).contains("# Hello"));
     }
 
     @Test
@@ -98,14 +99,14 @@ public class TestRepoTest {
     }
 
     private List<Entry> readTree(RevCommit commit) {
-        return testRepo.access.readTree(commit.getTree().getId(), null);
+        return testRepo.readTree(commit.getTree().getId(), null);
     }
 
     private String readHelloJava(RevCommit commit) {
         final List<Entry> root = readTree(commit);
         final Entry com = root.stream().filter(e -> e.getName().equals("com")).findFirst().orElseThrow();
-        final Entry example = testRepo.access.readTree(com.getId(), "com").get(0);
-        final Entry hello = testRepo.access.readTree(example.getId(), "com/example").get(0);
-        return new String(testRepo.access.readBlob(hello.getId()));
+        final Entry example = testRepo.readTree(com.getId(), "com").get(0);
+        final Entry hello = testRepo.readTree(example.getId(), "com/example").get(0);
+        return new String(testRepo.readBlob(hello.getId()));
     }
 }

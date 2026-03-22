@@ -14,11 +14,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class FilterBlobTest {
-    static TestRepo source;
+    static RepositoryAccess source;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
+        source = TestRepo.createSample();
     }
 
     @AfterAll
@@ -45,7 +45,7 @@ public class FilterBlobTest {
         final FilterBlob filter = new FilterBlob();
         filter.maxSize = 100;
 
-        try (RepositoryAccess result = source.rewrite(filter)) {
+        try (RepositoryAccess result = TestRepo.rewrite(source, TestRepo.create(), filter)) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
             for (RevCommit commit : commits) {
@@ -65,7 +65,7 @@ public class FilterBlobTest {
         filter.nameFilter.setPatterns("*.java");
         filter.nameFilter.setInvertMatch(true);
 
-        try (RepositoryAccess result = source.rewrite(filter)) {
+        try (RepositoryAccess result = TestRepo.rewrite(source, TestRepo.create(), filter)) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
             for (RevCommit commit : commits) {

@@ -18,12 +18,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 public class HistorageTest {
-    static TestRepo source;
-    static RepositoryAccess result;
+    static RepositoryAccess source, result;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
+        source = TestRepo.createSample();
     }
 
     @AfterAll
@@ -35,7 +34,7 @@ public class HistorageTest {
     static RepositoryAccess getResult() {
         if (result == null) {
             assumeTrue(ProcessRunner.isAvailable("ctags"), "ctags not available");
-            result = source.rewrite(new Historage());
+            result = TestRepo.rewrite(source, TestRepo.create(), new Historage());
         }
         return result;
     }
@@ -181,8 +180,8 @@ public class HistorageTest {
         final Entry orig = files.stream()
                 .filter(e -> e.getName().equals("Hello.java"))
                 .findFirst().orElseThrow();
-        final RevCommit sourceHead = source.access.getHead("refs/heads/main");
-        final Entry sourceHello = source.access.flattenTree(sourceHead.getTree().getId()).stream()
+        final RevCommit sourceHead = source.getHead("refs/heads/main");
+        final Entry sourceHello = source.flattenTree(sourceHead.getTree().getId()).stream()
                 .filter(e -> e.getName().equals("Hello.java"))
                 .findFirst().orElseThrow();
         assertEquals(sourceHello.getId(), orig.getId());

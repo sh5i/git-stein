@@ -21,13 +21,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ClusterTest {
-    static TestRepo source;
-    static List<RevCommit> sourceCommits;
+    static RepositoryAccess source;
+    static List<RevCommit> commits;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
-        sourceCommits = source.access.collectCommits("refs/heads/main");
+        source = TestRepo.createSample();
+        commits = source.collectCommits("refs/heads/main");
     }
 
     @AfterAll
@@ -35,7 +35,7 @@ public class ClusterTest {
         source.close();
     }
 
-    TemporaryRepositoryAccess clusterWith(String recipeJson) throws IOException {
+    RepositoryAccess clusterWith(String recipeJson) throws IOException {
         final Path recipeFile = Files.createTempFile("recipe", ".json");
         Files.writeString(recipeFile, recipeJson);
 
@@ -45,7 +45,7 @@ public class ClusterTest {
             cluster.setConfig(new Application.Config());
 
             final Repository targetRepo = new InMemoryRepository(new DfsRepositoryDescription("target"));
-            cluster.initialize(source.access.repo, targetRepo);
+            cluster.initialize(source.repo, targetRepo);
             cluster.rewrite(Context.init());
             return new TemporaryRepositoryAccess(targetRepo);
         } finally {
@@ -70,7 +70,7 @@ public class ClusterTest {
         // force merge commit2 into commit1 (they are parent-child, so safe merge would refuse)
         final String recipe = String.format(
                 "{\"forcedClusters\": [[\"%s\", \"%s\"]]}",
-                sourceCommits.get(0).name(), sourceCommits.get(1).name());
+                commits.get(0).name(), commits.get(1).name());
 
         try (RepositoryAccess result = clusterWith(recipe)) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");
@@ -83,7 +83,7 @@ public class ClusterTest {
         // force merge all three into commit1
         final String recipe = String.format(
                 "{\"forcedClusters\": [[\"%s\", \"%s\", \"%s\"]]}",
-                sourceCommits.get(0).name(), sourceCommits.get(1).name(), sourceCommits.get(2).name());
+                commits.get(0).name(), commits.get(1).name(), commits.get(2).name());
 
         try (RepositoryAccess result = clusterWith(recipe)) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");

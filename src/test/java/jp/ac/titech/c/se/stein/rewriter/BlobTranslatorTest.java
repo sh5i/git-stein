@@ -7,7 +7,6 @@ import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
-import jp.ac.titech.c.se.stein.testing.TemporaryRepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -102,13 +101,13 @@ public class BlobTranslatorTest {
 
     @Test
     public void testFinerGit() throws IOException {
-        try (TestRepo source = TestRepo.create()) {
+        try (RepositoryAccess source = TestRepo.createSample()) {
             final RepositoryRewriter composite =
                     new BlobTranslator.Composite(new HistorageViaJDT(), new TokenizeViaJDT());
 
-            try (RepositoryAccess compositeResult = source.rewrite(composite);
-                 TemporaryRepositoryAccess step1 = source.rewrite(new HistorageViaJDT());
-                 RepositoryAccess sequentialResult = step1.rewrite(new TokenizeViaJDT())) {
+            try (RepositoryAccess compositeResult = TestRepo.rewrite(source, TestRepo.create(), composite);
+                 RepositoryAccess step1 = TestRepo.rewrite(source, TestRepo.create(), new HistorageViaJDT());
+                 RepositoryAccess sequentialResult = TestRepo.rewrite(step1, TestRepo.create(), new TokenizeViaJDT())) {
 
                 final RevCommit compositeHead = compositeResult.getHead("refs/heads/main");
                 final RevCommit sequentialHead = sequentialResult.getHead("refs/heads/main");
