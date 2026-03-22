@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.app.commit;
 
 import jp.ac.titech.c.se.stein.app.blob.HistorageViaJDT;
 import jp.ac.titech.c.se.stein.app.blob.TokenizeViaJDT;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -15,11 +16,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class NoteCommitTest {
-    static TestRepo source;
+    static RepositoryAccess source;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
+        source = TestRepo.createSample();
     }
 
     @AfterAll
@@ -30,8 +31,8 @@ public class NoteCommitTest {
     @Test
     public void testNoTransform() {
         // NoteCommit directly on source: no prior notes → zero id prefix
-        try (TestRepo.RewriteResult result = source.rewrite(new NoteCommit())) {
-            final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = TestRepo.rewrite(source,new NoteCommit())) {
+            final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
 
             final String zeroId = ObjectId.zeroId().name();
@@ -47,12 +48,12 @@ public class NoteCommitTest {
     @Test
     public void testSingleTransform() {
         // Tokenize → NoteCommit: notes contain original commit IDs
-        final List<RevCommit> sourceCommits = source.access.collectCommits("refs/heads/main");
+        final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
 
-        try (TestRepo.RewriteResult tokenized = source.rewrite(new TokenizeViaJDT());
-             TestRepo.RewriteResult noted = tokenized.rewrite(new NoteCommit())) {
+        try (RepositoryAccess tokenized = TestRepo.rewrite(source,new TokenizeViaJDT());
+             RepositoryAccess noted = TestRepo.rewrite(tokenized,new NoteCommit())) {
 
-            final List<RevCommit> commits = noted.access.collectCommits("refs/heads/main");
+            final List<RevCommit> commits = noted.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
 
             for (int i = 0; i < 3; i++) {
@@ -67,13 +68,13 @@ public class NoteCommitTest {
     @Test
     public void testDoubleTransform() {
         // Historage → Tokenize → NoteCommit: notes should still trace back to original
-        final List<RevCommit> sourceCommits = source.access.collectCommits("refs/heads/main");
+        final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
 
-        try (TestRepo.RewriteResult step1 = source.rewrite(new HistorageViaJDT());
-             TestRepo.RewriteResult step2 = step1.rewrite(new TokenizeViaJDT());
-             TestRepo.RewriteResult noted = step2.rewrite(new NoteCommit())) {
+        try (RepositoryAccess step1 = TestRepo.rewrite(source,new HistorageViaJDT());
+             RepositoryAccess step2 = TestRepo.rewrite(step1,new TokenizeViaJDT());
+             RepositoryAccess noted = TestRepo.rewrite(step2,new NoteCommit())) {
 
-            final List<RevCommit> commits = noted.access.collectCommits("refs/heads/main");
+            final List<RevCommit> commits = noted.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
 
             for (int i = 0; i < 3; i++) {

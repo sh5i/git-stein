@@ -5,12 +5,15 @@ import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RefEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.Entry;
-import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
+import jp.ac.titech.c.se.stein.util.TemporaryFile;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
 import org.eclipse.jgit.lib.*;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
@@ -18,10 +21,9 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 /**
- * Builds an in-memory Git repository from test resources for use in tests.
+ * Factory for pre-populated test repositories and rewriting utilities.
  *
- * <p>The repository contains a 3-commit history of a small Java project
- * with the tree structure {@code com/example/Hello.java} and {@code README.md}:</p>
+ * <p>The repository contains {@code com/example/Hello.java} and {@code README.md}:</p>
  * <ul>
  *   <li>commit 1 ({@code "initial"}): basic class structure + README.md</li>
  *   <li>commit 2 ({@code "add features"}): methods, inner class, default method</li>
@@ -30,7 +32,7 @@ import java.util.List;
  *
  * <p>The {@code main} branch points to commit 3, and tag {@code v1.0} is attached to it.</p>
  */
-public class TestRepo implements AutoCloseable {
+public class TestRepo {
     private static final long DATE1 = LocalDateTime.of(2024, 1, 1, 0, 0).toEpochSecond(ZoneOffset.UTC);
     private static final long DATE2 = LocalDateTime.of(2024, 2, 1, 0, 0).toEpochSecond(ZoneOffset.UTC);
     private static final long DATE3 = LocalDateTime.of(2024, 3, 1, 0, 0).toEpochSecond(ZoneOffset.UTC);
@@ -40,130 +42,119 @@ public class TestRepo implements AutoCloseable {
     private static final int BLOB_MODE = FileMode.REGULAR_FILE.getBits();
     private static final int TREE_MODE = FileMode.TREE.getBits();
 
-    public final InMemoryRepository repo = new InMemoryRepository(new DfsRepositoryDescription("test-repo"));
-    public final RepositoryAccess access = new RepositoryAccess(repo);
-    public ObjectId commit1, commit2, commit3;
-
     private TestRepo() {}
 
     /**
-     * Creates and populates the test repository.
+     * Creates an empty in-memory repository.
      */
-    public static TestRepo create() throws IOException {
-        final TestRepo testRepo = new TestRepo();
-        testRepo.populate();
-        return testRepo;
+    public static TemporaryRepositoryAccess create() {
+        return create(false);
     }
 
     /**
-     * Runs the given blob translator against this repository and returns a {@link RewriteResult}.
+     * Creates an empty repository.
+     * If {@code onDisk} is true, uses a file-based repository; otherwise in-memory.
      */
-    public RewriteResult rewrite(BlobTranslator translator) {
-        return rewrite(translator.create());
+    public static TemporaryRepositoryAccess create(boolean onDisk) {
+        try {
+            final Repository repo;
+            final TemporaryFile.Directory dir;
+            if (onDisk) {
+                dir = TemporaryFile.directoryOf("test-repo-");
+                repo = new FileRepositoryBuilder()
+                        .setGitDir(new File(dir.getPath().toFile(), ".git"))
+                        .setWorkTree(dir.getPath().toFile())
+                        .build();
+                repo.create();
+            } else {
+                dir = null;
+                repo = new InMemoryRepository(new DfsRepositoryDescription("test-repo"));
+            }
+            return new TemporaryRepositoryAccess(repo, dir);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
-     * Runs the given rewriter against this repository and returns a {@link RewriteResult}.
+     * Creates and populates a sample test repository with a 3-commit history.
      */
-    public RewriteResult rewrite(RepositoryRewriter rewriter) {
-        final Repository targetRepo = new InMemoryRepository(new DfsRepositoryDescription("target"));
+    public static TemporaryRepositoryAccess createSample() throws IOException {
+        return createSample(false);
+    }
+
+    /**
+     * Creates and populates a sample test repository with a 3-commit history.
+     * If {@code onDisk} is true, uses a file-based repository; otherwise in-memory.
+     */
+    public static TemporaryRepositoryAccess createSample(boolean onDisk) throws IOException {
+        final TemporaryRepositoryAccess ra = create(onDisk);
+        populate(ra);
+        return ra;
+    }
+
+    /**
+     * Runs the given command into a new target matching the source type (in-memory or on-disk).
+     */
+    public static TemporaryRepositoryAccess rewrite(RepositoryAccess source, RewriterCommand command) {
+        return rewrite(source, create(isOnDisk(source)), command);
+    }
+
+    /**
+     * Runs the given command from source into target and returns the target.
+     */
+    public static <T extends RepositoryAccess> T rewrite(RepositoryAccess source, T target, RewriterCommand cmd) {
+        final RepositoryRewriter rewriter = cmd.toRewriter();
         rewriter.setConfig(new Application.Config());
-        rewriter.initialize(repo, targetRepo);
+        rewriter.initialize(source.repo, target.repo);
         rewriter.rewrite(Context.init());
-        return new RewriteResult(targetRepo);
+        return target;
     }
 
-    /**
-     * The result of a rewrite operation, holding the target repository.
-     */
-    public static class RewriteResult implements AutoCloseable {
-        public final Repository repo;
-        public final RepositoryAccess access;
-
-        public RewriteResult(Repository repo) {
-            this.repo = repo;
-            this.access = new RepositoryAccess(repo);
-        }
-
-        /**
-         * Runs a further rewrite on this result's repository.
-         */
-        public RewriteResult rewrite(RepositoryRewriter rewriter) {
-            final Repository targetRepo = new InMemoryRepository(new DfsRepositoryDescription("target"));
-            rewriter.setConfig(new Application.Config());
-            rewriter.initialize(repo, targetRepo);
-            rewriter.rewrite(Context.init());
-            return new RewriteResult(targetRepo);
-        }
-
-        /**
-         * Runs a further rewrite on this result's repository using a blob translator.
-         */
-        public RewriteResult rewrite(BlobTranslator translator) {
-            return rewrite(translator.create());
-        }
-
-        @Override
-        public void close() {
-            repo.close();
-        }
+    private static boolean isOnDisk(RepositoryAccess ra) {
+        return !(ra.repo instanceof InMemoryRepository);
     }
 
-    @Override
-    public void close() {
-        repo.close();
-    }
-
-    private void populate() throws IOException {
-        try (final ObjectInserter inserter = repo.newObjectInserter()) {
+    private static void populate(RepositoryAccess ra) throws IOException {
+        try (final ObjectInserter inserter = ra.repo.newObjectInserter()) {
             final Context c = Context.init().with(Context.Key.inserter, inserter);
 
-            // commit 1: initial
-            final ObjectId tree1 = buildRootTree(c, "v1");
-            commit1 = access.writeCommit(RepositoryAccess.NO_PARENTS, tree1,
+            final ObjectId tree1 = buildRootTree(ra, "v1", c);
+            final ObjectId commit1 = ra.writeCommit(RepositoryAccess.NO_PARENTS, tree1,
                     withTime(AUTHOR, DATE1), withTime(COMMITTER, DATE1),
                     "initial", c);
 
-            // commit 2: add features
-            final ObjectId tree2 = buildRootTree(c, "v2");
-            commit2 = access.writeCommit(new ObjectId[]{commit1}, tree2,
+            final ObjectId tree2 = buildRootTree(ra, "v2", c);
+            final ObjectId commit2 = ra.writeCommit(new ObjectId[]{commit1}, tree2,
                     withTime(AUTHOR, DATE2), withTime(COMMITTER, DATE2),
                     "add features", c);
 
-            // commit 3: modern syntax
-            final ObjectId tree3 = buildRootTree(c, "v3");
-            commit3 = access.writeCommit(new ObjectId[]{commit2}, tree3,
+            final ObjectId tree3 = buildRootTree(ra, "v3", c);
+            final ObjectId commit3 = ra.writeCommit(new ObjectId[]{commit2}, tree3,
                     withTime(AUTHOR, DATE3), withTime(COMMITTER, DATE3),
                     "modern syntax", c);
 
-            // tag v1.0 (annotated)
-            final ObjectId tagId = access.writeTag(commit3, Constants.OBJ_COMMIT, "v1.0",
+            final ObjectId tagId = ra.writeTag(commit3, Constants.OBJ_COMMIT, "v1.0",
                     withTime(AUTHOR, DATE3), "release v1.0", c);
 
             inserter.flush();
 
-            // refs
-            access.applyRefUpdate(new RefEntry("refs/heads/main", commit3));
-            access.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
-            access.applyRefUpdate(new RefEntry("refs/tags/v1.0", tagId));
+            ra.applyRefUpdate(new RefEntry("refs/heads/main", commit3));
+            ra.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+            ra.applyRefUpdate(new RefEntry("refs/tags/v1.0", tagId));
         }
     }
 
-    /**
-     * Builds the root tree: README.md + com/example/Hello.java
-     */
-    private ObjectId buildRootTree(Context c, String version) throws IOException {
-        final ObjectId readmeBlob = access.writeBlob(readResource("/sample/README.md"), c);
-        final ObjectId helloBlob = access.writeBlob(readResource("/sample/Hello.java." + version), c);
+    private static ObjectId buildRootTree(RepositoryAccess ra, String version, Context c) throws IOException {
+        final ObjectId readmeBlob = ra.writeBlob(readResource("/sample/README.md"), c);
+        final ObjectId helloBlob = ra.writeBlob(readResource("/sample/Hello.java." + version), c);
 
-        // com/example/Hello.java
-        final ObjectId exampleTree = access.writeTree(List.of(
+        final ObjectId exampleTree = ra.writeTree(List.of(
                 Entry.of(BLOB_MODE, "Hello.java", helloBlob)), c);
-        final ObjectId comTree = access.writeTree(List.of(
+        final ObjectId comTree = ra.writeTree(List.of(
                 Entry.of(TREE_MODE, "example", exampleTree)), c);
 
-        // root: README.md + com/
-        return access.writeTree(List.of(
+        return ra.writeTree(List.of(
                 Entry.of(BLOB_MODE, "README.md", readmeBlob),
                 Entry.of(TREE_MODE, "com", comTree)), c);
     }

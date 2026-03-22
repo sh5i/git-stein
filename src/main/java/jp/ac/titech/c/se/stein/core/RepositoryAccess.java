@@ -1,6 +1,9 @@
 package jp.ac.titech.c.se.stein.core;
 
+import java.io.File;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -26,12 +29,12 @@ import jp.ac.titech.c.se.stein.core.Try.IOThrowableFunction;
  * Low-level operations on a Git repository: reading and writing blobs, trees, commits, tags,
  * notes, and refs.
  */
-public class RepositoryAccess {
+public class RepositoryAccess implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(RepositoryAccess.class);
 
     public static final ObjectId[] NO_PARENTS = new ObjectId[0];
 
-    protected final Repository repo;
+    public final Repository repo;
 
     @Getter
     protected final NoteMap defaultNotes;
@@ -50,6 +53,32 @@ public class RepositoryAccess {
     public RepositoryAccess(final Repository repo) {
         this.repo = repo;
         this.defaultNotes = readNotes();
+    }
+
+    @Override
+    public void close() {
+        repo.close();
+    }
+
+    /**
+     * Sets up alternates so that this repository shares objects from {@code source},
+     * skipping writes for objects that already exist.
+     *
+     * @param useRelative if true, write a relative path; otherwise, write an absolute path
+     */
+    public RepositoryAccess setupAlternates(final Repository source, final boolean useRelative) {
+        Try.io(() -> {
+            final Path objs = repo.getDirectory().toPath().resolve("objects");
+            final Path srcObjs = source.getDirectory().toPath().resolve("objects");
+            final String entry = useRelative
+                    ? objs.toAbsolutePath().relativize(srcObjs.toAbsolutePath()).toString()
+                    : srcObjs.toAbsolutePath().toString();
+            final Path info = objs.resolve("info");
+            Files.createDirectories(info);
+            Files.writeString(info.resolve("alternates"), entry + "\n");
+            log.debug("Set alternates: {}", entry);
+        });
+        return this;
     }
 
     // walk

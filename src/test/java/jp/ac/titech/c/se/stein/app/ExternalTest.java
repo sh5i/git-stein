@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.app;
 
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
@@ -13,11 +14,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ExternalTest {
-    static TestRepo source;
+    static RepositoryAccess source;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
+        source = TestRepo.createSample();
     }
 
     @AfterAll
@@ -31,7 +32,7 @@ public class ExternalTest {
         external.klass = Identity.class;
         external.args = null;
 
-        final RepositoryRewriter rewriter = external.create();
+        final RepositoryRewriter rewriter = external.toRewriter();
         assertInstanceOf(Identity.class, rewriter);
     }
 
@@ -40,10 +41,9 @@ public class ExternalTest {
         final External external = new External();
         external.klass = Identity.class;
         external.args = null;
-
-        try (TestRepo.RewriteResult result = source.rewrite(external.create())) {
-            final List<RevCommit> sourceCommits = source.access.collectCommits("refs/heads/main");
-            final List<RevCommit> targetCommits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = TestRepo.rewrite(source, external.toRewriter())) {
+            final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
+            final List<RevCommit> targetCommits = result.collectCommits("refs/heads/main");
 
             assertEquals(sourceCommits.size(), targetCommits.size());
             for (int i = 0; i < sourceCommits.size(); i++) {

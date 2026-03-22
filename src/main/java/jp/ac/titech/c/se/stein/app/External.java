@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.app;
 
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
 import jp.ac.titech.c.se.stein.util.Loader;
 import lombok.ToString;
 import picocli.CommandLine;
@@ -12,7 +13,7 @@ import picocli.CommandLine.*;
  */
 @ToString
 @Command(name = "@external", description = "Run external rewriter")
-public class External implements RepositoryRewriter.Factory {
+public class External implements RewriterCommand {
     @Option(names = "--class", paramLabel = "<class>", description = "rewriter class")
     Class<? extends RepositoryRewriter> klass;
 
@@ -20,7 +21,7 @@ public class External implements RepositoryRewriter.Factory {
     String[] args;
 
     @Override
-    public RepositoryRewriter create() {
+    public RepositoryRewriter toRewriter() {
         final RepositoryRewriter result = (RepositoryRewriter) Loader.newInstance(klass);
         if (args != null) {
             new CommandLine(result)

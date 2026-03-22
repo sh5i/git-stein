@@ -95,6 +95,17 @@ shadowJar {
     }
 }
 
+tasks.register('benchmark', JavaExec) {
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'jp.ac.titech.c.se.stein.testing.RewriteBenchmark'
+
+    def benchArgs = project.hasProperty('benchRepo') ? [project.property('benchRepo')] : ['.']
+    if (project.hasProperty('alternates')) benchArgs.add('--alternates')
+    args = benchArgs
+    jvmArgs = ['-Xmx1g']
+}
+
 tasks.register('executableJar') {
     dependsOn 'shadowJar'
     // cf. https://ujun.hatenablog.com/entry/2017/09/22/010209

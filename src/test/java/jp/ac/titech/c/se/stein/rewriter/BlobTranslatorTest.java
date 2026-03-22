@@ -6,6 +6,7 @@ import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -100,19 +101,19 @@ public class BlobTranslatorTest {
 
     @Test
     public void testFinerGit() throws IOException {
-        try (TestRepo source = TestRepo.create()) {
+        try (RepositoryAccess source = TestRepo.createSample()) {
             final RepositoryRewriter composite =
                     new BlobTranslator.Composite(new HistorageViaJDT(), new TokenizeViaJDT());
 
-            try (TestRepo.RewriteResult compositeResult = source.rewrite(composite);
-                 TestRepo.RewriteResult step1 = source.rewrite(new HistorageViaJDT());
-                 TestRepo.RewriteResult sequentialResult = step1.rewrite(new TokenizeViaJDT())) {
+            try (RepositoryAccess compositeResult = TestRepo.rewrite(source,composite);
+                 RepositoryAccess step1 = TestRepo.rewrite(source,new HistorageViaJDT());
+                 RepositoryAccess sequentialResult = TestRepo.rewrite(step1,new TokenizeViaJDT())) {
 
-                final RevCommit compositeHead = compositeResult.access.getHead("refs/heads/main");
-                final RevCommit sequentialHead = sequentialResult.access.getHead("refs/heads/main");
+                final RevCommit compositeHead = compositeResult.getHead("refs/heads/main");
+                final RevCommit sequentialHead = sequentialResult.getHead("refs/heads/main");
 
-                final List<Entry> compositeFiles = compositeResult.access.flattenTree(compositeHead.getTree().getId());
-                final List<Entry> sequentialFiles = sequentialResult.access.flattenTree(sequentialHead.getTree().getId());
+                final List<Entry> compositeFiles = compositeResult.flattenTree(compositeHead.getTree().getId());
+                final List<Entry> sequentialFiles = sequentialResult.flattenTree(sequentialHead.getTree().getId());
 
                 assertEquals(
                         compositeFiles.stream().map(Entry::getName).sorted().collect(Collectors.toList()),

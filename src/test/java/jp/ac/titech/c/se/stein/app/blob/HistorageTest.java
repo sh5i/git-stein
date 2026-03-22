@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -17,12 +18,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 public class HistorageTest {
-    static TestRepo source;
-    static TestRepo.RewriteResult result;
+    static RepositoryAccess source, result;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
+        source = TestRepo.createSample();
     }
 
     @AfterAll
@@ -31,10 +31,10 @@ public class HistorageTest {
         if (source != null) source.close();
     }
 
-    static TestRepo.RewriteResult getResult() {
+    static RepositoryAccess getResult() {
         if (result == null) {
             assumeTrue(ProcessRunner.isAvailable("ctags"), "ctags not available");
-            result = source.rewrite(new Historage());
+            result = TestRepo.rewrite(source,new Historage());
         }
         return result;
     }
@@ -113,12 +113,12 @@ public class HistorageTest {
 
     @Test
     public void testCommitCount() {
-        assertEquals(3, getResult().access.collectCommits("refs/heads/main").size());
+        assertEquals(3, getResult().collectCommits("refs/heads/main").size());
     }
 
     @Test
     public void testModuleNames() {
-        final RevCommit head = getResult().access.getHead("refs/heads/main");
+        final RevCommit head = getResult().getHead("refs/heads/main");
         final Set<String> names = collectFileNames(head);
 
         assertEquals(Set.of(
@@ -173,15 +173,15 @@ public class HistorageTest {
 
     @Test
     public void testModuleContent() {
-        final RevCommit head = getResult().access.getHead("refs/heads/main");
+        final RevCommit head = getResult().getHead("refs/heads/main");
         final List<Entry> files = collectFiles(head);
 
         // original Hello.java should have the same blob id as in the source repo
         final Entry orig = files.stream()
                 .filter(e -> e.getName().equals("Hello.java"))
                 .findFirst().orElseThrow();
-        final RevCommit sourceHead = source.access.getHead("refs/heads/main");
-        final Entry sourceHello = source.access.flattenTree(sourceHead.getTree().getId()).stream()
+        final RevCommit sourceHead = source.getHead("refs/heads/main");
+        final Entry sourceHello = source.flattenTree(sourceHead.getTree().getId()).stream()
                 .filter(e -> e.getName().equals("Hello.java"))
                 .findFirst().orElseThrow();
         assertEquals(sourceHello.getId(), orig.getId());
@@ -191,7 +191,7 @@ public class HistorageTest {
                 .filter(e -> e.getName().equals("Hello!Hello$getCount(~da39a3).method.java"))
                 .findFirst().orElseThrow();
         assertEquals("    public int getCount() {\n        return count;\n    }\n",
-                new String(getResult().access.readBlob(getCountModule.getId())));
+                new String(getResult().readBlob(getCountModule.getId())));
     }
 
     // --- Helpers ---
@@ -203,6 +203,6 @@ public class HistorageTest {
     }
 
     private List<Entry> collectFiles(RevCommit commit) {
-        return getResult().access.flattenTree(commit.getTree().getId());
+        return getResult().flattenTree(commit.getTree().getId());
     }
 }

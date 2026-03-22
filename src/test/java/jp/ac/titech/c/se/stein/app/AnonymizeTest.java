@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.app;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
@@ -14,16 +15,14 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class AnonymizeTest {
-    static TestRepo source;
-    static TestRepo.RewriteResult result;
+    static RepositoryAccess source, result;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
-
+        source = TestRepo.createSample();
         final Anonymize anonymize = new Anonymize();
         anonymize.setAllEnabled(true);
-        result = source.rewrite(anonymize);
+        result = TestRepo.rewrite(source,anonymize);
     }
 
     @AfterAll
@@ -44,7 +43,7 @@ public class AnonymizeTest {
 
     @Test
     public void testCommitMessages() {
-        final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        final List<RevCommit> commits = result.collectCommits("refs/heads/main");
         assertEquals(3, commits.size());
         assertEquals("8ad7d21", commits.get(0).getFullMessage());
         assertEquals("9c9dba5", commits.get(1).getFullMessage());
@@ -53,7 +52,7 @@ public class AnonymizeTest {
 
     @Test
     public void testAuthorAnonymized() {
-        final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        final List<RevCommit> commits = result.collectCommits("refs/heads/main");
         for (RevCommit commit : commits) {
             assertEquals("p1", commit.getAuthorIdent().getName());
             assertEquals("e4f623b", commit.getAuthorIdent().getEmailAddress());
@@ -64,11 +63,11 @@ public class AnonymizeTest {
 
     @Test
     public void testBlobContentAnonymized() {
-        final RevCommit latest = result.access.getHead("refs/heads/main");
-        final List<Entry> files = result.access.flattenTree(latest.getTree().getId());
+        final RevCommit latest = result.getHead("refs/heads/main");
+        final List<Entry> files = result.flattenTree(latest.getTree().getId());
         for (Entry file : files) {
             if (file.isBlob()) {
-                final String content = new String(result.access.readBlob(file.getId()));
+                final String content = new String(result.readBlob(file.getId()));
                 assertTrue(content.matches("[0-9a-f]{40}"),
                         "Expected hex hash content for " + file.getName() + ", got: " + content);
             }
@@ -77,8 +76,8 @@ public class AnonymizeTest {
 
     @Test
     public void testBlobNameAnonymized() {
-        final RevCommit latest = result.access.getHead("refs/heads/main");
-        final List<Entry> files = result.access.flattenTree(latest.getTree().getId());
+        final RevCommit latest = result.getHead("refs/heads/main");
+        final List<Entry> files = result.flattenTree(latest.getTree().getId());
         final List<String> blobNames = files.stream().filter(Entry::isBlob)
                 .map(Entry::getName).sorted().collect(Collectors.toList());
         assertEquals(List.of("f1", "f2"), blobNames);
@@ -86,8 +85,8 @@ public class AnonymizeTest {
 
     @Test
     public void testTreeNameAnonymized() {
-        final RevCommit latest = result.access.getHead("refs/heads/main");
-        final List<Entry> root = result.access.readTree(latest.getTree().getId(), null);
+        final RevCommit latest = result.getHead("refs/heads/main");
+        final List<Entry> root = result.readTree(latest.getTree().getId(), null);
         final Entry tree = root.stream().filter(Entry::isTree).findFirst().orElseThrow();
         // com is renamed after example (depth-first), so com → t2
         assertEquals("t2", tree.getName());
@@ -95,13 +94,13 @@ public class AnonymizeTest {
 
     @Test
     public void testMainBranchPreserved() {
-        assertNotNull(result.access.getRef("refs/heads/main"));
+        assertNotNull(result.getRef("refs/heads/main"));
     }
 
     @Test
     public void testTagNameAnonymized() {
-        assertNull(result.access.getRef("refs/tags/v1.0"));
-        assertNotNull(result.access.getRef("refs/tags/t1"));
+        assertNull(result.getRef("refs/tags/v1.0"));
+        assertNotNull(result.getRef("refs/tags/t1"));
     }
 
 }

@@ -6,6 +6,7 @@ import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -26,16 +27,15 @@ public class HistorageViaJDTTest {
     static final int BLOB_MODE = FileMode.REGULAR_FILE.getBits();
 
     static String sampleSource;
-    static TestRepo source;
-    static TestRepo.RewriteResult result;
+    static RepositoryAccess source, result;
 
     @BeforeAll
     static void setUp() throws IOException {
         try (InputStream is = HistorageViaJDTTest.class.getResourceAsStream("/sample/Hello.java.v3")) {
             sampleSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
-        source = TestRepo.create();
-        result = source.rewrite(new HistorageViaJDT());
+        source = TestRepo.createSample();
+        result = TestRepo.rewrite(source,new HistorageViaJDT());
     }
 
     @AfterAll
@@ -190,21 +190,21 @@ public class HistorageViaJDTTest {
 
     @Test
     public void testRewriteCommitCount() {
-        assertEquals(3, result.access.collectCommits("refs/heads/main").size());
+        assertEquals(3, result.collectCommits("refs/heads/main").size());
     }
 
     @Test
     public void testRewriteProducesModules() {
-        for (RevCommit commit : result.access.collectCommits("refs/heads/main")) {
+        for (RevCommit commit : result.collectCommits("refs/heads/main")) {
             // navigate to com/example/ where Hello.java and its modules live
             final List<Entry> root =
-                    result.access.readTree(commit.getTree().getId(), null);
+                    result.readTree(commit.getTree().getId(), null);
             final Entry com = root.stream()
                     .filter(e -> e.getName().equals("com")).findFirst().orElseThrow();
             final Entry example =
-                    result.access.readTree(com.getId(), null).get(0);
+                    result.readTree(com.getId(), null).get(0);
             final List<Entry> exampleEntries =
-                    result.access.readTree(example.getId(), null);
+                    result.readTree(example.getId(), null);
 
             // should have Hello.java (original) + generated modules
             assertTrue(exampleEntries.size() > 1,

@@ -3,6 +3,8 @@ package jp.ac.titech.c.se.stein.app;
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
+import jp.ac.titech.c.se.stein.testing.TemporaryRepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
@@ -18,11 +20,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ExtractCommitTest {
-    static TestRepo source;
+    static RepositoryAccess source;
+    static List<RevCommit> commits;
 
     @BeforeAll
     static void setUp() throws IOException {
-        source = TestRepo.create();
+        source = TestRepo.createSample();
+        commits = source.collectCommits("refs/heads/main");
     }
 
     @AfterAll
@@ -30,7 +34,7 @@ public class ExtractCommitTest {
         source.close();
     }
 
-    TestRepo.RewriteResult extract(String commitSpec) {
+    RepositoryAccess extract(String commitSpec) {
         final ExtractCommit extractor = new ExtractCommit();
         extractor.targetCommitSpec = commitSpec;
         extractor.setConfig(new Application.Config());
@@ -38,14 +42,14 @@ public class ExtractCommitTest {
         final Repository targetRepo = new InMemoryRepository(new DfsRepositoryDescription("target"));
         extractor.initialize(source.repo, targetRepo);
         extractor.rewrite(Context.init());
-        return new TestRepo.RewriteResult(targetRepo);
+        return new TemporaryRepositoryAccess(targetRepo);
     }
 
     @Test
     public void testExtractLastCommit() {
         // extract commit3 → should get commit2 + commit3
-        try (TestRepo.RewriteResult result = extract(source.commit3.name())) {
-            final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = extract(commits.get(2).name())) {
+            final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(2, commits.size());
             assertEquals("add features", commits.get(0).getFullMessage());
             assertEquals("modern syntax", commits.get(1).getFullMessage());
@@ -58,8 +62,8 @@ public class ExtractCommitTest {
     @Test
     public void testExtractMiddleCommit() {
         // extract commit2 → should get commit1 + commit2
-        try (TestRepo.RewriteResult result = extract(source.commit2.name())) {
-            final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = extract(commits.get(1).name())) {
+            final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(2, commits.size());
             assertEquals("initial", commits.get(0).getFullMessage());
             assertEquals("add features", commits.get(1).getFullMessage());
@@ -69,8 +73,8 @@ public class ExtractCommitTest {
     @Test
     public void testExtractFirstCommit() {
         // extract commit1 → should get only commit1
-        try (TestRepo.RewriteResult result = extract(source.commit1.name())) {
-            final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = extract(commits.get(0).name())) {
+            final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(1, commits.size());
             assertEquals("initial", commits.get(0).getFullMessage());
             assertEquals(0, commits.get(0).getParentCount());
@@ -79,12 +83,12 @@ public class ExtractCommitTest {
 
     @Test
     public void testExtractedContentPreserved() {
-        try (TestRepo.RewriteResult result = extract(source.commit3.name())) {
-            final List<RevCommit> commits = result.access.collectCommits("refs/heads/main");
+        try (RepositoryAccess result = extract(commits.get(2).name())) {
+            final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             final RevCommit latest = commits.get(commits.size() - 1);
 
             // should have README.md + com/
-            final List<Entry> root = result.access.readTree(latest.getTree().getId(), null);
+            final List<Entry> root = result.readTree(latest.getTree().getId(), null);
             assertTrue(root.stream().anyMatch(e -> e.getName().equals("README.md")));
             assertTrue(root.stream().anyMatch(e -> e.getName().equals("com")));
         }
@@ -92,10 +96,10 @@ public class ExtractCommitTest {
 
     @Test
     public void testExtractedRefsAreMainAndHead() {
-        try (TestRepo.RewriteResult result = extract(source.commit3.name())) {
-            assertNotNull(result.access.getRef("refs/heads/main"));
+        try (RepositoryAccess result = extract(commits.get(2).name())) {
+            assertNotNull(result.getRef("refs/heads/main"));
             // tags should not be carried over
-            assertNull(result.access.getRef("refs/tags/v1.0"));
+            assertNull(result.getRef("refs/tags/v1.0"));
         }
     }
 }

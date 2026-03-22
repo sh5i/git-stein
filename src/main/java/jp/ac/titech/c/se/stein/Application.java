@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.Context.Key;
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import org.slf4j.event.Level;
 import picocli.CommandLine;
@@ -94,6 +95,12 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
         @Option(names = "--no-composite", negatable = true, description = "compose multiple blob translators (default: ${DEFAULT-VALUE})", order = MIDDLE)
         public boolean useComposite = true;
+
+        public enum AlternatesMode { relative, absolute }
+
+        @Option(names = "--alternates", description = "share source objects via alternates (${COMPLETION-CANDIDATES}; default: relative)",
+                fallbackValue = "relative", order = MIDDLE, arity = "0..1")
+        public AlternatesMode alternatesMode;
 
         @Option(names = "--cache", split = ",", paramLabel = "<l>", description = "cache level (${COMPLETION-CANDIDATES}. default: none)", order = MIDDLE)
         public EnumSet<RepositoryRewriter.CacheLevel> cacheLevel = EnumSet.noneOf(RepositoryRewriter.CacheLevel.class);
@@ -168,6 +175,9 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
             log.info("Starting rewriting [{}]: {} -> {}", rewriter, source.getDirectory(), target.getDirectory());
             rewriter.setConfig(conf);
             rewriter.initialize(source, target);
+            if (conf.alternatesMode != null) {
+                new RepositoryAccess(target).setupAlternates(source, conf.alternatesMode == Config.AlternatesMode.relative);
+            }
             final Context c = Context.init().with(Key.conf, conf);
             final Instant start = Instant.now();
             rewriter.rewrite(c);
@@ -292,17 +302,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     }
 
     public List<RepositoryRewriter> prepareRewriters(final List<RewriterCommand> commands) {
-        final List<RepositoryRewriter> result = new ArrayList<>();
-        for (final RewriterCommand cmd : commands) {
-            if (cmd instanceof RepositoryRewriter) {
-                result.add((RepositoryRewriter) cmd);
-            } else if (cmd instanceof RepositoryRewriter.Factory) {
-                result.add(((RepositoryRewriter.Factory) cmd).create());
-            } else {
-                log.error("Unknown command: {}", cmd.getClass());
-            }
-        }
-        return result;
+        return commands.stream().map(RewriterCommand::toRewriter).collect(Collectors.toList());
     }
 
     public List<RewriterCommand> optimizeRewriters(final List<RewriterCommand> commands) {
