@@ -107,8 +107,8 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
         public enum CacheBackend { sqlite, mvstore }
 
-        @Option(names = "--cache-backend", paramLabel = "<backend>", description = "cache backend (${COMPLETION-CANDIDATES}. default: sqlite)", order = MIDDLE)
-        public CacheBackend cacheBackend = CacheBackend.sqlite;
+        @Option(names = "--cache-backend", paramLabel = "<backend>", description = "cache backend (${COMPLETION-CANDIDATES}. default: mvstore)", order = MIDDLE)
+        public CacheBackend cacheBackend = CacheBackend.mvstore;
 
         @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = MIDDLE)
         public boolean isRewritingExtraAttributes = false;
