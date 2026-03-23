@@ -118,27 +118,30 @@ public class RepositoryRewriter implements RewriterCommand {
 
     public void rewrite(final Context c) {
         setUp(c);
-        final RevWalk walk = prepareRevisionWalk(c);
-        if (cacheProvider != null) {
-            cacheProvider.inTransaction(() -> {
+        try {
+            final RevWalk walk = prepareRevisionWalk(c);
+            if (cacheProvider != null) {
+                cacheProvider.inTransaction(() -> {
+                    rewriteCommits(walk, c);
+                    updateRefs(c);
+                    return null;
+                });
+            } else {
+                if (config.nthreads >= 2) {
+                    log.debug("Parallel rewriting");
+                    rewriteRootTrees(walk, c);
+                    Try.io(walk::memoReset);
+                }
                 rewriteCommits(walk, c);
                 updateRefs(c);
-                return null;
-            });
-        } else {
-            if (config.nthreads >= 2) {
-                log.debug("Parallel rewriting");
-                rewriteRootTrees(walk, c);
-                Try.io(walk::memoReset);
             }
-            rewriteCommits(walk, c);
-            updateRefs(c);
+            target.writeNotes(target.getDefaultNotes(), c);
+        } finally {
+            if (cacheProvider != null) {
+                cacheProvider.close();
+            }
+            cleanUp(c);
         }
-        target.writeNotes(target.getDefaultNotes(), c);
-        if (cacheProvider != null) {
-            cacheProvider.close();
-        }
-        cleanUp(c);
     }
 
     protected void setUp(final Context c) {}
