@@ -10,10 +10,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import jp.ac.titech.c.se.stein.core.*;
-import jp.ac.titech.c.se.stein.entry.BlobEntry;
-import jp.ac.titech.c.se.stein.entry.Entry;
-import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
-import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.entry.*;
 import jp.ac.titech.c.se.stein.jgit.RevWalk;
 import lombok.Setter;
 import org.eclipse.jgit.lib.Constants;
@@ -30,7 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.Application.Config;
 import jp.ac.titech.c.se.stein.core.Context.Key;
-import jp.ac.titech.c.se.stein.entry.AnyColdEntry;
 
 /**
  * The core rewriting engine that copies a Git repository while transforming its contents.
@@ -346,7 +342,7 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     /**
-     * Rewrites a tree entry.
+     * Rewrites an entry by dispatching to the appropriate type.
      */
     protected AnyColdEntry rewriteEntry(final Entry entry, final Context c) {
         final Context uc = c.with(Key.entry, entry);
@@ -356,7 +352,9 @@ public class RepositoryRewriter implements RewriterCommand {
                 log.debug("Rewrite blob: {} -> {} {}", entry, newBlob, c);
                 return newBlob;
             case TREE:
-                final AnyColdEntry newTree = rewriteTreeEntry(entry, uc);
+                final String path = entry.isRoot() ? "" : c.getPath() + "/" + entry.name;
+                final String dir = isPathSensitive ? path : null;
+                final AnyColdEntry newTree = rewriteTreeEntry(HotEntry.ofTree(entry, source, dir), uc.with(Key.path, path));
                 log.debug("Rewrite tree: {} -> {} {}", entry, newTree, c);
                 return newTree;
             case LINK:
@@ -373,38 +371,36 @@ public class RepositoryRewriter implements RewriterCommand {
         return entry;
     }
 
-    protected AnyColdEntry rewriteTreeEntry(Entry entry, Context c) {
-        final ObjectId newId = rewriteTree(entry.id, c);
-        final String newName = rewriteName(entry.name, c);
-        return newId == ZERO ? AnyColdEntry.empty() : Entry.of(entry.mode, newName, newId, entry.directory);
+    /**
+     * Rewrites a tree entry. Loads children from the source, rewrites each with caching,
+     * and writes the resulting tree to the target.
+     */
+    protected AnyColdEntry rewriteTreeEntry(TreeEntry entry, Context c) {
+        final ObjectId newId = rewriteTree(entry, c);
+        final String newName = rewriteName(entry.getName(), c);
+        return newId == ZERO ? AnyColdEntry.empty() : Entry.of(entry.getMode(), newName, newId, entry.getDirectory());
+    }
+
+    /**
+     * Rewrites a tree object by processing its children.
+     */
+    protected ObjectId rewriteTree(final TreeEntry entry, final Context c) {
+        final List<Entry> entries = new ArrayList<>();
+        for (final Entry e : entry.getEntries()) {
+            final AnyColdEntry rewritten = getEntry(e, c);
+            rewritten.stream().filter(r -> !r.getId().equals(ZERO)).forEach(entries::add);
+        }
+        final ObjectId newId = entries.isEmpty() ? ZERO : target.writeTree(entries, c);
+        if (log.isDebugEnabled() && !newId.equals(entry.getId())) {
+            log.debug("Rewrite tree: {} -> {} {}", entry.getId().name(), newId.name(), c);
+        }
+        return newId;
     }
 
     protected AnyColdEntry rewriteLinkEntry(Entry entry, Context c) {
         final ObjectId newId = rewriteLink(entry.id, c);
         final String newName = rewriteName(entry.name, c);
         return newId == ZERO ? AnyColdEntry.empty() : Entry.of(entry.mode, newName, newId, entry.directory);
-    }
-
-    /**
-     * Rewrites a tree object.
-     */
-    protected ObjectId rewriteTree(final ObjectId treeId, final Context c) {
-        final Entry entry = c.getEntry();
-        final String path = entry.isRoot() ? "" : c.getPath() + "/" + entry.name;
-        final Context uc = c.with(Key.path, path);
-
-        final String dir = isPathSensitive ? path : null;
-
-        final List<Entry> entries = new ArrayList<>();
-        for (final Entry e : source.readTree(treeId, dir)) {
-            final AnyColdEntry rewritten = getEntry(e, uc);
-            rewritten.stream().forEach(entries::add);
-        }
-        final ObjectId newId = entries.isEmpty() ? ZERO : target.writeTree(entries, uc);
-        if (log.isDebugEnabled() && !newId.equals(treeId)) {
-            log.debug("Rewrite tree: {} -> {} {}", treeId.name(), newId.name(), c);
-        }
-        return newId;
     }
 
     /**

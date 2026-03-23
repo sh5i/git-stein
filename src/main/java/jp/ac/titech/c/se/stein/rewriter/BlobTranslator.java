@@ -4,14 +4,14 @@ import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.entry.TreeEntry;
 import lombok.Getter;
 import lombok.ToString;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public interface BlobTranslator extends RewriterCommand {
     default void setUp(final Context c) {}
@@ -65,12 +65,36 @@ public interface BlobTranslator extends RewriterCommand {
 
         @Override
         public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
-            Stream<? extends HotEntry> stream = Stream.of(entry);
-            for (BlobTranslator translator : translators) {
-                // TODO: if e is not BlobEntry?
-                stream = stream.flatMap(e -> translator.rewriteBlobEntry((BlobEntry) e, c).stream());
+            return apply(entry, c, 0);
+        }
+
+        private AnyHotEntry apply(AnyHotEntry input, Context c, int from) {
+            if (from >= translators.length) {
+                return input;
             }
-            return AnyHotEntry.set(stream.collect(Collectors.toList()));
+            if (input instanceof TreeEntry.NewTree) {
+                final TreeEntry.NewTree tree = (TreeEntry.NewTree) input;
+                final List<HotEntry> newChildren = new ArrayList<>();
+                for (HotEntry child : tree.getHotEntries()) {
+                    collect(apply(child, c, from), newChildren);
+                }
+                return new TreeEntry.NewTree(tree.getName(), newChildren);
+            }
+            if (input.size() != 1) {
+                final List<HotEntry> results = new ArrayList<>();
+                input.stream().forEach(e ->
+                        collect(apply(translators[from].rewriteBlobEntry((BlobEntry) e, c), c, from + 1), results));
+                return AnyHotEntry.set(results);
+            }
+            return apply(translators[from].rewriteBlobEntry((BlobEntry) input.stream().findFirst().get(), c), c, from + 1);
+        }
+
+        private static void collect(AnyHotEntry result, List<HotEntry> out) {
+            if (result instanceof HotEntry) {
+                out.add((HotEntry) result);
+            } else {
+                result.stream().forEach(out::add);
+            }
         }
     }
 }

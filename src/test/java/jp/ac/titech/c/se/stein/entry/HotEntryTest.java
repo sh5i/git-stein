@@ -27,7 +27,7 @@ public class HotEntryTest {
         assertEquals("src", withDir.getDirectory());
 
         final Entry entry = Entry.of(BLOB_MODE, "hello", ObjectId.zeroId());
-        final HotEntry fromEntry = HotEntry.of(entry, "world".getBytes(StandardCharsets.UTF_8));
+        final BlobEntry fromEntry = HotEntry.of(entry, "world".getBytes(StandardCharsets.UTF_8));
         assertEquals("hello", fromEntry.getName());
     }
 

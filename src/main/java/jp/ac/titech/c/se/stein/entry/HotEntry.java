@@ -12,35 +12,45 @@ import java.util.stream.Stream;
  * {@link AnyHotEntry} (as a singleton collection) and {@link SingleEntry}.</p>
  *
  * @see BlobEntry
+ * @see TreeEntry
  * @see Entry
  */
 public abstract class HotEntry implements AnyHotEntry, SingleEntry {
     /**
-     * Creates a {@link BlobEntry.SourceBlob} that lazily reads blob content from the given source.
+     * Creates a {@link BlobEntry} that lazily reads blob content from the given source.
      */
-    public static BlobEntry.SourceBlob of(Entry e, RepositoryAccess source) {
+    public static BlobEntry of(Entry e, RepositoryAccess source) {
         return new BlobEntry.SourceBlob(e, source);
     }
 
     /**
-     * Creates a {@link BlobEntry.NewBlob} by replacing the blob content of an existing entry.
+     * Creates a {@link BlobEntry} by replacing the blob content of an existing entry.
      */
-    public static BlobEntry.NewBlob of(Entry e, byte[] updatedBlob) {
+    public static BlobEntry of(Entry e, byte[] updatedBlob) {
         return new BlobEntry.NewBlob(e.getMode(), e.getName(), updatedBlob, e.getDirectory());
     }
 
     /**
-     * Creates a {@link BlobEntry.NewBlob} with the given properties.
+     * Creates a {@link BlobEntry} with the given properties.
      */
-    public static BlobEntry.NewBlob of(int mode, String name, byte[] blob) {
+    public static BlobEntry of(int mode, String name, byte[] blob) {
         return new BlobEntry.NewBlob(mode, name, blob, null);
     }
 
     /**
-     * Creates a {@link BlobEntry.NewBlob} with the given properties.
+     * Creates a {@link BlobEntry} with the given properties.
      */
-    public static BlobEntry.NewBlob of(int mode, String name, byte[] blob, String directory) {
+    public static BlobEntry of(int mode, String name, byte[] blob, String directory) {
         return new BlobEntry.NewBlob(mode, name, blob, directory);
+    }
+
+    /**
+     * Creates a {@link TreeEntry} that lazily reads tree contents from the given source.
+     *
+     * @param directory the directory path to set on child entries, or {@code null}
+     */
+    public static TreeEntry ofTree(Entry e, RepositoryAccess source, String directory) {
+        return new TreeEntry.SourceTree(e, source, directory);
     }
 
     @Override

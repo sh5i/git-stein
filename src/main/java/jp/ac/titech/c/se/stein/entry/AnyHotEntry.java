@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.entry;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import lombok.Getter;
+import org.eclipse.jgit.lib.ObjectId;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -98,6 +99,7 @@ public interface AnyHotEntry {
         public AnyColdEntry fold(RepositoryAccess target, Context c) {
             return AnyColdEntry.set(stream()
                     .map(e -> e.fold(target, c))
+                    .filter(e -> !e.getId().equals(ObjectId.zeroId()))
                     .collect(Collectors.toList()))
                     .pack();
         }
