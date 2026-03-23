@@ -26,6 +26,20 @@ public abstract class TreeEntry extends HotEntry {
     }
 
     /**
+     * Returns a new {@link NewTree} with the given name, keeping the children unchanged.
+     */
+    public NewTree rename(String newName) {
+        return new NewTree(newName, getHotEntries());
+    }
+
+    /**
+     * Returns a new {@link NewTree} with the given children, keeping the name unchanged.
+     */
+    public NewTree update(List<HotEntry> newChildren) {
+        return new NewTree(getName(), newChildren);
+    }
+
+    /**
      * Returns the children as cold entries.
      */
     public abstract List<Entry> getEntries();

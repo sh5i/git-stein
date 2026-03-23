@@ -9,8 +9,8 @@ import lombok.Getter;
 import lombok.ToString;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.function.Function;
 
 public interface BlobTranslator extends RewriterCommand {
@@ -65,36 +65,27 @@ public interface BlobTranslator extends RewriterCommand {
 
         @Override
         public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
-            return apply(entry, c, 0);
+            return apply(entry, List.of(translators), c);
         }
 
-        private AnyHotEntry apply(AnyHotEntry input, Context c, int from) {
-            if (from >= translators.length) {
-                return input;
+        private AnyHotEntry apply(AnyHotEntry input, List<BlobTranslator> rest, Context c) {
+            if (input instanceof BlobEntry) {
+                final BlobTranslator head = rest.get(0);
+                final List<BlobTranslator> tail = rest.subList(1, rest.size());
+                final AnyHotEntry result = head.rewriteBlobEntry((BlobEntry) input, c);
+                return tail.isEmpty() ? result : apply(result, tail, c);
             }
-            if (input instanceof TreeEntry.NewTree) {
-                final TreeEntry.NewTree tree = (TreeEntry.NewTree) input;
-                final List<HotEntry> newChildren = new ArrayList<>();
-                for (HotEntry child : tree.getHotEntries()) {
-                    collect(apply(child, c, from), newChildren);
-                }
-                return new TreeEntry.NewTree(tree.getName(), newChildren);
+            if (input instanceof TreeEntry) {
+                final TreeEntry tree = (TreeEntry) input;
+                final List<HotEntry> newChildren = tree.getHotEntries().stream()
+                        .flatMap(e -> apply(e, rest, c).stream())
+                        .collect(Collectors.toList());
+                return tree.update(newChildren);
             }
-            if (input.size() != 1) {
-                final List<HotEntry> results = new ArrayList<>();
-                input.stream().forEach(e ->
-                        collect(apply(translators[from].rewriteBlobEntry((BlobEntry) e, c), c, from + 1), results));
-                return AnyHotEntry.set(results);
-            }
-            return apply(translators[from].rewriteBlobEntry((BlobEntry) input.stream().findFirst().get(), c), c, from + 1);
-        }
-
-        private static void collect(AnyHotEntry result, List<HotEntry> out) {
-            if (result instanceof HotEntry) {
-                out.add((HotEntry) result);
-            } else {
-                result.stream().forEach(out::add);
-            }
+            // Set/Empty: apply to each element
+            return AnyHotEntry.set(input.stream()
+                    .flatMap(e -> apply(e, rest, c).stream())
+                    .collect(Collectors.toList()));
         }
     }
 }

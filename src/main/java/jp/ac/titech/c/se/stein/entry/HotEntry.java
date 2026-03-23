@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.entry;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 /**
@@ -51,6 +52,20 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
      */
     public static TreeEntry ofTree(Entry e, RepositoryAccess source, String directory) {
         return new TreeEntry.SourceTree(e, source, directory);
+    }
+
+    /**
+     * Creates a {@link TreeEntry.NewTree} with the given name and children.
+     */
+    public static TreeEntry.NewTree ofTree(String name, List<HotEntry> children) {
+        return new TreeEntry.NewTree(name, children);
+    }
+
+    /**
+     * Creates a {@link TreeEntry.NewTree} with the given name and children.
+     */
+    public static TreeEntry.NewTree ofTree(String name, HotEntry... children) {
+        return new TreeEntry.NewTree(name, children);
     }
 
     @Override
