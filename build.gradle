@@ -37,9 +37,6 @@ dependencies {
     implementation 'org.jgrapht:jgrapht-core:1.5.2'
     implementation 'org.jgrapht:jgrapht-io:1.5.2'
 
-    implementation 'org.xerial:sqlite-jdbc:3.51.3.0'
-    implementation 'com.j256.ormlite:ormlite-jdbc:5.7'
-
     implementation 'com.h2database:h2-mvstore:2.3.232'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.14.3'
@@ -77,7 +74,6 @@ publishing {
 
 shadowJar {
     minimize {
-        exclude(dependency('org.xerial:sqlite-jdbc:.*'))
         exclude(dependency('ch.qos.logback:logback-classic:.*'))
     }
 }

@@ -96,7 +96,6 @@ public class RepositoryRewriter implements RewriterCommand {
             cacheProvider = switch (config.cacheBackend) {
                 case mvstore -> new MVStoreCacheProvider(targetRepo);
                 case guava -> new GuavaCacheProvider();
-                default -> new SQLiteCacheProvider(targetRepo);
             };
             if (config.cacheLevel.contains(CacheLevel.commit)) {
                 log.info("Stored mapping (commit-mapping) is available");
