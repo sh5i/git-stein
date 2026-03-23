@@ -376,38 +376,22 @@ public class RepositoryRewriter implements RewriterCommand {
      * and writes the resulting tree to the target.
      */
     protected AnyColdEntry rewriteTreeEntry(TreeEntry entry, Context c) {
-        final ObjectId newId = rewriteTree(entry, c);
-        final String newName = rewriteName(entry.getName(), c);
-        return newId == ZERO ? AnyColdEntry.empty() : Entry.of(entry.getMode(), newName, newId, entry.getDirectory());
-    }
-
-    /**
-     * Rewrites a tree object by processing its children.
-     */
-    protected ObjectId rewriteTree(final TreeEntry entry, final Context c) {
         final List<Entry> entries = new ArrayList<>();
         for (final Entry e : entry.getEntries()) {
             final AnyColdEntry rewritten = getEntry(e, c);
             rewritten.stream().filter(r -> !r.getId().equals(ZERO)).forEach(entries::add);
         }
+        final String newName = rewriteName(entry.getName(), c);
         final ObjectId newId = entries.isEmpty() ? ZERO : target.writeTree(entries, c);
         if (log.isDebugEnabled() && !newId.equals(entry.getId())) {
             log.debug("Rewrite tree: {} -> {} {}", entry.getId().name(), newId.name(), c);
         }
-        return newId;
+        return newId == ZERO ? AnyColdEntry.empty() : Entry.of(entry.getMode(), newName, newId, entry.getDirectory());
     }
 
     protected AnyColdEntry rewriteLinkEntry(Entry entry, Context c) {
-        final ObjectId newId = rewriteLink(entry.id, c);
         final String newName = rewriteName(entry.name, c);
-        return newId == ZERO ? AnyColdEntry.empty() : Entry.of(entry.mode, newName, newId, entry.directory);
-    }
-
-    /**
-     * Rewrites a commit link.
-     */
-    protected ObjectId rewriteLink(final ObjectId commitId, @SuppressWarnings("unused") final Context c) {
-        return commitId;
+        return Entry.of(entry.mode, newName, entry.id, entry.directory);
     }
 
     /**
