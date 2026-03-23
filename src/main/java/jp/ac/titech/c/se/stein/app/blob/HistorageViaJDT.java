@@ -159,8 +159,8 @@ public class HistorageViaJDT implements BlobTranslator {
 
         @Override
         public String getBasename() {
-            if (parent instanceof ClassModule) {
-                return parent.getBasename() + "." + name;
+            if (parent instanceof ClassModule cm) {
+                return cm.getBasename() + "." + name;
             } else {
                 return parent.getBasename().equals(name) ? name : name + "[" + parent.getBasename() + "]";
             }

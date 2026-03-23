@@ -69,14 +69,13 @@ public interface BlobTranslator extends RewriterCommand {
         }
 
         private AnyHotEntry apply(AnyHotEntry input, List<BlobTranslator> rest, Context c) {
-            if (input instanceof BlobEntry) {
+            if (input instanceof BlobEntry blob) {
                 final BlobTranslator head = rest.get(0);
                 final List<BlobTranslator> tail = rest.subList(1, rest.size());
-                final AnyHotEntry result = head.rewriteBlobEntry((BlobEntry) input, c);
+                final AnyHotEntry result = head.rewriteBlobEntry(blob, c);
                 return tail.isEmpty() ? result : apply(result, tail, c);
             }
-            if (input instanceof TreeEntry) {
-                final TreeEntry tree = (TreeEntry) input;
+            if (input instanceof TreeEntry tree) {
                 final List<HotEntry> newChildren = tree.getHotEntries().stream()
                         .flatMap(e -> apply(e, rest, c).stream())
                         .collect(Collectors.toList());

@@ -126,8 +126,7 @@ public class Anonymize extends RepositoryRewriter {
     @Override
     protected AnyColdEntry rewriteTreeEntry(TreeEntry entry, Context c) {
         final AnyColdEntry result = super.rewriteTreeEntry(entry, c);
-        if (isTreeNameEnabled && result instanceof Entry) {
-            final Entry e = (Entry) result;
+        if (isTreeNameEnabled && result instanceof Entry e) {
             return Entry.of(e.mode, treeNameMap.convert(e.name), e.id, e.directory);
         }
         return result;
