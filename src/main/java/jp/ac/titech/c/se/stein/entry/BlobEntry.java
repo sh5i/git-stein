@@ -21,6 +21,13 @@ import java.nio.charset.StandardCharsets;
 public abstract class BlobEntry extends HotEntry {
     public abstract byte[] getBlob();
 
+    /**
+     * Returns the blob content as a UTF-8 string.
+     */
+    public String getContent() {
+        return new String(getBlob(), StandardCharsets.UTF_8);
+    }
+
     public abstract long getBlobSize();
 
     @Override

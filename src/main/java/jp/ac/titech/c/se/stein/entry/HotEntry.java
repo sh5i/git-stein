@@ -2,7 +2,9 @@ package jp.ac.titech.c.se.stein.entry;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
+import org.eclipse.jgit.lib.FileMode;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -43,6 +45,27 @@ public abstract class HotEntry implements AnyHotEntry, SingleEntry {
      */
     public static BlobEntry of(int mode, String name, byte[] blob, String directory) {
         return new BlobEntry.NewBlob(mode, name, blob, directory);
+    }
+
+    /**
+     * Creates a {@link BlobEntry} with the given UTF-8 string content.
+     */
+    public static BlobEntry of(int mode, String name, String content) {
+        return new BlobEntry.NewBlob(mode, name, content.getBytes(StandardCharsets.UTF_8), null);
+    }
+
+    /**
+     * Creates a regular-file {@link BlobEntry} with the given byte content.
+     */
+    public static BlobEntry ofBlob(String name, byte[] blob) {
+        return new BlobEntry.NewBlob(FileMode.REGULAR_FILE.getBits(), name, blob, null);
+    }
+
+    /**
+     * Creates a regular-file {@link BlobEntry} with the given UTF-8 string content.
+     */
+    public static BlobEntry ofBlob(String name, String content) {
+        return new BlobEntry.NewBlob(FileMode.REGULAR_FILE.getBits(), name, content.getBytes(StandardCharsets.UTF_8), null);
     }
 
     /**

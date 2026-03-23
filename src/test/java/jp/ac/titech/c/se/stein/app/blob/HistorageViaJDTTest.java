@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class HistorageViaJDTTest {
-    static final int BLOB_MODE = FileMode.REGULAR_FILE.getBits();
 
     static String sampleSource;
     static RepositoryAccess source, result;
@@ -167,7 +166,7 @@ public class HistorageViaJDTTest {
 
     @Test
     public void testNonJavaFilePassedThrough() {
-        BlobEntry entry = HotEntry.of(BLOB_MODE, "README.md", "# Hello".getBytes(StandardCharsets.UTF_8));
+        BlobEntry entry = HotEntry.ofBlob("README.md", "# Hello");
         HistorageViaJDT historage = new HistorageViaJDT();
         AnyHotEntry result = historage.rewriteBlobEntry(entry, Context.init());
         assertEquals(1, result.size());
@@ -178,7 +177,7 @@ public class HistorageViaJDTTest {
     public void testRequiresOriginals() {
         HistorageViaJDT historage = new HistorageViaJDT();
         historage.requiresOriginals = false;
-        BlobEntry entry = HotEntry.of(BLOB_MODE, "Hello.java", sampleSource.getBytes(StandardCharsets.UTF_8));
+        BlobEntry entry = HotEntry.ofBlob("Hello.java", sampleSource);
         AnyHotEntry result = historage.rewriteBlobEntry(entry, Context.init());
 
         // original should NOT be included

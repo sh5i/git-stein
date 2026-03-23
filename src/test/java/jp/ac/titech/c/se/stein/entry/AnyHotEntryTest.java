@@ -15,8 +15,8 @@ public class AnyHotEntryTest {
     static final byte[] HELLO = "hello".getBytes(StandardCharsets.UTF_8);
     static final byte[] WORLD = "world".getBytes(StandardCharsets.UTF_8);
 
-    final BlobEntry h1 = HotEntry.of(BLOB_MODE, "hello.txt", HELLO);
-    final BlobEntry h2 = HotEntry.of(BLOB_MODE, "world.txt", WORLD);
+    final BlobEntry h1 = HotEntry.ofBlob("hello.txt", HELLO);
+    final BlobEntry h2 = HotEntry.ofBlob("world.txt", WORLD);
 
     @Test
     public void testEmpty() {

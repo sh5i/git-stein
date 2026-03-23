@@ -22,7 +22,7 @@ public interface BlobTranslator extends RewriterCommand {
      * Creates a {@link BlobTranslator} from a String-to-String function.
      */
     static BlobTranslator of(Function<String, String> f) {
-        return (entry, c) -> entry.update(f.apply(new String(entry.getBlob(), StandardCharsets.UTF_8)));
+        return (entry, c) -> entry.update(f.apply(entry.getContent()));
     }
 
     default RepositoryRewriter toRewriter() {
