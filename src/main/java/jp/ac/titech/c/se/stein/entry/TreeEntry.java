@@ -19,7 +19,7 @@ import java.util.stream.Stream;
  * @see SourceTree
  * @see NewTree
  */
-public abstract class TreeEntry extends HotEntry {
+public abstract sealed class TreeEntry extends HotEntry permits TreeEntry.SourceTree, TreeEntry.NewTree {
     @Override
     public int getMode() {
         return FileMode.TREE.getBits();
@@ -53,7 +53,7 @@ public abstract class TreeEntry extends HotEntry {
      * A Hot tree entry backed by an existing tree in a repository.
      * The tree contents are lazily loaded on the first call to {@link #getEntries()}.
      */
-    public static class SourceTree extends TreeEntry {
+    public static final class SourceTree extends TreeEntry {
         @Delegate(types = SingleEntry.class)
         private final Entry entry;
 
@@ -106,7 +106,7 @@ public abstract class TreeEntry extends HotEntry {
      * On {@link #fold}, children are recursively folded and an empty tree
      * (all children produce zero IDs) collapses to a zero-ID entry.</p>
      */
-    public static class NewTree extends TreeEntry {
+    public static final class NewTree extends TreeEntry {
         @Getter
         private final String name;
         @Getter

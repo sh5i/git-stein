@@ -274,8 +274,8 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         // help
         if (parseResult.subcommands().size() >= 2) {
             final Object cmd = parseResult.subcommands().get(0).commandSpec().userObject();
-            if (cmd instanceof SettableHelpCommand) {
-                ((SettableHelpCommand) cmd).setCommand(parseResult.subcommands().get(1).commandSpec().name());
+            if (cmd instanceof SettableHelpCommand shc) {
+                shc.setCommand(parseResult.subcommands().get(1).commandSpec().name());
             }
         }
         if (CommandLine.printHelpIfRequested(parseResult)) {
@@ -310,8 +310,8 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         final List<BlobTranslator> pending = new ArrayList<>();
 
         for (final RewriterCommand cmd : commands) {
-            if (cmd instanceof BlobTranslator) {
-                pending.add((BlobTranslator) cmd);
+            if (cmd instanceof BlobTranslator t) {
+                pending.add(t);
             } else {
                 flushPendingTranslators(pending, result);
                 result.add(cmd);

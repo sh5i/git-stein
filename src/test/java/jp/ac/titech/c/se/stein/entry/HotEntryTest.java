@@ -41,7 +41,7 @@ public class HotEntryTest {
         final BlobEntry withDir = HotEntry.of(BLOB_MODE, "hello", HELLO, "src");
         assertEquals("src/hello", withDir.getPath());
         assertTrue(withDir.isBlob());
-        assertEquals(SingleEntry.Type.BLOB, withDir.getType());
+        assertEquals(SingleEntry.Type.blob, withDir.getType());
     }
 
     @Test

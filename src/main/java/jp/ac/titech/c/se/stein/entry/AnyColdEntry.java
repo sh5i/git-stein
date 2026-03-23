@@ -102,14 +102,11 @@ public interface AnyColdEntry extends Serializable {
 
         @Override
         public AnyColdEntry normalize() {
-            switch (size()) {
-                case 0:
-                    return empty();
-                case 1:
-                    return entries.get(0);
-                default:
-                    return this;
-            }
+            return switch (size()) {
+                case 0 -> empty();
+                case 1 -> entries.get(0);
+                default -> this;
+            };
         }
     }
 

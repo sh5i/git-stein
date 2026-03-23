@@ -18,7 +18,7 @@ import java.nio.charset.StandardCharsets;
  * @see SourceBlob
  * @see NewBlob
  */
-public abstract class BlobEntry extends HotEntry {
+public abstract sealed class BlobEntry extends HotEntry permits BlobEntry.SourceBlob, BlobEntry.NewBlob {
     public abstract byte[] getBlob();
 
     /**
@@ -61,7 +61,7 @@ public abstract class BlobEntry extends HotEntry {
      * The blob content is lazily loaded on the first call to {@link #getBlob()}.
      */
     @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-    public static class SourceBlob extends BlobEntry {
+    public static final class SourceBlob extends BlobEntry {
         @Delegate(types = SingleEntry.class)
         private final Entry entry;
 
@@ -93,7 +93,7 @@ public abstract class BlobEntry extends HotEntry {
      */
     @Slf4j
     @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-    public static class NewBlob extends BlobEntry {
+    public static final class NewBlob extends BlobEntry {
         @Getter
         private final int mode;
 

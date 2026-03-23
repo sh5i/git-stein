@@ -62,20 +62,11 @@ public class Cregit implements BlobTranslator {
         this.language = language;
         if (filter.isDefault()) {
             switch (language) {
-                case "C":
-                    filter.setPatterns(C_EXT);
-                    break;
-                case "C++":
-                    filter.setPatterns(CXX_EXT);
-                    break;
-                case "C#":
-                    filter.setPatterns(CSHARP_EXT);
-                    break;
-                case "Java":
-                    filter.setPatterns(JAVA_EXT);
-                    break;
-                default:
-                    log.error("Unknown language: {}", language);
+                case "C" -> filter.setPatterns(C_EXT);
+                case "C++" -> filter.setPatterns(CXX_EXT);
+                case "C#" -> filter.setPatterns(CSHARP_EXT);
+                case "Java" -> filter.setPatterns(JAVA_EXT);
+                default -> log.error("Unknown language: {}", language);
             }
         }
     }

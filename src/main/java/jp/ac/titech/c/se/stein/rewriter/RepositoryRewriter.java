@@ -346,25 +346,17 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected AnyColdEntry rewriteEntry(final Entry entry, final Context c) {
         final Context uc = c.with(Key.entry, entry);
-        switch (entry.getType()) {
-            case BLOB:
-                final AnyColdEntry newBlob = rewriteBlobEntry(HotEntry.of(entry, source), uc).fold(target, uc);
-                log.debug("Rewrite blob: {} -> {} {}", entry, newBlob, c);
-                return newBlob;
-            case TREE:
+        final AnyColdEntry result = switch (entry.getType()) {
+            case blob -> rewriteBlobEntry(HotEntry.of(entry, source), uc).fold(target, uc);
+            case tree -> {
                 final String path = entry.isRoot() ? "" : c.getPath() + "/" + entry.name;
                 final String dir = isPathSensitive ? path : null;
-                final AnyColdEntry newTree = rewriteTreeEntry(HotEntry.ofTree(entry, source, dir), uc.with(Key.path, path));
-                log.debug("Rewrite tree: {} -> {} {}", entry, newTree, c);
-                return newTree;
-            case LINK:
-                final AnyColdEntry newLink = rewriteLinkEntry(entry, uc);
-                log.debug("Rewrite link: {} -> {} {}", entry, newLink, c);
-                return newLink;
-            default:
-                assert false;
-                return null;
-        }
+                yield rewriteTreeEntry(HotEntry.ofTree(entry, source, dir), uc.with(Key.path, path));
+            }
+            case link -> rewriteLinkEntry(entry, uc);
+        };
+        log.debug("Rewrite {}: {} -> {} {}", entry.getType(), entry, result, c);
+        return result;
     }
 
     protected AnyHotEntry rewriteBlobEntry(BlobEntry entry, Context c) {
@@ -529,36 +521,36 @@ public class RepositoryRewriter implements RewriterCommand {
      * Rewrites the referred object by a ref or a tag.
      */
     protected ObjectId rewriteRefObject(final ObjectId id, final int type, final Context c) {
-        switch (type) {
-            case Constants.OBJ_COMMIT: // 1: commit
+        return switch (type) {
+            case Constants.OBJ_COMMIT -> {
                 final ObjectId newCommitId = commitMapping.get(id);
                 if (newCommitId == null) {
                     log.warn("Rewritten commit not found: {} {}", id.name(), c);
-                    return id;
+                    yield id;
                 }
-                return newCommitId;
-
-            case Constants.OBJ_TREE: // 2: tree
+                yield newCommitId;
+            }
+            case Constants.OBJ_TREE -> {
                 // TODO rewriting opportunity for this tree
                 final ObjectId newTreeId = source.copyTree(id, target, c);
                 log.warn("A ref object tree {} found, just copied {}", id.name(), c);
-                return newTreeId;
-
-            case Constants.OBJ_BLOB: // 3: blob
+                yield newTreeId;
+            }
+            case Constants.OBJ_BLOB -> {
                 // TODO rewriting opportunity for this blob
                 final ObjectId newBlobId = source.copyBlob(id, target, c);
                 log.warn("A ref object blob {} found, just copied {}", id.name(), c);
-                return newBlobId;
-
-            case Constants.OBJ_TAG: // 4: tag
+                yield newBlobId;
+            }
+            case Constants.OBJ_TAG -> {
                 final ObjectId newTagId = tagMapping.get(id);
-                return newTagId != null ? newTagId : rewriteTag(source.parseTag(id), c);
-
-            default:
-                // referring non-commit and non-tag; ignore it
+                yield newTagId != null ? newTagId : rewriteTag(source.parseTag(id), c);
+            }
+            default -> {
                 log.warn("Ignore unknown type ({}): {} {}", type, id.name(), c);
-                return id;
-        }
+                yield id;
+            }
+        };
     }
 
     /**

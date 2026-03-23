@@ -36,17 +36,17 @@ public class EntryTest {
         assertTrue(blob.isBlob());
         assertFalse(blob.isTree());
         assertFalse(blob.isLink());
-        assertEquals(SingleEntry.Type.BLOB, blob.getType());
+        assertEquals(SingleEntry.Type.blob, blob.getType());
 
         assertTrue(tree.isTree());
         assertFalse(tree.isBlob());
         assertFalse(tree.isLink());
-        assertEquals(SingleEntry.Type.TREE, tree.getType());
+        assertEquals(SingleEntry.Type.tree, tree.getType());
 
         assertTrue(link.isLink());
         assertFalse(link.isBlob());
         assertFalse(link.isTree());
-        assertEquals(SingleEntry.Type.LINK, link.getType());
+        assertEquals(SingleEntry.Type.link, link.getType());
     }
 
     @Test

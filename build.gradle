@@ -17,29 +17,14 @@ java {
         // v61 (Java 17, LTS)
         // v65 (Java 21, LTS)
         // v69 (Java 25, LTS)
-        languageVersion = JavaLanguageVersion.of(11)
+        languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
 dependencies {
-    // jgit 7.x requires Java 17; staying on 6.x for Java 11 compatibility
-    api 'org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r'
+    api 'org.eclipse.jgit:org.eclipse.jgit:7.6.0.202603022253-r'
 
-    // JDT 3.29+ and eclipse platform require Java 17; staying on 3.28.x for Java 11 compatibility
-    implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.28.0'
-    implementation 'org.eclipse.platform:org.eclipse.core.commands:3.8.0'
-    implementation 'org.eclipse.platform:org.eclipse.core.contenttype:3.5.100'
-    implementation 'org.eclipse.platform:org.eclipse.core.expressions:3.5.100'
-    implementation 'org.eclipse.platform:org.eclipse.core.filesystem:1.7.0'
-    implementation 'org.eclipse.platform:org.eclipse.core.jobs:3.8.0'
-    implementation 'org.eclipse.platform:org.eclipse.core.resources:3.14.0'
-    implementation 'org.eclipse.platform:org.eclipse.core.runtime:3.13.0'
-    implementation 'org.eclipse.platform:org.eclipse.equinox.app:1.3.400'
-    implementation 'org.eclipse.platform:org.eclipse.equinox.common:3.8.0'
-    implementation 'org.eclipse.platform:org.eclipse.equinox.preferences:3.6.1'
-    implementation 'org.eclipse.platform:org.eclipse.equinox.registry:3.6.100'
-    implementation 'org.eclipse.platform:org.eclipse.osgi:3.11.2'
-    implementation 'org.eclipse.platform:org.eclipse.text:3.6.0'
+    implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.45.0'
 
     implementation 'org.slf4j:slf4j-api:2.0.17'
     implementation 'ch.qos.logback:logback-classic:1.5.32'

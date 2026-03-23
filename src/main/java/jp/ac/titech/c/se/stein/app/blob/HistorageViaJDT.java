@@ -159,8 +159,8 @@ public class HistorageViaJDT implements BlobTranslator {
 
         @Override
         public String getBasename() {
-            if (parent instanceof ClassModule) {
-                return parent.getBasename() + "." + name;
+            if (parent instanceof ClassModule cm) {
+                return cm.getBasename() + "." + name;
             } else {
                 return parent.getBasename().equals(name) ? name : name + "[" + parent.getBasename() + "]";
             }
@@ -300,8 +300,7 @@ public class HistorageViaJDT implements BlobTranslator {
          * Creates a JDT ASTParser.
          */
         protected ASTParser createParser() {
-            final ASTParser parser = ASTParser.newParser(AST.JLS17);
-            @SuppressWarnings("unchecked")
+            final ASTParser parser = ASTParser.newParser(AST.JLS25);
             final Map<String, String> options = DefaultCodeFormatterConstants.getEclipseDefaultSettings();
             options.put(JavaCore.COMPILER_COMPLIANCE, JavaCore.VERSION_17);
             options.put(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, JavaCore.VERSION_17);

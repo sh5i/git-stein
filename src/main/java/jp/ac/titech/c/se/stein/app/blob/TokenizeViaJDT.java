@@ -39,7 +39,7 @@ public class TokenizeViaJDT implements BlobTranslator {
      * Encodes the given source to linetoken format.
      */
     public static String encode(final String source) {
-        final IScanner scanner = ToolFactory.createScanner(true, true, false, JavaCore.VERSION_17);
+        final IScanner scanner = ToolFactory.createScanner(true, true, false, JavaCore.VERSION_25);
         scanner.setSource(source.toCharArray());
         final StringBuilder buffer = new StringBuilder();
         try {

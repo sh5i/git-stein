@@ -101,20 +101,14 @@ public class Context implements Map<Context.Key, Object> {
     }
 
     protected static String getStringValue(final Key key, final Object value) {
-        switch (key) {
-        case commit:
-            return ((RevCommit) value).name();
-        case path:
-            return '"' + (String) value + '"';
-        case entry:
-            return value.toString();
-        case tag:
-            return ((RevTag) value).name();
-        case ref:
-            return ((Ref) value).getName();
-        default:
-            return null;
-        }
+        return switch (key) {
+            case commit -> ((RevCommit) value).name();
+            case path -> '"' + (String) value + '"';
+            case entry -> value.toString();
+            case tag -> ((RevTag) value).name();
+            case ref -> ((Ref) value).getName();
+            default -> null;
+        };
     }
 
     @Override
