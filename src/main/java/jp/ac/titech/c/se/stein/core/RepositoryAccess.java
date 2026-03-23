@@ -298,17 +298,11 @@ public class RepositoryAccess implements AutoCloseable {
     public ObjectId copyTree(final ObjectId treeId, final RepositoryAccess target, final Context c) {
         final List<Entry> entries = new ArrayList<>();
         for (final Entry e : readTree(treeId, null)) {
-            switch (e.getType()) {
-                case TREE:
-                    entries.add(Entry.of(e.getMode(), e.getName(), copyTree(e.getId(), target, c)));
-                    break;
-                case BLOB:
-                    entries.add(Entry.of(e.getMode(), e.getName(), copyBlob(e.getId(), target, c)));
-                    break;
-                default:
-                    entries.add(e);
-                    break;
-            }
+            entries.add(switch (e.getType()) {
+                case TREE -> Entry.of(e.getMode(), e.getName(), copyTree(e.getId(), target, c));
+                case BLOB -> Entry.of(e.getMode(), e.getName(), copyBlob(e.getId(), target, c));
+                default -> e;
+            });
         }
         return target.writeTree(entries, c);
     }

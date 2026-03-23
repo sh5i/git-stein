@@ -61,18 +61,13 @@ public class FilterBlob implements BlobTranslator {
             final int len = value.length();
             final char unit = Character.toUpperCase(value.charAt(len - 1));
             final String num = value.substring(0, len - 1);
-            switch (unit) {
-                case 'B':
-                    return convert(num);
-                case 'K':
-                    return displaySizeToByteCount(num, 1024);
-                case 'M':
-                    return displaySizeToByteCount(num, 1024 * 1024);
-                case 'G':
-                    return displaySizeToByteCount(num, 1024 * 1024 * 1024);
-                default:
-                    return displaySizeToByteCount(value, 1);
-            }
+            return switch (unit) {
+                case 'B' -> convert(num);
+                case 'K' -> displaySizeToByteCount(num, 1024);
+                case 'M' -> displaySizeToByteCount(num, 1024 * 1024);
+                case 'G' -> displaySizeToByteCount(num, 1024 * 1024 * 1024);
+                default -> displaySizeToByteCount(value, 1);
+            };
         }
 
         protected long displaySizeToByteCount(final String value, final long base) {
