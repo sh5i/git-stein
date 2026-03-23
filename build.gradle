@@ -17,7 +17,7 @@ java {
         // v61 (Java 17, LTS)
         // v65 (Java 21, LTS)
         // v69 (Java 25, LTS)
-        languageVersion = JavaLanguageVersion.of(11)
+        languageVersion = JavaLanguageVersion.of(17)
     }
 }
 

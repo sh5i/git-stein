@@ -9,11 +9,10 @@ Several [bundle applications](#bundle-apps) using this framework are also availa
 
 ## Requirements
 
-- **Running**: Java 11 or later
+- **Running**: Java 17 or later
 - **Building**: Java 17 or later (required by Gradle 9)
 
-> **Note**: This is the last release supporting Java 11 as a runtime target.
-> Future versions will require Java 17 or later.
+> To run on Java 11, use the pre-built JAR from [v0.7.0](https://github.com/sh5i/git-stein/releases/tag/v0.7.0).
 
 
 ## Build and Run
