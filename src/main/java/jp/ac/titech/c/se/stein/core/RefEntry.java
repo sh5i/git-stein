@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.core;
 
 import java.io.Serializable;
+import java.util.Comparator;
 
 import lombok.EqualsAndHashCode;
 import org.eclipse.jgit.lib.ObjectId;
@@ -14,7 +15,7 @@ import org.eclipse.jgit.lib.Ref;
  * A symbolic ref has a non-null {@link #target} and a null {@link #id}.</p>
  */
 @EqualsAndHashCode
-public class RefEntry implements Serializable {
+public class RefEntry implements Serializable, Comparable<RefEntry> {
     /**
      * The ref name (e.g., {@code "refs/heads/main"} or {@code "HEAD"}).
      */
@@ -75,5 +76,15 @@ public class RefEntry implements Serializable {
     @Override
     public String toString() {
         return String.format("<Ref:%s %s>", name, target != null ? target : id.name());
+    }
+
+    private static final Comparator<RefEntry> COMPARATOR = Comparator
+            .comparing((RefEntry r) -> r.name, Comparator.nullsFirst(Comparator.naturalOrder()))
+            .thenComparing(r -> r.id, Comparator.nullsFirst(Comparator.naturalOrder()))
+            .thenComparing(r -> r.target, Comparator.nullsFirst(Comparator.naturalOrder()));
+
+    @Override
+    public int compareTo(final RefEntry other) {
+        return COMPARATOR.compare(this, other);
     }
 }
