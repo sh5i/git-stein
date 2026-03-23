@@ -105,7 +105,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @Option(names = "--cache", split = ",", paramLabel = "<l>", description = "cache level (${COMPLETION-CANDIDATES}. default: none)", order = MIDDLE)
         public EnumSet<RepositoryRewriter.CacheLevel> cacheLevel = EnumSet.noneOf(RepositoryRewriter.CacheLevel.class);
 
-        public enum CacheBackend { sqlite, mvstore }
+        public enum CacheBackend { sqlite, mvstore, guava }
 
         @Option(names = "--cache-backend", paramLabel = "<backend>", description = "cache backend (${COMPLETION-CANDIDATES}. default: mvstore)", order = MIDDLE)
         public CacheBackend cacheBackend = CacheBackend.mvstore;

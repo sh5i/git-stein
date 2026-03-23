@@ -7,7 +7,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import java.util.Map;
 
 /**
- * Common interface for cache providers that persist object mappings.
+ * Common interface for cache providers that manage object mappings.
  */
 public interface CacheProvider {
     boolean isInitial();

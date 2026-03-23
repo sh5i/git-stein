@@ -94,6 +94,7 @@ public class RepositoryRewriter implements RewriterCommand {
         if (!config.cacheLevel.isEmpty()) {
             cacheProvider = switch (config.cacheBackend) {
                 case mvstore -> new MVStoreCacheProvider(targetRepo);
+                case guava -> new GuavaCacheProvider();
                 default -> new SQLiteCacheProvider(targetRepo);
             };
             if (config.cacheLevel.contains(CacheLevel.commit)) {
