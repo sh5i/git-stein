@@ -9,6 +9,7 @@ import com.google.gson.JsonObject;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
@@ -86,7 +87,7 @@ public class HistorageViaJDT implements BlobTranslator {
     protected boolean parsable = false;
 
     @Override
-    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
         if (!JAVA.accept(entry)) {
             return entry;
         }

@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.app.blob;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.Try;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
@@ -77,7 +78,7 @@ public class ConvertBlob implements BlobTranslator {
     }
 
     @Override
-    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
         if (!filter.accept(entry)) {
             return entry;
         }
@@ -92,7 +93,7 @@ public class ConvertBlob implements BlobTranslator {
         }
     }
 
-    protected HotEntry processCommandlineFilter(final HotEntry entry, final Context c) {
+    protected BlobEntry processCommandlineFilter(final BlobEntry entry, final Context c) {
         try {
             final Process proc = new ProcessBuilder()
                     .command(makeCommand(entry.getName()))
@@ -131,7 +132,7 @@ public class ConvertBlob implements BlobTranslator {
         }
     }
 
-    protected AnyHotEntry processCommandline(final HotEntry entry, final Context c) {
+    protected AnyHotEntry processCommandline(final BlobEntry entry, final Context c) {
         try (final TemporaryFile tmp = TemporaryFile.directoryOf("_stein")) {
             // write input
             final Path inputPath = tmp.getPath().resolve(entry.getName());
@@ -163,7 +164,7 @@ public class ConvertBlob implements BlobTranslator {
         }
     }
 
-    protected HotEntry processEndpoint(final HotEntry entry, final Context c) {
+    protected BlobEntry processEndpoint(final BlobEntry entry, final Context c) {
         try {
             final HttpURLConnection conn = (HttpURLConnection) options.endpoint.openConnection();
             conn.setRequestMethod("POST");

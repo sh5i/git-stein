@@ -2,26 +2,27 @@ package jp.ac.titech.c.se.stein.rewriter;
 
 import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.entry.TreeEntry;
 import lombok.Getter;
 import lombok.ToString;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.function.Function;
 
 public interface BlobTranslator extends RewriterCommand {
     default void setUp(final Context c) {}
 
-    AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c);
+    AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c);
 
     /**
      * Creates a {@link BlobTranslator} from a String-to-String function.
      */
     static BlobTranslator of(Function<String, String> f) {
-        return (entry, c) -> entry.update(f.apply(new String(entry.getBlob(), StandardCharsets.UTF_8)));
+        return (entry, c) -> entry.update(f.apply(entry.getContent()));
     }
 
     default RepositoryRewriter toRewriter() {
@@ -38,7 +39,7 @@ public interface BlobTranslator extends RewriterCommand {
         }
 
         @Override
-        public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
+        public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
             return translator.rewriteBlobEntry(entry, c);
         }
     }
@@ -63,12 +64,28 @@ public interface BlobTranslator extends RewriterCommand {
         }
 
         @Override
-        public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
-            Stream<HotEntry> stream = Stream.of(entry);
-            for (BlobTranslator translator : translators) {
-                stream = stream.flatMap(e -> translator.rewriteBlobEntry(e, c).stream());
+        public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
+            return apply(entry, List.of(translators), c);
+        }
+
+        private AnyHotEntry apply(AnyHotEntry input, List<BlobTranslator> rest, Context c) {
+            if (input instanceof BlobEntry) {
+                final BlobTranslator head = rest.get(0);
+                final List<BlobTranslator> tail = rest.subList(1, rest.size());
+                final AnyHotEntry result = head.rewriteBlobEntry((BlobEntry) input, c);
+                return tail.isEmpty() ? result : apply(result, tail, c);
             }
-            return AnyHotEntry.set(stream.collect(Collectors.toList()));
+            if (input instanceof TreeEntry) {
+                final TreeEntry tree = (TreeEntry) input;
+                final List<HotEntry> newChildren = tree.getHotEntries().stream()
+                        .flatMap(e -> apply(e, rest, c).stream())
+                        .collect(Collectors.toList());
+                return tree.update(newChildren);
+            }
+            // Set/Empty: apply to each element
+            return AnyHotEntry.set(input.stream()
+                    .flatMap(e -> apply(e, rest, c).stream())
+                    .collect(Collectors.toList()));
         }
     }
 }

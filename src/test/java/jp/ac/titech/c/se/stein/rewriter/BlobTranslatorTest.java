@@ -4,6 +4,7 @@ import jp.ac.titech.c.se.stein.app.blob.HistorageViaJDT;
 import jp.ac.titech.c.se.stein.app.blob.TokenizeViaJDT;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
@@ -13,38 +14,28 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class BlobTranslatorTest {
-    static final int BLOB_MODE = FileMode.REGULAR_FILE.getBits();
     static final Context CTX = Context.init();
-
-    HotEntry blob(String name, String content) {
-        return HotEntry.of(BLOB_MODE, name, content.getBytes(StandardCharsets.UTF_8));
-    }
-
-    String content(HotEntry entry) {
-        return new String(entry.getBlob(), StandardCharsets.UTF_8);
-    }
 
     @Test
     public void testOf() {
         final BlobTranslator upper = BlobTranslator.of(String::toUpperCase);
-        final AnyHotEntry result = upper.rewriteBlobEntry(blob("f.txt", "hello"), CTX);
-        assertEquals("HELLO", content(result.stream().findFirst().orElseThrow()));
+        final AnyHotEntry result = upper.rewriteBlobEntry(HotEntry.ofBlob("f.txt", "hello"), CTX);
+        assertEquals("HELLO", result.asBlob().getContent());
     }
 
     @Test
     public void testSingleCompositeSingle() {
         final RepositoryRewriter translator = new BlobTranslator.Composite(
                 BlobTranslator.of(String::toUpperCase));
-        final AnyHotEntry result = translator.rewriteBlobEntry(blob("f.txt", "hello"), CTX);
+        final AnyHotEntry result = translator.rewriteBlobEntry(HotEntry.ofBlob("f.txt", "hello"), CTX);
         assertEquals(1, result.size());
-        assertEquals("HELLO", content(result.stream().findFirst().orElseThrow()));
+        assertEquals("HELLO", result.asBlob().getContent());
     }
 
     @Test
@@ -52,9 +43,9 @@ public class BlobTranslatorTest {
         final RepositoryRewriter translator = new BlobTranslator.Composite(
                 BlobTranslator.of(s -> "PREFIX:" + s),
                 BlobTranslator.of(String::toUpperCase));
-        final AnyHotEntry result = translator.rewriteBlobEntry(blob("f.txt", "hello"), CTX);
+        final AnyHotEntry result = translator.rewriteBlobEntry(HotEntry.ofBlob("f.txt", "hello"), CTX);
         assertEquals(1, result.size());
-        assertEquals("PREFIX:HELLO", content(result.stream().findFirst().orElseThrow()));
+        assertEquals("PREFIX:HELLO", result.asBlob().getContent());
     }
 
     @Test
@@ -62,11 +53,10 @@ public class BlobTranslatorTest {
         final BlobTranslator splitter = (entry, c) -> {
             final AnyHotEntry.Set set = AnyHotEntry.set();
             set.add(entry.rename("a_" + entry.getName()));
-            set.add(HotEntry.of(entry.getMode(), "b_" + entry.getName(),
-                    (content(entry) + "_copy").getBytes(StandardCharsets.UTF_8)));
+            set.add(HotEntry.of(entry.getMode(), "b_" + entry.getName(), entry.getContent() + "_copy"));
             return set;
         };
-        final AnyHotEntry result = splitter.rewriteBlobEntry(blob("f.txt", "data"), CTX);
+        final AnyHotEntry result = splitter.rewriteBlobEntry(HotEntry.ofBlob("f.txt", "data"), CTX);
         final List<? extends HotEntry> entries = result.stream().collect(Collectors.toList());
         assertEquals(2, entries.size());
         assertEquals("a_f.txt", entries.get(0).getName());
@@ -77,8 +67,8 @@ public class BlobTranslatorTest {
     public void testFilter() {
         final BlobTranslator filter = (entry, c) ->
                 entry.getName().endsWith(".bak") ? AnyHotEntry.empty() : entry;
-        assertEquals(0, filter.rewriteBlobEntry(blob("test.bak", "backup"), CTX).size());
-        assertEquals(1, filter.rewriteBlobEntry(blob("test.txt", "keep"), CTX).size());
+        assertEquals(0, filter.rewriteBlobEntry(HotEntry.ofBlob("test.bak", "backup"), CTX).size());
+        assertEquals(1, filter.rewriteBlobEntry(HotEntry.ofBlob("test.txt", "keep"), CTX).size());
     }
 
     @Test
@@ -92,11 +82,11 @@ public class BlobTranslatorTest {
         final RepositoryRewriter translator = new BlobTranslator.Composite(
                 splitter, BlobTranslator.of(String::toUpperCase));
         final List<? extends HotEntry> entries = translator
-                .rewriteBlobEntry(blob("f.txt", "hello"), CTX)
+                .rewriteBlobEntry(HotEntry.ofBlob("f.txt", "hello"), CTX)
                 .stream().collect(Collectors.toList());
         assertEquals(2, entries.size());
-        assertEquals("HELLO", content(entries.get(0)));
-        assertEquals("HELLO", content(entries.get(1)));
+        assertEquals("HELLO", entries.get(0).asBlob().getContent());
+        assertEquals("HELLO", entries.get(1).asBlob().getContent());
     }
 
     @Test
@@ -105,9 +95,9 @@ public class BlobTranslatorTest {
             final RepositoryRewriter composite =
                     new BlobTranslator.Composite(new HistorageViaJDT(), new TokenizeViaJDT());
 
-            try (RepositoryAccess compositeResult = TestRepo.rewrite(source,composite);
-                 RepositoryAccess step1 = TestRepo.rewrite(source,new HistorageViaJDT());
-                 RepositoryAccess sequentialResult = TestRepo.rewrite(step1,new TokenizeViaJDT())) {
+            try (RepositoryAccess compositeResult = TestRepo.rewrite(source, composite);
+                 RepositoryAccess step1 = TestRepo.rewrite(source, new HistorageViaJDT());
+                 RepositoryAccess sequentialResult = TestRepo.rewrite(step1, new TokenizeViaJDT())) {
 
                 final RevCommit compositeHead = compositeResult.getHead("refs/heads/main");
                 final RevCommit sequentialHead = sequentialResult.getHead("refs/heads/main");
@@ -120,7 +110,7 @@ public class BlobTranslatorTest {
                         sequentialFiles.stream().map(Entry::getName).sorted().collect(Collectors.toList()));
 
                 for (Entry ce : compositeFiles) {
-                    Entry se = sequentialFiles.stream()
+                    final Entry se = sequentialFiles.stream()
                             .filter(e -> e.getName().equals(ce.getName()))
                             .findFirst().orElseThrow();
                     assertEquals(ce.getId(), se.getId(), "blob mismatch for " + ce.getName());
@@ -128,5 +118,4 @@ public class BlobTranslatorTest {
             }
         }
     }
-
 }

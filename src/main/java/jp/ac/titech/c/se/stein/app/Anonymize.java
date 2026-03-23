@@ -5,7 +5,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
-import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.entry.AnyColdEntry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
+import jp.ac.titech.c.se.stein.entry.TreeEntry;
 import jp.ac.titech.c.se.stein.util.HashUtils;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,9 @@ import picocli.CommandLine.Option;
 public class Anonymize extends RepositoryRewriter {
     @Option(names = "--tree", description = "anonymize tree name")
     protected boolean isTreeNameEnabled;
+
+    @Option(names = "--link", description = "anonymize link name")
+    protected boolean isLinkNameEnabled;
 
     @Option(names = "--blob", description = "anonymize blob name")
     protected boolean isBlobNameEnabled;
@@ -53,6 +58,7 @@ public class Anonymize extends RepositoryRewriter {
     @Option(names = "--all", description = "anonymize all")
     protected void setAllEnabled(boolean isEnabled) {
         isTreeNameEnabled = isEnabled;
+        isLinkNameEnabled = isEnabled;
         isBlobNameEnabled = isEnabled;
         isBlobContentEnabled = isEnabled;
         isMessageEnabled = isEnabled;
@@ -91,6 +97,8 @@ public class Anonymize extends RepositoryRewriter {
 
     private final NameMap treeNameMap = new NameMap("directory", "t");
 
+    private final NameMap linkNameMap = new NameMap("link", "l");
+
     private final NameMap blobNameMap = new NameMap("file", "f");
 
     private final NameMap branchNameMap = new NameMap("branch", "b");
@@ -105,7 +113,7 @@ public class Anonymize extends RepositoryRewriter {
     }
 
     @Override
-    public AnyHotEntry rewriteBlobEntry(HotEntry entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(BlobEntry entry, final Context c) {
         if (isBlobContentEnabled) {
             entry = entry.update(entry.getId().name());
         }
@@ -116,12 +124,21 @@ public class Anonymize extends RepositoryRewriter {
     }
 
     @Override
-    public String rewriteName(final String name, final Context c) {
-        final Entry entry = c.getEntry();
-        if (entry.isTree()) {
-            return isTreeNameEnabled ? treeNameMap.convert(name) : name;
+    protected AnyColdEntry rewriteTreeEntry(TreeEntry entry, Context c) {
+        final AnyColdEntry result = super.rewriteTreeEntry(entry, c);
+        if (isTreeNameEnabled && result instanceof Entry) {
+            final Entry e = (Entry) result;
+            return Entry.of(e.mode, treeNameMap.convert(e.name), e.id, e.directory);
         }
-        return name;
+        return result;
+    }
+
+    @Override
+    protected AnyColdEntry rewriteLinkEntry(Entry entry, Context c) {
+        if (isLinkNameEnabled) {
+            return Entry.of(entry.mode, linkNameMap.convert(entry.name), entry.id, entry.directory);
+        }
+        return entry;
     }
 
     @Override

@@ -3,7 +3,7 @@ package jp.ac.titech.c.se.stein.app.blob;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
-import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import lombok.ToString;
@@ -23,7 +23,7 @@ public class Untokenize implements BlobTranslator {
     @Mixin
     protected final NameFilter filter = new NameFilter();
     @Override
-    public AnyHotEntry rewriteBlobEntry(final HotEntry entry, final Context c) {
+    public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
         if (!filter.accept(entry)) {
             return entry;
         }
