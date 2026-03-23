@@ -135,6 +135,9 @@ public class RepositoryRewriter implements RewriterCommand {
             updateRefs(c);
         }
         target.writeNotes(target.getDefaultNotes(), c);
+        if (cacheProvider != null) {
+            cacheProvider.close();
+        }
         cleanUp(c);
     }
 
