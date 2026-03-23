@@ -22,7 +22,7 @@ public class AnyColdEntryTest {
         final AnyColdEntry.Empty empty = AnyColdEntry.empty();
         assertEquals(0, empty.size());
         assertEquals(0, empty.stream().count());
-        assertSame(empty, empty.pack());
+        assertSame(empty, empty.normalize());
         assertEquals("[]", empty.toString());
 
         final AnyColdEntry.Empty empty2 = AnyColdEntry.empty();
@@ -51,17 +51,17 @@ public class AnyColdEntryTest {
     @Test
     public void testPack() {
         // empty set packs to Empty
-        assertInstanceOf(AnyColdEntry.Empty.class, AnyColdEntry.set().pack());
+        assertInstanceOf(AnyColdEntry.Empty.class, AnyColdEntry.set().normalize());
 
         // singleton set packs to the sole Entry
-        assertSame(e1, AnyColdEntry.set(e1).pack());
+        assertSame(e1, AnyColdEntry.set(e1).normalize());
 
         // multiple set packs to itself
         final AnyColdEntry.Set multiple = AnyColdEntry.set(e1, e2);
-        assertSame(multiple, multiple.pack());
+        assertSame(multiple, multiple.normalize());
 
         // Entry packs to itself
-        assertSame(e1, e1.pack());
+        assertSame(e1, e1.normalize());
     }
 
     @Test

@@ -115,7 +115,7 @@ public interface AnyHotEntry {
                     .map(e -> e.fold(target, c))
                     .filter(e -> !e.getId().equals(ObjectId.zeroId()))
                     .collect(Collectors.toList()))
-                    .pack();
+                    .normalize();
         }
 
         @Override

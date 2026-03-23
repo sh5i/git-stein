@@ -33,7 +33,7 @@ public interface AnyColdEntry extends Serializable {
      * Normalizes this entry. A {@link Set} of size 0 becomes {@link Empty},
      * size 1 is unwrapped to its sole {@link Entry}, and others remain as-is.
      */
-    default AnyColdEntry pack() {
+    default AnyColdEntry normalize() {
         return this;
     }
 
@@ -67,7 +67,7 @@ public interface AnyColdEntry extends Serializable {
 
     /**
      * A collection of multiple {@link Entry} instances.
-     * Use {@link #pack()} to normalize after construction.
+     * Use {@link #normalize()} to normalize after construction.
      */
     @NoArgsConstructor
     @EqualsAndHashCode
@@ -101,7 +101,7 @@ public interface AnyColdEntry extends Serializable {
         }
 
         @Override
-        public AnyColdEntry pack() {
+        public AnyColdEntry normalize() {
             switch (size()) {
                 case 0:
                     return empty();
