@@ -29,7 +29,7 @@ import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class SQLiteCacheProvider {
+public class SQLiteCacheProvider implements CacheProvider {
     private final static Logger log = LoggerFactory.getLogger(SQLiteCacheProvider.class);
 
     static class KeyValue {

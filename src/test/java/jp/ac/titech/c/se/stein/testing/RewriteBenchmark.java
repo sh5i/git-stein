@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -43,17 +44,20 @@ public class RewriteBenchmark {
         }
 
         final boolean alternates = Arrays.asList(args).contains("--alternates");
+        final boolean cache = Arrays.asList(args).contains("--cache");
 
-        System.out.println("Benchmarking: " + sourceDir.getAbsolutePath() + (alternates ? " (alternates)" : ""));
+        System.out.println("Benchmarking: " + sourceDir.getAbsolutePath()
+                + (alternates ? " (alternates)" : "")
+                + (cache ? " (cache)" : ""));
         System.out.println();
 
         final List<JsonObject> results = new ArrayList<>();
 
-        results.add(benchmark("identity", sourceDir, new Identity(), alternates));
-        results.add(benchmark("tokenize-jdt", sourceDir, new TokenizeViaJDT().toRewriter(), alternates));
-        results.add(benchmark("historage-jdt", sourceDir, new HistorageViaJDT().toRewriter(), alternates));
+        results.add(benchmark("identity", sourceDir, Identity::new, alternates, cache));
+        results.add(benchmark("tokenize-jdt", sourceDir, () -> new TokenizeViaJDT().toRewriter(), alternates, cache));
+        results.add(benchmark("historage-jdt", sourceDir, () -> new HistorageViaJDT().toRewriter(), alternates, cache));
         results.add(benchmark("historage+tokenize", sourceDir,
-                new BlobTranslator.Composite(new HistorageViaJDT(), new TokenizeViaJDT()), alternates));
+                () -> new BlobTranslator.Composite(new HistorageViaJDT(), new TokenizeViaJDT()), alternates, cache));
 
         // summary
         System.out.println();
@@ -76,7 +80,13 @@ public class RewriteBenchmark {
         System.out.println(GSON.toJson(report));
     }
 
-    static JsonObject benchmark(String name, File sourceDir, RepositoryRewriter rewriter, boolean useAlternates) throws IOException {
+    @FunctionalInterface
+    interface RewriterFactory {
+        RepositoryRewriter create();
+    }
+
+    static JsonObject benchmark(String name, File sourceDir, RewriterFactory factory,
+                                boolean useAlternates, boolean useCache) throws IOException {
         System.out.printf("Running %-25s ... ", name);
         System.out.flush();
 
@@ -96,7 +106,12 @@ public class RewriteBenchmark {
                 targetRepo = openRepository(tmp.getPath().toFile(), true);
             }
 
-            rewriter.setConfig(new Application.Config());
+            final Application.Config config = new Application.Config();
+            if (useCache) {
+                config.cacheLevel = EnumSet.allOf(RepositoryRewriter.CacheLevel.class);
+            }
+            final RepositoryRewriter rewriter = factory.create();
+            rewriter.setConfig(config);
             rewriter.initialize(sourceRepo, targetRepo);
 
             System.gc();
@@ -105,18 +120,45 @@ public class RewriteBenchmark {
             final Instant start = Instant.now();
             rewriter.rewrite(Context.init());
             final Instant end = Instant.now();
+            final long timeMs = Duration.between(start, end).toMillis();
+            final long heapMb = Math.max(0, (usedHeap() - heapBefore) / (1024 * 1024));
+            final int commits = countCommits(targetRepo);
 
-            final JsonObject result = new JsonObject();
+            System.out.printf("%d ms, %d MB heap%n", timeMs, heapMb);
+
+            // If cache is enabled, run a second time (incremental) with a fresh rewriter
+            JsonObject result = new JsonObject();
             result.addProperty("name", name);
-            result.addProperty("timeMs", Duration.between(start, end).toMillis());
-            result.addProperty("heapMb", Math.max(0, (usedHeap() - heapBefore) / (1024 * 1024)));
-            result.addProperty("commits", countCommits(targetRepo));
+            result.addProperty("timeMs", timeMs);
+            result.addProperty("heapMb", heapMb);
+            result.addProperty("commits", commits);
+
+            if (useCache) {
+                // Second run: reuse the same target (cache.db is there)
+                System.out.printf("  (cached) %-22s ... ", name);
+                System.out.flush();
+
+                final RepositoryRewriter rewriter2 = factory.create();
+                rewriter2.setConfig(config);
+                rewriter2.initialize(sourceRepo, targetRepo);
+
+                System.gc();
+                final long heapBefore2 = usedHeap();
+                final Instant start2 = Instant.now();
+                rewriter2.rewrite(Context.init());
+                final Instant end2 = Instant.now();
+                final long timeMs2 = Duration.between(start2, end2).toMillis();
+                final long heapMb2 = Math.max(0, (usedHeap() - heapBefore2) / (1024 * 1024));
+
+                System.out.printf("%d ms, %d MB heap%n", timeMs2, heapMb2);
+
+                result.addProperty("cachedTimeMs", timeMs2);
+                result.addProperty("cachedHeapMb", heapMb2);
+            }
 
             sourceRepo.close();
             targetRepo.close();
 
-            System.out.printf("%d ms, %d MB heap%n",
-                    result.get("timeMs").getAsLong(), result.get("heapMb").getAsLong());
             return result;
         }
     }

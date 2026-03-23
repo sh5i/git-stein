@@ -40,6 +40,8 @@ dependencies {
     implementation 'org.xerial:sqlite-jdbc:3.51.3.0'
     implementation 'com.j256.ormlite:ormlite-jdbc:5.7'
 
+    implementation 'com.h2database:h2-mvstore:2.3.232'
+
     testImplementation 'org.junit.jupiter:junit-jupiter:5.14.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'org.mockito:mockito-junit-jupiter:5.23.0'
@@ -87,6 +89,7 @@ tasks.register('benchmark', JavaExec) {
 
     def benchArgs = project.hasProperty('benchRepo') ? [project.property('benchRepo')] : ['.']
     if (project.hasProperty('alternates')) benchArgs.add('--alternates')
+    if (project.hasProperty('cache')) benchArgs.add('--cache')
     args = benchArgs
     jvmArgs = ['-Xmx1g']
 }

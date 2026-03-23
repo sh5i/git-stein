@@ -78,7 +78,7 @@ public class RepositoryRewriter implements RewriterCommand {
         blob, tree, commit
     }
 
-    protected SQLiteCacheProvider cacheProvider;
+    protected CacheProvider cacheProvider;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
@@ -92,7 +92,10 @@ public class RepositoryRewriter implements RewriterCommand {
             target.setDryRunning(true);
         }
         if (!config.cacheLevel.isEmpty()) {
-            cacheProvider = new SQLiteCacheProvider(targetRepo);
+            cacheProvider = switch (config.cacheBackend) {
+                case mvstore -> new MVStoreCacheProvider(targetRepo);
+                default -> new SQLiteCacheProvider(targetRepo);
+            };
             if (config.cacheLevel.contains(CacheLevel.commit)) {
                 log.info("Stored mapping (commit-mapping) is available");
                 commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping(), !cacheProvider.isInitial(), true);

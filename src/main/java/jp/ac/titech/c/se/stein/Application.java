@@ -105,6 +105,11 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @Option(names = "--cache", split = ",", paramLabel = "<l>", description = "cache level (${COMPLETION-CANDIDATES}. default: none)", order = MIDDLE)
         public EnumSet<RepositoryRewriter.CacheLevel> cacheLevel = EnumSet.noneOf(RepositoryRewriter.CacheLevel.class);
 
+        public enum CacheBackend { sqlite, mvstore }
+
+        @Option(names = "--cache-backend", paramLabel = "<backend>", description = "cache backend (${COMPLETION-CANDIDATES}. default: sqlite)", order = MIDDLE)
+        public CacheBackend cacheBackend = CacheBackend.sqlite;
+
         @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = MIDDLE)
         public boolean isRewritingExtraAttributes = false;
 
