@@ -30,6 +30,9 @@ public class Anonymize extends RepositoryRewriter {
     @Option(names = "--tree", description = "anonymize tree name")
     protected boolean isTreeNameEnabled;
 
+    @Option(names = "--link", description = "anonymize link name")
+    protected boolean isLinkNameEnabled;
+
     @Option(names = "--blob", description = "anonymize blob name")
     protected boolean isBlobNameEnabled;
 
@@ -55,6 +58,7 @@ public class Anonymize extends RepositoryRewriter {
     @Option(names = "--all", description = "anonymize all")
     protected void setAllEnabled(boolean isEnabled) {
         isTreeNameEnabled = isEnabled;
+        isLinkNameEnabled = isEnabled;
         isBlobNameEnabled = isEnabled;
         isBlobContentEnabled = isEnabled;
         isMessageEnabled = isEnabled;
@@ -93,6 +97,8 @@ public class Anonymize extends RepositoryRewriter {
 
     private final NameMap treeNameMap = new NameMap("directory", "t");
 
+    private final NameMap linkNameMap = new NameMap("link", "l");
+
     private final NameMap blobNameMap = new NameMap("file", "f");
 
     private final NameMap branchNameMap = new NameMap("branch", "b");
@@ -125,6 +131,14 @@ public class Anonymize extends RepositoryRewriter {
             return Entry.of(e.mode, treeNameMap.convert(e.name), e.id, e.directory);
         }
         return result;
+    }
+
+    @Override
+    protected AnyColdEntry rewriteLinkEntry(Entry entry, Context c) {
+        if (isLinkNameEnabled) {
+            return Entry.of(entry.mode, linkNameMap.convert(entry.name), entry.id, entry.directory);
+        }
+        return entry;
     }
 
     @Override
