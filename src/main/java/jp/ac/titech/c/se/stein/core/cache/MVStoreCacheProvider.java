@@ -1,4 +1,6 @@
-package jp.ac.titech.c.se.stein.core;
+package jp.ac.titech.c.se.stein.core.cache;
+
+import jp.ac.titech.c.se.stein.core.RefEntry;
 
 import jp.ac.titech.c.se.stein.entry.AnyColdEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;

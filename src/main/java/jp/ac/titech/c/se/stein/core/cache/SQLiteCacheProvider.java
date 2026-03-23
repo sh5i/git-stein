@@ -1,4 +1,6 @@
-package jp.ac.titech.c.se.stein.core;
+package jp.ac.titech.c.se.stein.core.cache;
+
+import jp.ac.titech.c.se.stein.core.RefEntry;
 
 import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.DaoManager;

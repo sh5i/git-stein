@@ -10,6 +10,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import jp.ac.titech.c.se.stein.core.*;
+import jp.ac.titech.c.se.stein.core.cache.*;
 import jp.ac.titech.c.se.stein.entry.*;
 import jp.ac.titech.c.se.stein.jgit.RevWalk;
 import lombok.Setter;

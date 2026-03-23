@@ -1,4 +1,7 @@
-package jp.ac.titech.c.se.stein.core;
+package jp.ac.titech.c.se.stein.core.cache;
+
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
+import jp.ac.titech.c.se.stein.core.Context;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.app.Identity;
