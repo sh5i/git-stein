@@ -14,7 +14,7 @@ public interface SingleEntry extends Comparable<SingleEntry> {
      * The kind of object an entry refers to.
      */
     enum Type {
-        BLOB, TREE, LINK
+        blob, tree, link
     }
 
     /**
@@ -70,11 +70,11 @@ public interface SingleEntry extends Comparable<SingleEntry> {
      */
     default Type getType() {
         if (isTree()) {
-            return Type.TREE;
+            return Type.tree;
         } else if (isLink()) {
-            return Type.LINK;
+            return Type.link;
         } else {
-            return Type.BLOB;
+            return Type.blob;
         }
     }
 

@@ -347,13 +347,13 @@ public class RepositoryRewriter implements RewriterCommand {
     protected AnyColdEntry rewriteEntry(final Entry entry, final Context c) {
         final Context uc = c.with(Key.entry, entry);
         final AnyColdEntry result = switch (entry.getType()) {
-            case BLOB -> rewriteBlobEntry(HotEntry.of(entry, source), uc).fold(target, uc);
-            case TREE -> {
+            case blob -> rewriteBlobEntry(HotEntry.of(entry, source), uc).fold(target, uc);
+            case tree -> {
                 final String path = entry.isRoot() ? "" : c.getPath() + "/" + entry.name;
                 final String dir = isPathSensitive ? path : null;
                 yield rewriteTreeEntry(HotEntry.ofTree(entry, source, dir), uc.with(Key.path, path));
             }
-            case LINK -> rewriteLinkEntry(entry, uc);
+            case link -> rewriteLinkEntry(entry, uc);
         };
         log.debug("Rewrite {}: {} -> {} {}", entry.getType(), entry, result, c);
         return result;

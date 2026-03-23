@@ -1,6 +1,5 @@
 package jp.ac.titech.c.se.stein.core;
 
-import java.io.File;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -299,8 +298,8 @@ public class RepositoryAccess implements AutoCloseable {
         final List<Entry> entries = new ArrayList<>();
         for (final Entry e : readTree(treeId, null)) {
             entries.add(switch (e.getType()) {
-                case TREE -> Entry.of(e.getMode(), e.getName(), copyTree(e.getId(), target, c));
-                case BLOB -> Entry.of(e.getMode(), e.getName(), copyBlob(e.getId(), target, c));
+                case tree -> Entry.of(e.getMode(), e.getName(), copyTree(e.getId(), target, c));
+                case blob -> Entry.of(e.getMode(), e.getName(), copyBlob(e.getId(), target, c));
                 default -> e;
             });
         }
