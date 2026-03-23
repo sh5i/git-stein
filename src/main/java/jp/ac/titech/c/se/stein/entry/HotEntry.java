@@ -18,7 +18,7 @@ import java.util.stream.Stream;
  * @see TreeEntry
  * @see Entry
  */
-public abstract class HotEntry implements AnyHotEntry, SingleEntry {
+public abstract sealed class HotEntry implements AnyHotEntry, SingleEntry permits BlobEntry, TreeEntry {
     /**
      * Creates a {@link BlobEntry} that lazily reads blob content from the given source.
      */
