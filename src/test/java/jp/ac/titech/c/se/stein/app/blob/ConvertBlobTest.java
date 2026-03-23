@@ -56,7 +56,7 @@ public class ConvertBlobTest {
         final AnyHotEntry result = convert.rewriteBlobEntry(entry, C);
 
         assertEquals(1, result.size());
-        assertEquals("HELLO", new String(((BlobEntry) result.stream().findFirst().orElseThrow()).getBlob(), StandardCharsets.UTF_8));
+        assertEquals("HELLO", new String(result.asBlob().getBlob(), StandardCharsets.UTF_8));
     }
 
     @Test
@@ -83,7 +83,7 @@ public class ConvertBlobTest {
             final AnyHotEntry result = convert.rewriteBlobEntry(entry, C);
 
             assertEquals(1, result.size());
-            assertEquals("HELLO", new String(((BlobEntry) result.stream().findFirst().orElseThrow()).getBlob(), StandardCharsets.UTF_8));
+            assertEquals("HELLO", new String(result.asBlob().getBlob(), StandardCharsets.UTF_8));
         } finally {
             server.stop(0);
         }

@@ -31,6 +31,20 @@ public interface AnyHotEntry {
     int size();
 
     /**
+     * Returns the first entry as a {@link BlobEntry}.
+     */
+    default BlobEntry asBlob() {
+        return (BlobEntry) stream().findFirst().orElseThrow();
+    }
+
+    /**
+     * Returns the first entry as a {@link TreeEntry}.
+     */
+    default TreeEntry asTree() {
+        return (TreeEntry) stream().findFirst().orElseThrow();
+    }
+
+    /**
      * Converts this Hot entry to a Cold entry by writing blob data to the target repository.
      */
     AnyColdEntry fold(RepositoryAccess target, Context c);

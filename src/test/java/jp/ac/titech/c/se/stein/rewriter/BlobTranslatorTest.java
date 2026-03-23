@@ -29,14 +29,14 @@ public class BlobTranslatorTest {
     }
 
     String content(AnyHotEntry entry) {
-        return new String(((BlobEntry) entry.stream().findFirst().orElseThrow()).getBlob(), StandardCharsets.UTF_8);
+        return new String(entry.asBlob().getBlob(), StandardCharsets.UTF_8);
     }
 
     @Test
     public void testOf() {
         final BlobTranslator upper = BlobTranslator.of(String::toUpperCase);
         final AnyHotEntry result = upper.rewriteBlobEntry(blob("f.txt", "hello"), CTX);
-        assertEquals("HELLO", content(result.stream().findFirst().orElseThrow()));
+        assertEquals("HELLO", content(result));
     }
 
     @Test
@@ -45,7 +45,7 @@ public class BlobTranslatorTest {
                 BlobTranslator.of(String::toUpperCase));
         final AnyHotEntry result = translator.rewriteBlobEntry(blob("f.txt", "hello"), CTX);
         assertEquals(1, result.size());
-        assertEquals("HELLO", content(result.stream().findFirst().orElseThrow()));
+        assertEquals("HELLO", content(result));
     }
 
     @Test
@@ -55,7 +55,7 @@ public class BlobTranslatorTest {
                 BlobTranslator.of(String::toUpperCase));
         final AnyHotEntry result = translator.rewriteBlobEntry(blob("f.txt", "hello"), CTX);
         assertEquals(1, result.size());
-        assertEquals("PREFIX:HELLO", content(result.stream().findFirst().orElseThrow()));
+        assertEquals("PREFIX:HELLO", content(result));
     }
 
     @Test
