@@ -5,7 +5,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
+import jp.ac.titech.c.se.stein.entry.AnyColdEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
+import jp.ac.titech.c.se.stein.entry.TreeEntry;
 import jp.ac.titech.c.se.stein.util.HashUtils;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -116,12 +118,13 @@ public class Anonymize extends RepositoryRewriter {
     }
 
     @Override
-    public String rewriteName(final String name, final Context c) {
-        final Entry entry = c.getEntry();
-        if (entry.isTree()) {
-            return isTreeNameEnabled ? treeNameMap.convert(name) : name;
+    protected AnyColdEntry rewriteTreeEntry(TreeEntry entry, Context c) {
+        final AnyColdEntry result = super.rewriteTreeEntry(entry, c);
+        if (isTreeNameEnabled && result instanceof Entry) {
+            final Entry e = (Entry) result;
+            return Entry.of(e.mode, treeNameMap.convert(e.name), e.id, e.directory);
         }
-        return name;
+        return result;
     }
 
     @Override

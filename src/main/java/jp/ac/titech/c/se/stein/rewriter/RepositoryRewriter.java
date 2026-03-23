@@ -381,24 +381,15 @@ public class RepositoryRewriter implements RewriterCommand {
             final AnyColdEntry rewritten = getEntry(e, c);
             rewritten.stream().filter(r -> !r.getId().equals(ZERO)).forEach(entries::add);
         }
-        final String newName = rewriteName(entry.getName(), c);
         final ObjectId newId = entries.isEmpty() ? ZERO : target.writeTree(entries, c);
         if (log.isDebugEnabled() && !newId.equals(entry.getId())) {
             log.debug("Rewrite tree: {} -> {} {}", entry.getId().name(), newId.name(), c);
         }
-        return newId == ZERO ? AnyColdEntry.empty() : Entry.of(entry.getMode(), newName, newId, entry.getDirectory());
+        return newId == ZERO ? AnyColdEntry.empty() : Entry.of(entry.getMode(), entry.getName(), newId, entry.getDirectory());
     }
 
     protected AnyColdEntry rewriteLinkEntry(Entry entry, Context c) {
-        final String newName = rewriteName(entry.name, c);
-        return Entry.of(entry.mode, newName, entry.id, entry.directory);
-    }
-
-    /**
-     * Rewrites the name of a tree entry.
-     */
-    protected String rewriteName(final String name, final Context c) {
-        return name;
+        return entry;
     }
 
     /**
