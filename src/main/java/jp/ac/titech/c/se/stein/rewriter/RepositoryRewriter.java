@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import com.google.common.cache.CacheBuilder;
 import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.core.cache.*;
 import jp.ac.titech.c.se.stein.entry.*;
@@ -42,9 +43,21 @@ public class RepositoryRewriter implements RewriterCommand {
     protected static final ObjectId ZERO = ObjectId.zeroId();
 
     /**
-     * Entry-to-entries mapping.
+     * Entry-to-entries mapping. Backed by Guava Cache with LRU eviction
+     * to bound memory usage proportional to available heap.
      */
-    protected Map<Entry, AnyColdEntry> entryMapping = new HashMap<>();
+    protected Map<Entry, AnyColdEntry> entryMapping;
+
+    private static final int BYTES_PER_ENTRY = 300;
+
+    private static Map<Entry, AnyColdEntry> createEntryMapping(long memoryBudget) {
+        final long maxWeight = Math.max(1000, memoryBudget / BYTES_PER_ENTRY);
+        return CacheBuilder.newBuilder()
+                .maximumWeight(maxWeight)
+                .weigher((Entry k, AnyColdEntry v) -> v.size())
+                .build()
+                .asMap();
+    }
 
     /**
      * Root tree-to-tree mapping.
@@ -114,24 +127,25 @@ public class RepositoryRewriter implements RewriterCommand {
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
         target = new RepositoryAccess(targetRepo);
+        //  memory budget: defaults to 25% of max heap if not specified
+        entryMapping = createEntryMapping(config.entryMappingMemory >= 0 ? config.entryMappingMemory : Runtime.getRuntime().maxMemory() / 4);
         isOverwriting = sourceRepo == targetRepo;
-        if (config.nthreads > 1) {
-            this.entryMapping = new ConcurrentHashMap<>();
-        }
         if (config.isDryRunning) {
             source.setDryRunning(true);
             target.setDryRunning(true);
         }
         if (config.isAddingNotes && !isOverwriting) {
             isChained = source.getRef(R_NOTES_ORIG) != null;
-            prevNotes = new NoteObjectIdMap(target.readNotes(R_NOTES_PREV), target);
+            // Fall back to refs/notes/commits when git-stein-prev does not exist (old format)
+            final String prevRef = target.getRef(R_NOTES_PREV) != null ? R_NOTES_PREV : Constants.R_NOTES_COMMITS;
+            prevNotes = new NoteObjectIdMap(target.readNotes(prevRef), target);
             if (isChained) {
                 origNotes = new NoteObjectIdMap(target.readNotes(R_NOTES_ORIG), target);
                 sourceOrigNotes = new NoteObjectIdMap(source.readNotes(R_NOTES_ORIG), source);
             } else {
                 origNotes = prevNotes;
             }
-            commitMapping.restoreFromTarget(target, R_NOTES_PREV);
+            commitMapping.restoreFromTarget(target, prevRef);
         }
         if (!config.cacheLevel.isEmpty()) {
             cacheProvider = switch (config.cacheBackend) {

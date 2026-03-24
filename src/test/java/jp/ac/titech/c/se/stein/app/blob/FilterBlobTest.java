@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.util.SizeConverter;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -28,7 +29,7 @@ public class FilterBlobTest {
 
     @Test
     public void testSizeConverter() {
-        final FilterBlob.SizeConverter converter = new FilterBlob.SizeConverter();
+        final SizeConverter converter = new SizeConverter();
         assertEquals(Long.valueOf(10), converter.convert("10"));
         assertEquals(Long.valueOf(10), converter.convert("10B"));
         assertEquals(Long.valueOf(1024), converter.convert("1K"));

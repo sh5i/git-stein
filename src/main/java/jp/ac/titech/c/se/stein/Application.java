@@ -10,12 +10,12 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-import jp.ac.titech.c.se.stein.app.blob.FilterBlob;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.app.Identity;
 import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
 import jp.ac.titech.c.se.stein.util.SettableHelpCommand;
 import jp.ac.titech.c.se.stein.util.Loader;
+import jp.ac.titech.c.se.stein.util.SizeConverter;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.Constants;
@@ -110,12 +110,16 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @Option(names = "--cache-backend", paramLabel = "<backend>", description = "cache backend (${COMPLETION-CANDIDATES}. default: mvstore)", order = MIDDLE)
         public CacheBackend cacheBackend = CacheBackend.mvstore;
 
+        @Option(names = "--mapping-mem", paramLabel = "<num>{,K,M,G}", description = "max memory for entry mapping (default: 25%% of max heap)", order = MIDDLE,
+                converter = SizeConverter.class)
+        public long entryMappingMemory = -1;
+
         @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = MIDDLE)
         public boolean isRewritingExtraAttributes = false;
 
         @SuppressWarnings("unused")
         @Option(names = "--stream-size-limit", paramLabel = "<num>{,K,M,G}", description = "increase stream size limit", order = MIDDLE,
-                converter = FilterBlob.SizeConverter.class)
+                converter = SizeConverter.class)
         void setSizeLimit(final long limit) {
             // default: 50MB is too small
             final int intLimit = (int) Math.min(limit, Integer.MAX_VALUE);
