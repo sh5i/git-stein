@@ -56,8 +56,9 @@ public class TreeFormatter {
     }
 
     private boolean fmtBuf(byte[] nameBuf, int nameLen, byte[] mode) {
-        if (buf == null || buf.length < ptr + entrySize(mode, nameLen))
+        if (buf == null || buf.length < ptr + entrySize(mode, nameLen)) {
             return false;
+        }
         //mode.copyTo(buf, ptr);
         //ptr += mode.copyToLength();
         System.arraycopy(mode, 0, buf, ptr, mode.length);
@@ -83,15 +84,17 @@ public class TreeFormatter {
     }
 
     public ObjectId insertTo(ObjectInserter ins) throws IOException {
-        if (buf != null)
+        if (buf != null) {
             return ins.insert(OBJ_TREE, buf, 0, ptr);
+        }
         final long len = overflowBuffer.length();
         return ins.insert(OBJ_TREE, len, overflowBuffer.openInputStream());
     }
 
     public ObjectId computeId(ObjectInserter ins) {
-        if (buf != null)
+        if (buf != null) {
             return ins.idFor(OBJ_TREE, buf, 0, ptr);
+        }
         final long len = overflowBuffer.length();
         try {
             return ins.idFor(OBJ_TREE, len, overflowBuffer.openInputStream());
