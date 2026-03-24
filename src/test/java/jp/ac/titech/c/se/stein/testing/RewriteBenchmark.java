@@ -132,9 +132,9 @@ public class RewriteBenchmark {
             result.addProperty("heapMb", heapMb);
             result.addProperty("commits", commits);
 
-            if (useCache) {
-                // Second run: reuse the same target (cache.db is there)
-                System.out.printf("  (cached) %-22s ... ", name);
+            // Second run: incremental (notes skip already-processed commits)
+            {
+                System.out.printf("  (2nd run) %-21s ... ", name);
                 System.out.flush();
 
                 final RepositoryRewriter rewriter2 = factory.create();
@@ -151,8 +151,8 @@ public class RewriteBenchmark {
 
                 System.out.printf("%d ms, %d MB heap%n", timeMs2, heapMb2);
 
-                result.addProperty("cachedTimeMs", timeMs2);
-                result.addProperty("cachedHeapMb", heapMb2);
+                result.addProperty("secondTimeMs", timeMs2);
+                result.addProperty("secondHeapMb", heapMb2);
             }
 
             sourceRepo.close();

@@ -123,8 +123,6 @@ public class RepositoryRewriter implements RewriterCommand {
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
         target = new RepositoryAccess(targetRepo);
-        //  memory budget: defaults to 25% of max heap if not specified
-        entryMapping = createEntryMapping(config.entryMappingMemory >= 0 ? config.entryMappingMemory : Runtime.getRuntime().maxMemory() / 4);
         isOverwriting = sourceRepo == targetRepo;
         if (config.isDryRunning) {
             source.setDryRunning(true);
@@ -141,11 +139,12 @@ public class RepositoryRewriter implements RewriterCommand {
             }
             commitMapping.restoreFromTarget(target, R_NOTES_PREV);
         }
+        final long budget = config.entryMappingMemory >= 0 ? config.entryMappingMemory : Runtime.getRuntime().maxMemory() / 4;
         if (config.isCachingEnabled) {
-            entryCache = new EntryCache(targetRepo);
-            log.info("Stored mapping (entry-mapping) is available");
-            final Map<Entry, AnyColdEntry> storedEntryMapping = entryCache.getEntryMapping();
-            entryMapping = new Cache<>(entryMapping, storedEntryMapping, !entryCache.isInitial(), true);
+            entryCache = new EntryCache(targetRepo, budget);
+            entryMapping = entryCache.getEntryMapping();
+        } else {
+            entryMapping = createEntryMapping(budget);
         }
     }
 
