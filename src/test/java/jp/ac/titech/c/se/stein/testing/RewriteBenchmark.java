@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -108,7 +107,7 @@ public class RewriteBenchmark {
 
             final Application.Config config = new Application.Config();
             if (useCache) {
-                config.cacheLevel = EnumSet.allOf(RepositoryRewriter.CacheLevel.class);
+                config.isCachingEnabled = true;
             }
             final RepositoryRewriter rewriter = factory.create();
             rewriter.setConfig(config);

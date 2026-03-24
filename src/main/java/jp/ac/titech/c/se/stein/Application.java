@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
@@ -102,8 +101,8 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
                 fallbackValue = "relative", order = MIDDLE, arity = "0..1")
         public AlternatesMode alternatesMode;
 
-        @Option(names = "--cache", split = ",", paramLabel = "<l>", description = "cache level (${COMPLETION-CANDIDATES}. default: none)", order = MIDDLE)
-        public EnumSet<RepositoryRewriter.CacheLevel> cacheLevel = EnumSet.noneOf(RepositoryRewriter.CacheLevel.class);
+        @Option(names = "--cache", description = "enable persistent entry caching", order = MIDDLE)
+        public boolean isCachingEnabled = false;
 
         public enum CacheBackend { mvstore, guava }
 

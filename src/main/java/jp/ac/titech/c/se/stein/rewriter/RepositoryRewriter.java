@@ -118,10 +118,6 @@ public class RepositoryRewriter implements RewriterCommand {
     @Setter
     protected Config config;
 
-    public enum CacheLevel {
-        blob, tree
-    }
-
     protected CacheProvider cacheProvider;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
@@ -145,23 +141,14 @@ public class RepositoryRewriter implements RewriterCommand {
             }
             commitMapping.restoreFromTarget(target, R_NOTES_PREV);
         }
-        if (!config.cacheLevel.isEmpty()) {
+        if (config.isCachingEnabled) {
             cacheProvider = switch (config.cacheBackend) {
                 case mvstore -> new MVStoreCacheProvider(targetRepo);
                 case guava -> new GuavaCacheProvider();
             };
-            if (config.cacheLevel.contains(CacheLevel.blob) || config.cacheLevel.contains(CacheLevel.tree)) {
-                log.info("Stored mapping (entry-mapping) is available");
-                Map<Entry, AnyColdEntry> storedEntryMapping = cacheProvider.getEntryMapping();
-                if (!config.cacheLevel.contains(CacheLevel.tree)) {
-                    log.info("Stored mapping (entry-mapping): blob-only filtering");
-                    storedEntryMapping = Cache.Filter.apply(e -> !e.isTree(), storedEntryMapping);
-                } else if (!config.cacheLevel.contains(CacheLevel.blob)) {
-                    log.info("Stored mapping (entry-mapping): tree-only filtering");
-                    storedEntryMapping = Cache.Filter.apply(Entry::isTree, storedEntryMapping);
-                }
-                entryMapping = new Cache<>(entryMapping, storedEntryMapping, !cacheProvider.isInitial(), true);
-            }
+            log.info("Stored mapping (entry-mapping) is available");
+            final Map<Entry, AnyColdEntry> storedEntryMapping = cacheProvider.getEntryMapping();
+            entryMapping = new Cache<>(entryMapping, storedEntryMapping, !cacheProvider.isInitial(), true);
         }
     }
 

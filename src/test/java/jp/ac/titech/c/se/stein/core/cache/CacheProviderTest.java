@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -38,7 +37,7 @@ public class CacheProviderTest {
 
     private Application.Config cacheConfig() {
         final Application.Config config = new Application.Config();
-        config.cacheLevel = EnumSet.allOf(RepositoryRewriter.CacheLevel.class);
+        config.isCachingEnabled = true;
         config.cacheBackend = Application.Config.CacheBackend.mvstore;
         return config;
     }

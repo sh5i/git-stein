@@ -7,8 +7,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
-
 @AllArgsConstructor
 public class Cache<K, V> extends AbstractMap<K, V> {
     private final Map<K, V> frontend, readingBackend, writingBackend;
@@ -48,38 +46,6 @@ public class Cache<K, V> extends AbstractMap<K, V> {
     public void clear() {
         frontend.clear();
         writingBackend.clear();
-    }
-
-    public static class Filter<K, V> extends AbstractMap<K, V> {
-        private final Predicate<K> condition;
-        private final Map<K, V> delegatee;
-
-        public Filter(final Predicate<K> condition, final Map<K, V> delegatee) {
-            this.condition = condition;
-            this.delegatee = delegatee;
-        }
-
-        public static <K, V> Map<K, V> apply(final Predicate<K> condition, final Map<K, V> delegatee) {
-            return new Filter<>(condition, delegatee);
-        }
-
-        @Override
-        public V get(final Object key) {
-            @SuppressWarnings("unchecked")
-            final K k = (K) key;
-            return condition.test(k) ? delegatee.get(key) : null;
-        }
-
-        @Override
-        public V put(final K key, final V value) {
-            return condition.test(key) ? delegatee.put(key, value) : value;
-        }
-
-        @Override
-    
-        public Set<Entry<K, V>> entrySet() {
-            return delegatee.entrySet();
-        }
     }
 
     public static class NullObjectMap<K, V> extends AbstractMap<K, V> {
