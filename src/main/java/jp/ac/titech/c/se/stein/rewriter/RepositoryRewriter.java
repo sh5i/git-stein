@@ -136,16 +136,14 @@ public class RepositoryRewriter implements RewriterCommand {
         }
         if (config.isAddingNotes && !isOverwriting) {
             isChained = source.getRef(R_NOTES_ORIG) != null;
-            // Fall back to refs/notes/commits when git-stein-prev does not exist (old format)
-            final String prevRef = target.getRef(R_NOTES_PREV) != null ? R_NOTES_PREV : Constants.R_NOTES_COMMITS;
-            prevNotes = new NoteObjectIdMap(target.readNotes(prevRef), target);
+            prevNotes = new NoteObjectIdMap(target.readNotes(R_NOTES_PREV), target);
             if (isChained) {
                 origNotes = new NoteObjectIdMap(target.readNotes(R_NOTES_ORIG), target);
                 sourceOrigNotes = new NoteObjectIdMap(source.readNotes(R_NOTES_ORIG), source);
             } else {
                 origNotes = prevNotes;
             }
-            commitMapping.restoreFromTarget(target, prevRef);
+            commitMapping.restoreFromTarget(target, R_NOTES_PREV);
         }
         if (!config.cacheLevel.isEmpty()) {
             cacheProvider = switch (config.cacheBackend) {
