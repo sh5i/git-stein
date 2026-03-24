@@ -54,7 +54,7 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Commit-to-commit mapping.
      */
-    protected Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
+    protected final CommitMapping commitMapping = new CommitMapping();
 
     /**
      * Tag-to-tag mapping.
@@ -92,16 +92,14 @@ public class RepositoryRewriter implements RewriterCommand {
             source.setDryRunning(true);
             target.setDryRunning(true);
         }
+        if (config.isAddingNotes && !isOverwriting) {
+            commitMapping.restoreFromTarget(target);
+        }
         if (!config.cacheLevel.isEmpty()) {
             cacheProvider = switch (config.cacheBackend) {
                 case mvstore -> new MVStoreCacheProvider(targetRepo);
                 case guava -> new GuavaCacheProvider();
             };
-            if (config.cacheLevel.contains(CacheLevel.commit)) {
-                log.info("Stored mapping (commit-mapping) is available");
-                commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping(), !cacheProvider.isInitial(), true);
-                refEntryMapping = new Cache<>(refEntryMapping, cacheProvider.getRefEntryMapping(), !cacheProvider.isInitial(), true);
-            }
             if (config.cacheLevel.contains(CacheLevel.blob) || config.cacheLevel.contains(CacheLevel.tree)) {
                 log.info("Stored mapping (entry-mapping) is available");
                 Map<Entry, AnyColdEntry> storedEntryMapping = cacheProvider.getEntryMapping();
@@ -242,16 +240,11 @@ public class RepositoryRewriter implements RewriterCommand {
      * Collects the set of commit Ids used as uninteresting points.
      */
     protected Collection<ObjectId> collectUninterestings(@SuppressWarnings("unused") final Context c) {
-        final List<ObjectId> result = new ArrayList<>();
-        for (final Map.Entry<RefEntry, RefEntry> e : refEntryMapping.entrySet()) {
-            final RefEntry ref = e.getKey();
-            if (ref.id != null) {
-                log.debug("Previous Ref {}: added as an uninteresting point (commit: {})", ref.name, ref.id.name());
-                result.add(ref.id);
-            }
+        final List<ObjectId> tips = commitMapping.getPreviousSourceTips();
+        if (!tips.isEmpty()) {
+            log.info("Using {} previous source tips as uninteresting points", tips.size());
         }
-        refEntryMapping.clear();  // ref entries might be removed when updated.
-        return result;
+        return tips;
     }
 
     /**
