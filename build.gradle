@@ -96,6 +96,18 @@ tasks.register('benchmark', JavaExec) {
     jvmArgs = ['-Xmx1g']
 }
 
+tasks.register('memoryProfile', JavaExec) {
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'jp.ac.titech.c.se.stein.testing.MemoryProfile'
+
+    def profArgs = project.hasProperty('benchRepo') ? [project.property('benchRepo')] : ['.']
+    if (project.hasProperty('command')) profArgs.add(project.property('command'))
+    args = profArgs
+    def heap = project.hasProperty('heap') ? project.property('heap') : '4g'
+    jvmArgs = ["-Xmx${heap}", '-XX:+UseSerialGC', '-XX:+CrashOnOutOfMemoryError']
+}
+
 tasks.register('executableJar') {
     dependsOn 'shadowJar'
     // cf. https://ujun.hatenablog.com/entry/2017/09/22/010209
