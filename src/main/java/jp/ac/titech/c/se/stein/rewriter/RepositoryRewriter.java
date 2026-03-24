@@ -66,7 +66,37 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected Map<RefEntry, RefEntry> refEntryMapping = new HashMap<>();
 
+    /**
+     * Notes ref for the immediate source commit ID (for incremental transformation).
+     */
+    public static final String R_NOTES_PREV = "refs/notes/git-stein-prev";
+
+    /**
+     * Notes ref for the original source commit ID (through the chain).
+     */
+    public static final String R_NOTES_ORIG = "refs/notes/git-stein-orig";
+
     protected RepositoryAccess source, target;
+
+    /**
+     * Whether source is a chained transformation (has git-stein-orig notes).
+     */
+    private boolean isChained = false;
+
+    /**
+     * Notes for prev (always the immediate source commit ID).
+     */
+    private NoteObjectIdMap prevNotes;
+
+    /**
+     * Notes for orig (forwarded from source, or same as prev for single).
+     */
+    private NoteObjectIdMap origNotes;
+
+    /**
+     * Source's orig notes (for chain forwarding). Cached at initialization.
+     */
+    private NoteObjectIdMap sourceOrigNotes;
 
     protected boolean isOverwriting = false;
 
@@ -93,7 +123,15 @@ public class RepositoryRewriter implements RewriterCommand {
             target.setDryRunning(true);
         }
         if (config.isAddingNotes && !isOverwriting) {
-            commitMapping.restoreFromTarget(target);
+            isChained = source.getRef(R_NOTES_ORIG) != null;
+            prevNotes = new NoteObjectIdMap(target.readNotes(R_NOTES_PREV), target);
+            if (isChained) {
+                origNotes = new NoteObjectIdMap(target.readNotes(R_NOTES_ORIG), target);
+                sourceOrigNotes = new NoteObjectIdMap(source.readNotes(R_NOTES_ORIG), source);
+            } else {
+                origNotes = prevNotes;
+            }
+            commitMapping.restoreFromTarget(target, R_NOTES_PREV);
         }
         if (!config.cacheLevel.isEmpty()) {
             cacheProvider = switch (config.cacheBackend) {
@@ -134,7 +172,19 @@ public class RepositoryRewriter implements RewriterCommand {
                 rewriteCommits(walk, c);
                 updateRefs(c);
             }
-            target.writeNotes(target.getDefaultNotes(), c);
+            if (config.isAddingNotes) {
+                prevNotes.write(R_NOTES_PREV, c);
+                if (isChained) {
+                    origNotes.write(R_NOTES_ORIG, c);
+                } else {
+                    // Single transformation: orig = prev, share the same ref
+                    target.applyRefUpdate(new RefEntry(R_NOTES_ORIG, target.getRef(R_NOTES_PREV).getObjectId()));
+                }
+                // Default notes = orig (for git log display)
+                target.applyRefUpdate(new RefEntry(Constants.R_NOTES_COMMITS, target.getRef(R_NOTES_ORIG).getObjectId()));
+            } else {
+                target.writeNotes(target.getDefaultNotes(), c);
+            }
         } finally {
             if (cacheProvider != null) {
                 cacheProvider.close();
@@ -275,23 +325,15 @@ public class RepositoryRewriter implements RewriterCommand {
         log.debug("Rewrite commit: {} -> {} {}", oldId.name(), newId.name(), c);
 
         if (config.isAddingNotes) {
-            target.addNote(target.getDefaultNotes(), newId, getNote(oldId, c), uc);
+            prevNotes.add(newId, oldId, uc);
+            if (isChained) {
+                final ObjectId origId = sourceOrigNotes.get(oldId);
+                origNotes.add(newId, origId != null ? origId : oldId, uc);
+            }
         }
         return newId;
     }
 
-    /**
-     * Returns a note for a commit.
-     */
-    protected byte[] getNote(final ObjectId oldCommitId, @SuppressWarnings("unused") final Context c) {
-        final byte[] note = source.readNote(source.getDefaultNotes(), oldCommitId);
-        if (note != null) {
-            return note;
-        }
-        final byte[] blob = new byte[Constants.OBJECT_ID_STRING_LENGTH];
-        oldCommitId.copyTo(blob, 0);
-        return blob;
-    }
 
     /**
      * Rewrites the parents of a commit.

@@ -1,17 +1,16 @@
 package jp.ac.titech.c.se.stein.core.cache;
 
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
+import lombok.Getter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.notes.NoteMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,30 +31,35 @@ import java.util.Set;
  * from old branches). If a merge commit references an old source commit not reachable
  * from any current ref tip, the mapping will miss, and a full scan of all target notes
  * is triggered lazily (at most once) to load the remaining entries.</p>
- *
- * <p>Each entry is ~100 bytes (two ObjectIds + HashMap overhead). Even for repositories
- * with 100K commits, this is ~10 MB, which is small compared to the entryMapping.</p>
  */
 public class CommitMapping extends AbstractMap<ObjectId, ObjectId> {
     private static final Logger log = LoggerFactory.getLogger(CommitMapping.class);
 
     private final Map<ObjectId, ObjectId> map = new HashMap<>();
+
+    /**
+     * Source commit IDs of previously processed ref tips.
+     * These should be marked as uninteresting in the source RevWalk.
+     */
+    @Getter
     private final List<ObjectId> previousSourceTips = new ArrayList<>();
 
     private NoteObjectIdMap notesMap;
-    private boolean notesFullyLoaded = false;
+    private volatile boolean notesFullyLoaded = false;
 
     /**
      * Restores commit mapping from the target repository's notes.
      * Only ref tips are read eagerly.
+     *
+     * @param notesRef the notes ref to read from (e.g., {@code refs/notes/git-stein-prev})
      */
-    public void restoreFromTarget(RepositoryAccess target) {
+    public void restoreFromTarget(RepositoryAccess target, String notesRef) {
         final List<Ref> targetRefs = target.getRefs();
         if (targetRefs.isEmpty()) {
             return;
         }
 
-        notesMap = new NoteObjectIdMap(target.getDefaultNotes(), target);
+        notesMap = new NoteObjectIdMap(target.readNotes(notesRef), target);
 
         for (final Ref ref : targetRefs) {
             final ObjectId targetTipId = target.getRefTarget(ref);
@@ -77,13 +81,6 @@ public class CommitMapping extends AbstractMap<ObjectId, ObjectId> {
         }
     }
 
-    /**
-     * Returns the source commit IDs of previously processed ref tips.
-     * These should be marked as uninteresting in the source RevWalk.
-     */
-    public List<ObjectId> getPreviousSourceTips() {
-        return previousSourceTips;
-    }
 
     @Override
     public ObjectId get(Object key) {
@@ -125,50 +122,5 @@ public class CommitMapping extends AbstractMap<ObjectId, ObjectId> {
         notesMap.forEach((targetId, sourceId) -> map.put(sourceId, targetId));
         log.info("Loaded commit mappings, total {} entries", map.size());
         notesFullyLoaded = true;
-    }
-
-    /**
-     * A read-only {@code Map<ObjectId, ObjectId>} view over a JGit NoteMap.
-     * Keys are annotated commit IDs, values are note bodies parsed as ObjectIds.
-     */
-    private static class NoteObjectIdMap extends AbstractMap<ObjectId, ObjectId> {
-        private final NoteMap notes;
-        private final RepositoryAccess ra;
-
-        NoteObjectIdMap(NoteMap notes, RepositoryAccess ra) {
-            this.notes = notes;
-            this.ra = ra;
-        }
-
-        @Override
-        public ObjectId get(Object key) {
-            if (!(key instanceof ObjectId id)) {
-                return null;
-            }
-            return parseObjectId(ra.readNote(notes, id));
-        }
-
-        @Override
-        public Set<Entry<ObjectId, ObjectId>> entrySet() {
-            final Set<Entry<ObjectId, ObjectId>> result = new HashSet<>();
-            ra.forEachNote(notes, (annotatedId, body) -> {
-                final ObjectId bodyId = parseObjectId(body);
-                if (bodyId != null) {
-                    result.add(new SimpleEntry<>(annotatedId, bodyId));
-                }
-            });
-            return result;
-        }
-
-        private static ObjectId parseObjectId(byte[] body) {
-            if (body == null) {
-                return null;
-            }
-            try {
-                return ObjectId.fromString(new String(body));
-            } catch (Exception e) {
-                return null;
-            }
-        }
     }
 }
