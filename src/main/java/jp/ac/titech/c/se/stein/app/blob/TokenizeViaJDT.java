@@ -1,7 +1,5 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
-import java.nio.charset.StandardCharsets;
-
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
