@@ -13,13 +13,5 @@ public interface CacheProvider {
 
     Map<Entry, AnyColdEntry> getEntryMapping();
 
-    default void inTransaction(java.util.concurrent.Callable<Void> fn) {
-        try {
-            fn.call();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     default void close() {}
 }
