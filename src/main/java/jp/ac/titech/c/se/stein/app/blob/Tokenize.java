@@ -8,7 +8,6 @@ import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import lombok.ToString;
 import picocli.CommandLine.Command;
 
-import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 

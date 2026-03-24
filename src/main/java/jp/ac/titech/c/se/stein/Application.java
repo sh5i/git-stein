@@ -5,17 +5,16 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-import jp.ac.titech.c.se.stein.app.blob.FilterBlob;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.app.Identity;
 import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
 import jp.ac.titech.c.se.stein.util.SettableHelpCommand;
 import jp.ac.titech.c.se.stein.util.Loader;
+import jp.ac.titech.c.se.stein.util.SizeConverter;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.Constants;
@@ -102,15 +101,19 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
                 fallbackValue = "relative", order = MIDDLE, arity = "0..1")
         public AlternatesMode alternatesMode;
 
-        @Option(names = "--cache", split = ",", paramLabel = "<l>", description = "cache level (${COMPLETION-CANDIDATES}. default: none)", order = MIDDLE)
-        public EnumSet<RepositoryRewriter.CacheLevel> cacheLevel = EnumSet.noneOf(RepositoryRewriter.CacheLevel.class);
+        @Option(names = "--cache", description = "enable persistent entry caching", order = MIDDLE)
+        public boolean isCachingEnabled = false;
+
+        @Option(names = "--mapping-mem", paramLabel = "<num>{,K,M,G}", description = "max memory for entry mapping (default: 25%% of max heap)", order = MIDDLE,
+                converter = SizeConverter.class)
+        public long entryMappingMemory = -1;
 
         @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = MIDDLE)
         public boolean isRewritingExtraAttributes = false;
 
         @SuppressWarnings("unused")
         @Option(names = "--stream-size-limit", paramLabel = "<num>{,K,M,G}", description = "increase stream size limit", order = MIDDLE,
-                converter = FilterBlob.SizeConverter.class)
+                converter = SizeConverter.class)
         void setSizeLimit(final long limit) {
             // default: 50MB is too small
             final int intLimit = (int) Math.min(limit, Integer.MAX_VALUE);

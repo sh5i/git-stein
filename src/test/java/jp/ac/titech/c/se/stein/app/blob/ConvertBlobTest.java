@@ -6,7 +6,6 @@ import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
-import org.eclipse.jgit.lib.FileMode;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;

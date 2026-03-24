@@ -34,11 +34,7 @@ $ git stein [options...]                  # When subcommand available
 
 ## Recipes
 
-### Chaining commands
-
-Multiple commands can be listed on the command line.
-They are applied sequentially; intermediate repositories are created under `.git/.git-stein.N` in the target directory and cleaned up automatically.
-As an optimization, consecutive blob translators are composed into a single pass.
+### Splitting and converting to cregit
 
 Split Java files into method-level modules, then convert each to cregit format:
 ```
@@ -71,18 +67,6 @@ Use this for remote services.
 $ git stein path/to/repo -o path/to/out \
   @convert --endpoint=http://localhost:8080/convert --pattern='*.java'
 ```
-
-### Tracking original commit IDs
-
-When git-stein rewrites a repository, it records the original commit ID in Git notes (enabled by default).
-`@note-commit` reads these notes and prepends the original commit ID to each commit message.
-
-A typical workflow is to first transform, then apply `@note-commit`:
-```
-$ git stein path/to/repo -o path/to/out @historage-jdt @note-commit
-```
-After this, each commit message in `step2` starts with the original commit ID from `repo`.
-This works even after multiple transformations — the notes trace back to the original.
 
 ### Writing a custom blob translator
 
@@ -119,12 +103,13 @@ public class MyTranslator implements BlobTranslator {
 - `-j`, `--jobs=<nthreads>`: Rewrites trees in parallel using `<nthreads>` threads. If the number of threads is omitted (just `-j` is given), _total number of processors - 1_ is used.
 - `-n`, `--dry-run`: Do not actually modify the target repository.
 - `--stream-size-limit=<num>{,K,M,G}`: increase the stream size limit.
-- `--no-notes`: Stop noting the source commit ID to the commits in the target repository.
+- `--no-notes`: Stop noting the source commit ID to the commits in the target repository (see [Notes](#notes)).
 - `--no-pack`: Stop packing objects after transformation finished.
 - `--alternates`: Share source objects via Git alternates to skip writing unchanged objects, which speeds up transformations where many objects are unchanged. The target repository will depend on the source's object store until repacked.
-- `--no-composite`: Stop composing multiple blob translators.
+- `--no-composite`: Stop composing multiple blob translators (see [Chaining Commands](#chaining-commands)).
 - `--extra-attributes`: Allow opportunity to rewrite the encoding and the signature fields in commits.
-- `--cache=<level>,...`: Specify the object types for caching (`commit`, `blob`, `tree`. See [Incremental transformation](#incremental-transformation) for the details). Default: none. `commit` is recommended.
+- `--cache`: Enable persistent entry caching (see [Caching](#caching)).
+- `--mapping-mem=<num>{,K,M,G}`: Max memory for entry mapping cache. Default: 25% of max heap (see [Caching](#caching)).
 - `--cmdpath=<path>:...`: Add packages for search for commands.
 - `--log=<level>`: Specify log level (default: `INFO`).
 - `-q`, `--quiet`: Quiet mode (same as `--log=ERROR`).
@@ -143,19 +128,10 @@ The git-stein supports three rewriting modes.
 - _duplicate_ mode (`<source> -o <target> -d`): given a source repository and a path for the target repository, copying the source repository into the given path and applying overwrite mode to the target repository.
 
 
-## Incremental Transformation
-In case the source repository to be transformed has been evolving, git-stein can transform only newly added objects.
-With the option `--cache=<level>`, an SQLite3  cache file "cache.db" will be stored in the `.git` directory of the destination repository.
-This file records the correspondence between objects before and after transformation, according to the specified option.
-Correspondences between commits (`--cache=commit`), between trees (`--cache=tree`), and between files (`--cache=blob`) are stored.
-This cache can save the re-transformation of remaining objects during the second and subsequent transformation trials.
-
-
 ## Bundle Apps
 
 ### Blob Translators
 _Blob translators_ provide a blob-to-blob(s) translations.
-Multiple blob translators can be composed and applied in a single pass.
 
 #### @historage
 Generates a [Historage](https://github.com/hideakihata/git2historage)-like repository using [Universal Ctags](https://ctags.io/).
@@ -283,6 +259,85 @@ Options:
 #### @id
 A no-op rewriter that copies all objects without transformation.
 Useful for verifying that the rewriting pipeline preserves repository content.
+
+
+## Chaining Commands
+
+Multiple commands can be listed on a single command line.
+They are applied sequentially as separate transformation steps.
+For example, with three commands `@A @B @C`:
+```
+source → target/.git/.git-stein.1 → target/.git/.git-stein.2 → target
+         (@A)                        (@B)                        (@C)
+```
+Intermediate repositories (`.git-stein.N`) are bare repositories created under the target's `.git` directory.
+
+As an optimization, consecutive blob translators are composed into a single pass rather than creating intermediate repositories for each one.
+This behavior can be disabled with `--no-composite`.
+For example, the following runs `@historage-jdt` and `@cregit` as a single composed blob translator, then `@note-commit` as a separate commit translator step:
+```
+$ git stein path/to/repo -o path/to/out \
+  @historage-jdt --no-original --no-classes \
+  @cregit --pattern='*.cjava' --ignore-case \
+  @note-commit
+```
+
+
+## Notes
+
+git-stein records the original commit ID as a git note on each target commit (enabled by default).
+Each note stores the source commit ID as a 40-character hex string.
+This provides the standard way to trace a target commit back to its source, and is visible in `git log` without any extra options (via `refs/notes/commits`).
+Notes are also used for [Incremental Transformation](#incremental-transformation) to skip already-processed commits on subsequent runs.
+
+`@note-commit` reads the note on each commit and embeds the original commit ID into the commit message.
+Place it at the end of the command list:
+```
+$ git stein path/to/repo -o path/to/out @historage-jdt @note-commit
+```
+
+git-stein uses three notes refs:
+`refs/notes/git-stein-prev` stores the immediate source commit ID (i.e., the commit in the input repository of this transformation step),
+`refs/notes/git-stein-orig` stores the original source commit ID (traces back through chained transformations to the very first source),
+and `refs/notes/commits` points to the same object as `git-stein-orig` (visible in `git log` by default).
+For a single transformation, all three refs point to the same notes object.
+In a chained transformation (see [Chaining Commands](#chaining-commands)), `git-stein-prev` and `git-stein-orig` may differ.
+For example, in `.git-stein.2`, `git-stein-prev` points to the commit in `.git-stein.1`, while `git-stein-orig` points to the commit in the original source.
+
+If `--no-notes` is used, no notes are written, and incremental transformation will not be available on subsequent runs.
+The target will be fully rewritten each time.
+
+
+## Incremental Transformation
+
+git-stein supports incremental transformation:
+when the target repository already contains results from a previous run, only new commits are processed.
+
+On subsequent runs, git-stein reads the notes from the target repository to reconstruct the commit mapping and skips already-processed commits.
+
+New commits still need to be transformed.
+To try to speed up the transformation of these new commits by reusing previously computed entry mappings, try `--cache` (see [Persistent cache](#persistent-cache-cache)).
+
+
+## Caching
+
+git-stein uses two levels of caching to avoid redundant work:
+an in-memory cache for the current run and an optional persistent cache for repeated runs.
+
+### In-memory cache
+
+During a single run, git-stein keeps an in-memory entry mapping (source entry → transformed entry) backed by a Guava Cache with LRU eviction.
+This avoids re-transforming identical entries within the same execution.
+The memory budget is controlled by `--mapping-mem` (default: 25% of max heap).
+
+### Persistent cache (`--cache`)
+
+When `--cache` is enabled, the entry mapping is stored in an MVStore (H2) file (`cache.mv.db`) in the target repository's `.git` directory.
+This persists entry mappings across runs, so entries that were already transformed in a previous run can be reused without re-computation.
+The `--mapping-mem` option also controls the MVStore page cache and write buffer sizes.
+
+`--cache` and the in-memory cache are mutually exclusive:
+when `--cache` is enabled, MVStore replaces the in-memory Guava Cache entirely.
 
 
 ## Publications

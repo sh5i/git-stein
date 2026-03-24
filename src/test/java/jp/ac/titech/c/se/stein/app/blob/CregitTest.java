@@ -27,8 +27,12 @@ public class CregitTest {
 
     @AfterAll
     static void tearDown() {
-        if (result != null) result.close();
-        if (source != null) source.close();
+        if (result != null) {
+            result.close();
+        }
+        if (source != null) {
+            source.close();
+        }
     }
 
     static RepositoryAccess getResult() {

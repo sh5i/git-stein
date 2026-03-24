@@ -4,6 +4,7 @@
 /gradle.properties
 /.settings/
 /.idea/
+__*
 
 *~
 .DS_Store

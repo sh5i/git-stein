@@ -5,11 +5,14 @@ import static java.nio.charset.StandardCharsets.US_ASCII;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import com.google.common.cache.CacheBuilder;
 import jp.ac.titech.c.se.stein.core.*;
+import jp.ac.titech.c.se.stein.core.cache.*;
 import jp.ac.titech.c.se.stein.entry.*;
 import jp.ac.titech.c.se.stein.jgit.RevWalk;
 import lombok.Setter;
@@ -41,9 +44,26 @@ public class RepositoryRewriter implements RewriterCommand {
     protected static final ObjectId ZERO = ObjectId.zeroId();
 
     /**
-     * Entry-to-entries mapping.
+     * Entry-to-entries mapping. When {@code --cache} is disabled, uses an in-memory
+     * Guava Cache with LRU eviction. When enabled, uses a persistent MVStore map.
      */
-    protected Map<Entry, AnyColdEntry> entryMapping = new HashMap<>();
+    protected Map<Entry, AnyColdEntry> entryMapping;
+
+    private final AtomicLong blobCacheHits = new AtomicLong();
+    private final AtomicLong blobCacheMisses = new AtomicLong();
+    private final AtomicLong treeCacheHits = new AtomicLong();
+    private final AtomicLong treeCacheMisses = new AtomicLong();
+
+    private static final int BYTES_PER_ENTRY = 300;
+
+    private static Map<Entry, AnyColdEntry> createEntryMapping(long memoryBudget) {
+        final long maxWeight = Math.max(1000, memoryBudget / BYTES_PER_ENTRY);
+        return CacheBuilder.newBuilder()
+                .maximumWeight(maxWeight)
+                .weigher((Entry k, AnyColdEntry v) -> v.size())
+                .build()
+                .asMap();
+    }
 
     /**
      * Root tree-to-tree mapping.
@@ -53,7 +73,7 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Commit-to-commit mapping.
      */
-    protected Map<ObjectId, ObjectId> commitMapping = new HashMap<>();
+    protected final CommitMapping commitMapping = new CommitMapping();
 
     /**
      * Tag-to-tag mapping.
@@ -65,7 +85,37 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected Map<RefEntry, RefEntry> refEntryMapping = new HashMap<>();
 
+    /**
+     * Notes ref for the immediate source commit ID (for incremental transformation).
+     */
+    public static final String R_NOTES_PREV = "refs/notes/git-stein-prev";
+
+    /**
+     * Notes ref for the original source commit ID (through the chain).
+     */
+    public static final String R_NOTES_ORIG = "refs/notes/git-stein-orig";
+
     protected RepositoryAccess source, target;
+
+    /**
+     * Whether source is a chained transformation (has git-stein-orig notes).
+     */
+    private boolean isChained = false;
+
+    /**
+     * Notes for prev (always the immediate source commit ID).
+     */
+    private NoteObjectIdMap prevNotes;
+
+    /**
+     * Notes for orig (forwarded from source, or same as prev for single).
+     */
+    private NoteObjectIdMap origNotes;
+
+    /**
+     * Source's orig notes (for chain forwarding). Cached at initialization.
+     */
+    private NoteObjectIdMap sourceOrigNotes;
 
     protected boolean isOverwriting = false;
 
@@ -74,55 +124,40 @@ public class RepositoryRewriter implements RewriterCommand {
     @Setter
     protected Config config;
 
-    public enum CacheLevel {
-        blob, tree, commit
-    }
-
-    protected SQLiteCacheProvider cacheProvider;
+    protected PersistentEntryCache entryCache;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
         target = new RepositoryAccess(targetRepo);
         isOverwriting = sourceRepo == targetRepo;
-        if (config.nthreads > 1) {
-            this.entryMapping = new ConcurrentHashMap<>();
-        }
         if (config.isDryRunning) {
             source.setDryRunning(true);
             target.setDryRunning(true);
         }
-        if (!config.cacheLevel.isEmpty()) {
-            cacheProvider = new SQLiteCacheProvider(targetRepo);
-            if (config.cacheLevel.contains(CacheLevel.commit)) {
-                log.info("Stored mapping (commit-mapping) is available");
-                commitMapping = new Cache<>(commitMapping, cacheProvider.getCommitMapping(), !cacheProvider.isInitial(), true);
-                refEntryMapping = new Cache<>(refEntryMapping, cacheProvider.getRefEntryMapping(), !cacheProvider.isInitial(), true);
+        if (config.isAddingNotes && !isOverwriting) {
+            isChained = source.getRef(R_NOTES_ORIG) != null;
+            prevNotes = new NoteObjectIdMap(target.readNotes(R_NOTES_PREV), target);
+            if (isChained) {
+                origNotes = new NoteObjectIdMap(target.readNotes(R_NOTES_ORIG), target);
+                sourceOrigNotes = new NoteObjectIdMap(source.readNotes(R_NOTES_ORIG), source);
+            } else {
+                origNotes = prevNotes;
             }
-            if (config.cacheLevel.contains(CacheLevel.blob) || config.cacheLevel.contains(CacheLevel.tree)) {
-                log.info("Stored mapping (entry-mapping) is available");
-                Map<Entry, AnyColdEntry> storedEntryMapping = cacheProvider.getEntryMapping();
-                if (!config.cacheLevel.contains(CacheLevel.tree)) {
-                    log.info("Stored mapping (entry-mapping): blob-only filtering");
-                    storedEntryMapping = Cache.Filter.apply(e -> !e.isTree(), storedEntryMapping);
-                } else if (!config.cacheLevel.contains(CacheLevel.blob)) {
-                    log.info("Stored mapping (entry-mapping): tree-only filtering");
-                    storedEntryMapping = Cache.Filter.apply(Entry::isTree, storedEntryMapping);
-                }
-                entryMapping = new Cache<>(entryMapping, storedEntryMapping, !cacheProvider.isInitial(), true);
-            }
+            commitMapping.restoreFromTarget(target, R_NOTES_PREV);
+        }
+        final long budget = config.entryMappingMemory >= 0 ? config.entryMappingMemory : Runtime.getRuntime().maxMemory() / 4;
+        if (config.isCachingEnabled) {
+            entryCache = new PersistentEntryCache(targetRepo, budget);
+            entryMapping = entryCache.getEntryMapping();
+        } else {
+            entryMapping = createEntryMapping(budget);
         }
     }
 
     public void rewrite(final Context c) {
         setUp(c);
-        final RevWalk walk = prepareRevisionWalk(c);
-        if (cacheProvider != null) {
-            cacheProvider.inTransaction(() -> {
-                rewriteCommits(walk, c);
-                updateRefs(c);
-                return null;
-            });
-        } else {
+        try {
+            final RevWalk walk = prepareRevisionWalk(c);
             if (config.nthreads >= 2) {
                 log.debug("Parallel rewriting");
                 rewriteRootTrees(walk, c);
@@ -130,9 +165,35 @@ public class RepositoryRewriter implements RewriterCommand {
             }
             rewriteCommits(walk, c);
             updateRefs(c);
+            if (config.isAddingNotes) {
+                prevNotes.write(R_NOTES_PREV, c);
+                if (isChained) {
+                    origNotes.write(R_NOTES_ORIG, c);
+                } else {
+                    // Single transformation: orig = prev, share the same ref
+                    target.applyRefUpdate(new RefEntry(R_NOTES_ORIG, target.getRef(R_NOTES_PREV).getObjectId()));
+                }
+                // Default notes = orig (for git log display)
+                target.applyRefUpdate(new RefEntry(Constants.R_NOTES_COMMITS, target.getRef(R_NOTES_ORIG).getObjectId()));
+            } else {
+                target.writeNotes(target.getDefaultNotes(), c);
+            }
+        } finally {
+            final long blobHit = blobCacheHits.get(), blobMiss = blobCacheMisses.get();
+            final long treeHit = treeCacheHits.get(), treeMiss = treeCacheMisses.get();
+            final long blobTotal = blobHit + blobMiss, treeTotal = treeHit + treeMiss, total = blobTotal + treeTotal;
+            if (total > 0) {
+                final long hits = blobHit + treeHit;
+                log.info("Entry mapping cache hit: blob {}/{} ({}%), tree {}/{} ({}%), total {}/{} ({}%)",
+                        blobHit, blobTotal, String.format("%.1f", blobTotal > 0 ? blobHit * 100.0 / blobTotal : 0),
+                        treeHit, treeTotal, String.format("%.1f", treeTotal > 0 ? treeHit * 100.0 / treeTotal : 0),
+                        hits, total, String.format("%.1f", hits * 100.0 / total));
+            }
+            if (entryCache != null) {
+                entryCache.close();
+            }
+            cleanUp(c);
         }
-        target.writeNotes(target.getDefaultNotes(), c);
-        cleanUp(c);
     }
 
     protected void setUp(final Context c) {}
@@ -232,16 +293,11 @@ public class RepositoryRewriter implements RewriterCommand {
      * Collects the set of commit Ids used as uninteresting points.
      */
     protected Collection<ObjectId> collectUninterestings(@SuppressWarnings("unused") final Context c) {
-        final List<ObjectId> result = new ArrayList<>();
-        for (final Map.Entry<RefEntry, RefEntry> e : refEntryMapping.entrySet()) {
-            final RefEntry ref = e.getKey();
-            if (ref.id != null) {
-                log.debug("Previous Ref {}: added as an uninteresting point (commit: {})", ref.name, ref.id.name());
-                result.add(ref.id);
-            }
+        final List<ObjectId> tips = commitMapping.getPreviousSourceTips();
+        if (!tips.isEmpty()) {
+            log.info("Using {} previous source tips as uninteresting points", tips.size());
         }
-        refEntryMapping.clear();  // ref entries might be removed when updated.
-        return result;
+        return tips;
     }
 
     /**
@@ -272,23 +328,15 @@ public class RepositoryRewriter implements RewriterCommand {
         log.debug("Rewrite commit: {} -> {} {}", oldId.name(), newId.name(), c);
 
         if (config.isAddingNotes) {
-            target.addNote(target.getDefaultNotes(), newId, getNote(oldId, c), uc);
+            prevNotes.add(newId, oldId, uc);
+            if (isChained) {
+                final ObjectId origId = sourceOrigNotes.get(oldId);
+                origNotes.add(newId, origId != null ? origId : oldId, uc);
+            }
         }
         return newId;
     }
 
-    /**
-     * Returns a note for a commit.
-     */
-    protected byte[] getNote(final ObjectId oldCommitId, @SuppressWarnings("unused") final Context c) {
-        final byte[] note = source.readNote(source.getDefaultNotes(), oldCommitId);
-        if (note != null) {
-            return note;
-        }
-        final byte[] blob = new byte[Constants.OBJECT_ID_STRING_LENGTH];
-        oldCommitId.copyTo(blob, 0);
-        return blob;
-    }
 
     /**
      * Rewrites the parents of a commit.
@@ -332,10 +380,12 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected AnyColdEntry getEntry(final Entry entry, final Context c) {
         // computeIfAbsent is unsuitable because this may be invoked recursively
-        final AnyColdEntry cache = entryMapping.get(entry);
-        if (cache != null) {
-            return cache;
+        final AnyColdEntry cached = entryMapping.get(entry);
+        if (cached != null) {
+            (entry.isTree() ? treeCacheHits : blobCacheHits).incrementAndGet();
+            return cached;
         }
+        (entry.isTree() ? treeCacheMisses : blobCacheMisses).incrementAndGet();
         final AnyColdEntry result = rewriteEntry(entry, c);
         entryMapping.put(entry, result);
         return result;

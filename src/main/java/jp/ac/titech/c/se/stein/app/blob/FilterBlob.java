@@ -4,6 +4,7 @@ import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
+import jp.ac.titech.c.se.stein.util.SizeConverter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -11,7 +12,6 @@ import jp.ac.titech.c.se.stein.core.Context;
 import org.apache.commons.io.FileUtils;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
-import picocli.CommandLine.ITypeConverter;
 import picocli.CommandLine.Option;
 
 
@@ -50,32 +50,5 @@ public class FilterBlob implements BlobTranslator {
         }
 
         return entry;
-    }
-
-    public static class SizeConverter implements ITypeConverter<Long> {
-        @Override
-        public Long convert(final String value) {
-            if (value.isEmpty()) {
-                throw new IllegalArgumentException("Empty value is given");
-            }
-            final int len = value.length();
-            final char unit = Character.toUpperCase(value.charAt(len - 1));
-            final String num = value.substring(0, len - 1);
-            return switch (unit) {
-                case 'B' -> convert(num);
-                case 'K' -> displaySizeToByteCount(num, 1024);
-                case 'M' -> displaySizeToByteCount(num, 1024 * 1024);
-                case 'G' -> displaySizeToByteCount(num, 1024 * 1024 * 1024);
-                default -> displaySizeToByteCount(value, 1);
-            };
-        }
-
-        protected long displaySizeToByteCount(final String value, final long base) {
-            if (value.contains(".")) {
-                return (long) (Double.parseDouble(value) * base);
-            } else {
-                return Long.parseLong(value) * base;
-            }
-        }
     }
 }

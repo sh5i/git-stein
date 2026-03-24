@@ -8,7 +8,6 @@ import jp.ac.titech.c.se.stein.entry.TreeEntry;
 import lombok.Getter;
 import lombok.ToString;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.function.Function;

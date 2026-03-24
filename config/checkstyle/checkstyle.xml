@@ -1,0 +1,13 @@
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<module name="Checker">
+    <module name="TreeWalker">
+        <!-- Unused imports -->
+        <module name="UnusedImports"/>
+
+        <!-- Require curly braces -->
+        <module name="NeedBraces"/>
+    </module>
+</module>

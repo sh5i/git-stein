@@ -3,6 +3,8 @@ package jp.ac.titech.c.se.stein.entry;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 
+import java.util.Comparator;
+
 /**
  * Common interface for a single tree entry.
  *
@@ -93,11 +95,18 @@ public interface SingleEntry extends Comparable<SingleEntry> {
         return isTree() ? getName() + "/" : getName();
     }
 
+    Comparator<SingleEntry> COMPARATOR = Comparator
+            .comparing(SingleEntry::sortKey)
+            .thenComparing(SingleEntry::getId)
+            .thenComparingInt(SingleEntry::getMode)
+            .thenComparing(SingleEntry::getDirectory, Comparator.nullsFirst(Comparator.naturalOrder()));
+
     /**
-     * Compares entries by their {@link #sortKey()}.
+     * Compares entries by their {@link #sortKey()}, then by mode, object ID, and directory
+     * to ensure consistency with {@code equals}.
      */
     @Override
     default int compareTo(final SingleEntry other) {
-        return sortKey().compareTo(other.sortKey());
+        return COMPARATOR.compare(this, other);
     }
 }

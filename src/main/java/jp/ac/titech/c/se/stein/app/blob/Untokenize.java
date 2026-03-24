@@ -10,8 +10,6 @@ import lombok.ToString;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 
-import java.nio.charset.StandardCharsets;
-
 /**
  * Restores linetoken-encoded source files back to their original form.
  * The inverse of {@link Tokenize}: removes line breaks between tokens and
