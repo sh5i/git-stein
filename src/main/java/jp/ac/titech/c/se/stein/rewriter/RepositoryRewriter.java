@@ -43,8 +43,8 @@ public class RepositoryRewriter implements RewriterCommand {
     protected static final ObjectId ZERO = ObjectId.zeroId();
 
     /**
-     * Entry-to-entries mapping. Backed by Guava Cache with LRU eviction
-     * to bound memory usage proportional to available heap.
+     * Entry-to-entries mapping. When {@code --cache} is disabled, uses an in-memory
+     * Guava Cache with LRU eviction. When enabled, uses a persistent MVStore map.
      */
     protected Map<Entry, AnyColdEntry> entryMapping;
 
@@ -118,7 +118,7 @@ public class RepositoryRewriter implements RewriterCommand {
     @Setter
     protected Config config;
 
-    protected EntryCache entryCache;
+    protected PersistentEntryCache entryCache;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
@@ -141,7 +141,7 @@ public class RepositoryRewriter implements RewriterCommand {
         }
         final long budget = config.entryMappingMemory >= 0 ? config.entryMappingMemory : Runtime.getRuntime().maxMemory() / 4;
         if (config.isCachingEnabled) {
-            entryCache = new EntryCache(targetRepo, budget);
+            entryCache = new PersistentEntryCache(targetRepo, budget);
             entryMapping = entryCache.getEntryMapping();
         } else {
             entryMapping = createEntryMapping(budget);

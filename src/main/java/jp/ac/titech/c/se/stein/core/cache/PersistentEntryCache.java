@@ -14,7 +14,7 @@ import java.util.Map;
  * Persistent entry cache backed by H2 MVStore.
  * Data is stored in a single file ({@code cache.mv.db}) in the target repository's .git directory.
  */
-public class EntryCache implements AutoCloseable {
+public class PersistentEntryCache implements AutoCloseable {
     /**
      * Fraction of memoryBudget allocated to the read page cache.
      */
@@ -31,7 +31,7 @@ public class EntryCache implements AutoCloseable {
     @Getter
     private final boolean initial;
 
-    public EntryCache(final Repository target, final long memoryBudget) {
+    public PersistentEntryCache(final Repository target, final long memoryBudget) {
         final Path dbFile = target.getDirectory().toPath().resolve("cache.mv.db");
         initial = !Files.exists(dbFile);
         final int cacheSizeMB = (int) Math.max(1, (long) (memoryBudget * READ_CACHE_RATIO) / (1024 * 1024));

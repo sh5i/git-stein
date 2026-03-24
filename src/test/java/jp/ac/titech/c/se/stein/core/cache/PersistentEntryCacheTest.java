@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class EntryCacheTest {
+public class PersistentEntryCacheTest {
     static RepositoryAccess source;
 
     @BeforeAll
