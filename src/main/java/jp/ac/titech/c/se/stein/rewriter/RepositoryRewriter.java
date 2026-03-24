@@ -5,6 +5,7 @@ import static java.nio.charset.StandardCharsets.US_ASCII;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -47,6 +48,11 @@ public class RepositoryRewriter implements RewriterCommand {
      * Guava Cache with LRU eviction. When enabled, uses a persistent MVStore map.
      */
     protected Map<Entry, AnyColdEntry> entryMapping;
+
+    private final AtomicLong blobCacheHits = new AtomicLong();
+    private final AtomicLong blobCacheMisses = new AtomicLong();
+    private final AtomicLong treeCacheHits = new AtomicLong();
+    private final AtomicLong treeCacheMisses = new AtomicLong();
 
     private static final int BYTES_PER_ENTRY = 300;
 
@@ -173,6 +179,16 @@ public class RepositoryRewriter implements RewriterCommand {
                 target.writeNotes(target.getDefaultNotes(), c);
             }
         } finally {
+            final long blobHit = blobCacheHits.get(), blobMiss = blobCacheMisses.get();
+            final long treeHit = treeCacheHits.get(), treeMiss = treeCacheMisses.get();
+            final long blobTotal = blobHit + blobMiss, treeTotal = treeHit + treeMiss, total = blobTotal + treeTotal;
+            if (total > 0) {
+                final long hits = blobHit + treeHit;
+                log.info("Entry mapping cache hit: blob {}/{} ({}%), tree {}/{} ({}%), total {}/{} ({}%)",
+                        blobHit, blobTotal, String.format("%.1f", blobTotal > 0 ? blobHit * 100.0 / blobTotal : 0),
+                        treeHit, treeTotal, String.format("%.1f", treeTotal > 0 ? treeHit * 100.0 / treeTotal : 0),
+                        hits, total, String.format("%.1f", hits * 100.0 / total));
+            }
             if (entryCache != null) {
                 entryCache.close();
             }
@@ -364,10 +380,12 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected AnyColdEntry getEntry(final Entry entry, final Context c) {
         // computeIfAbsent is unsuitable because this may be invoked recursively
-        final AnyColdEntry cache = entryMapping.get(entry);
-        if (cache != null) {
-            return cache;
+        final AnyColdEntry cached = entryMapping.get(entry);
+        if (cached != null) {
+            (entry.isTree() ? treeCacheHits : blobCacheHits).incrementAndGet();
+            return cached;
         }
+        (entry.isTree() ? treeCacheMisses : blobCacheMisses).incrementAndGet();
         final AnyColdEntry result = rewriteEntry(entry, c);
         entryMapping.put(entry, result);
         return result;
