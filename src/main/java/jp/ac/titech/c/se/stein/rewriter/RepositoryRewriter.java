@@ -118,7 +118,7 @@ public class RepositoryRewriter implements RewriterCommand {
     @Setter
     protected Config config;
 
-    protected CacheProvider cacheProvider;
+    protected EntryCache entryCache;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
         source = new RepositoryAccess(sourceRepo);
@@ -142,10 +142,10 @@ public class RepositoryRewriter implements RewriterCommand {
             commitMapping.restoreFromTarget(target, R_NOTES_PREV);
         }
         if (config.isCachingEnabled) {
-            cacheProvider = new MVStoreCacheProvider(targetRepo);
+            entryCache = new EntryCache(targetRepo);
             log.info("Stored mapping (entry-mapping) is available");
-            final Map<Entry, AnyColdEntry> storedEntryMapping = cacheProvider.getEntryMapping();
-            entryMapping = new Cache<>(entryMapping, storedEntryMapping, !cacheProvider.isInitial(), true);
+            final Map<Entry, AnyColdEntry> storedEntryMapping = entryCache.getEntryMapping();
+            entryMapping = new Cache<>(entryMapping, storedEntryMapping, !entryCache.isInitial(), true);
         }
     }
 
@@ -174,8 +174,8 @@ public class RepositoryRewriter implements RewriterCommand {
                 target.writeNotes(target.getDefaultNotes(), c);
             }
         } finally {
-            if (cacheProvider != null) {
-                cacheProvider.close();
+            if (entryCache != null) {
+                entryCache.close();
             }
             cleanUp(c);
         }
