@@ -1,11 +1,8 @@
 package jp.ac.titech.c.se.stein.core.cache;
 
-import jp.ac.titech.c.se.stein.core.RefEntry;
-
 import com.google.common.cache.CacheBuilder;
 import jp.ac.titech.c.se.stein.entry.AnyColdEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
-import org.eclipse.jgit.lib.ObjectId;
 
 import java.util.Map;
 
@@ -29,27 +26,11 @@ public class GuavaCacheProvider implements CacheProvider {
     }
 
     @Override
-    public Map<ObjectId, ObjectId> getCommitMapping() {
-        return CacheBuilder.newBuilder()
-                .maximumSize(maxEntries)
-                .<ObjectId, ObjectId>build()
-                .asMap();
-    }
-
-    @Override
     public Map<Entry, AnyColdEntry> getEntryMapping() {
         return CacheBuilder.newBuilder()
                 .maximumWeight(maxEntries)
                 .weigher((Entry k, AnyColdEntry v) -> v.size())
                 .<Entry, AnyColdEntry>build()
-                .asMap();
-    }
-
-    @Override
-    public Map<RefEntry, RefEntry> getRefEntryMapping() {
-        return CacheBuilder.newBuilder()
-                .maximumSize(maxEntries)
-                .<RefEntry, RefEntry>build()
                 .asMap();
     }
 }

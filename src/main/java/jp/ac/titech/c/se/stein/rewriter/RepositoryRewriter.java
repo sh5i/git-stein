@@ -119,7 +119,7 @@ public class RepositoryRewriter implements RewriterCommand {
     protected Config config;
 
     public enum CacheLevel {
-        blob, tree, commit
+        blob, tree
     }
 
     protected CacheProvider cacheProvider;

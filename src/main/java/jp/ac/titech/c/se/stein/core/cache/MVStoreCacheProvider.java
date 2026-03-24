@@ -1,10 +1,7 @@
 package jp.ac.titech.c.se.stein.core.cache;
 
-import jp.ac.titech.c.se.stein.core.RefEntry;
-
 import jp.ac.titech.c.se.stein.entry.AnyColdEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.h2.mvstore.MVStore;
 
@@ -36,20 +33,8 @@ public class MVStoreCacheProvider implements CacheProvider {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Map<ObjectId, ObjectId> getCommitMapping() {
-        return store.openMap("commits");
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
     public Map<Entry, AnyColdEntry> getEntryMapping() {
         return store.openMap("entries");
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public Map<RefEntry, RefEntry> getRefEntryMapping() {
-        return store.openMap("refs");
     }
 
     @Override
