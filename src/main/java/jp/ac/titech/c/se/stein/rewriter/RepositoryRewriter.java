@@ -156,8 +156,7 @@ public class RepositoryRewriter implements RewriterCommand {
 
     public void rewrite(final Context c) {
         setUp(c);
-        try {
-            final RevWalk walk = prepareRevisionWalk(c);
+        try (final RevWalk walk = prepareRevisionWalk(c)) {
             if (config.nthreads >= 2) {
                 log.debug("Parallel rewriting");
                 rewriteRootTrees(walk, c);
@@ -219,16 +218,15 @@ public class RepositoryRewriter implements RewriterCommand {
     protected void rewriteRootTrees(final RevWalk walk, final Context c) {
         final Map<Long, Context> cxts = new ConcurrentHashMap<>();
 
+        // Count commits without closing the walk
         long count = 0;
-        try (walk) {
-            for (final RevCommit commit : walk) {
-                count++;
-            }
+        for (final RevCommit ignored : walk) {
+            count++;
         }
         Try.io(walk::memoReset);
 
         final ForkJoinPool pool = new ForkJoinPool(config.nthreads);
-        try (walk) {
+        try {
             final int characteristics = Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.SIZED;
             final Spliterator<RevCommit> split = Spliterators.spliterator(walk.iterator(), count, characteristics);
             pool.submit(() -> {
