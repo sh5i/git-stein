@@ -68,7 +68,7 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Root tree-to-tree mapping.
      */
-    protected Map<ObjectId, ObjectId> rootTreeMapping = new HashMap<>();
+    protected Map<ObjectId, ObjectId> rootTreeMapping = new ConcurrentHashMap<>();
 
     /**
      * Commit-to-commit mapping.
@@ -227,10 +227,11 @@ public class RepositoryRewriter implements RewriterCommand {
         }
         Try.io(walk::memoReset);
 
+        final ForkJoinPool pool = new ForkJoinPool(config.nthreads);
         try (walk) {
             final int characteristics = Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.SIZED;
             final Spliterator<RevCommit> split = Spliterators.spliterator(walk.iterator(), count, characteristics);
-            new ForkJoinPool(config.nthreads).submit(() -> {
+            pool.submit(() -> {
                 final Stream<RevCommit> stream = StreamSupport.stream(split, true);
                 stream.forEach(commit -> {
                     final long id = Thread.currentThread().getId();
@@ -239,6 +240,8 @@ public class RepositoryRewriter implements RewriterCommand {
                     rewriteRootTree(commit.getTree().getId(), uuc);
                 });
             }).join();
+        } finally {
+            pool.shutdown();
         }
 
         // finalize
