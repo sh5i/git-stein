@@ -38,7 +38,6 @@ public class CacheProviderTest {
     private Application.Config cacheConfig() {
         final Application.Config config = new Application.Config();
         config.isCachingEnabled = true;
-        config.cacheBackend = Application.Config.CacheBackend.mvstore;
         return config;
     }
 

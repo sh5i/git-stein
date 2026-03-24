@@ -104,11 +104,6 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         @Option(names = "--cache", description = "enable persistent entry caching", order = MIDDLE)
         public boolean isCachingEnabled = false;
 
-        public enum CacheBackend { mvstore, guava }
-
-        @Option(names = "--cache-backend", paramLabel = "<backend>", description = "cache backend (${COMPLETION-CANDIDATES}. default: mvstore)", order = MIDDLE)
-        public CacheBackend cacheBackend = CacheBackend.mvstore;
-
         @Option(names = "--mapping-mem", paramLabel = "<num>{,K,M,G}", description = "max memory for entry mapping (default: 25%% of max heap)", order = MIDDLE,
                 converter = SizeConverter.class)
         public long entryMappingMemory = -1;

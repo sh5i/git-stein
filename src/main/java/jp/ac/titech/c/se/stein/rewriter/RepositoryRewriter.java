@@ -142,10 +142,7 @@ public class RepositoryRewriter implements RewriterCommand {
             commitMapping.restoreFromTarget(target, R_NOTES_PREV);
         }
         if (config.isCachingEnabled) {
-            cacheProvider = switch (config.cacheBackend) {
-                case mvstore -> new MVStoreCacheProvider(targetRepo);
-                case guava -> new GuavaCacheProvider();
-            };
+            cacheProvider = new MVStoreCacheProvider(targetRepo);
             log.info("Stored mapping (entry-mapping) is available");
             final Map<Entry, AnyColdEntry> storedEntryMapping = cacheProvider.getEntryMapping();
             entryMapping = new Cache<>(entryMapping, storedEntryMapping, !cacheProvider.isInitial(), true);
