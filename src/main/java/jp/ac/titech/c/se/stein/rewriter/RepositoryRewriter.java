@@ -158,7 +158,6 @@ public class RepositoryRewriter implements RewriterCommand {
         setUp(c);
         try (final RevWalk walk = prepareRevisionWalk(c)) {
             if (config.nthreads >= 2) {
-                log.debug("Parallel rewriting");
                 rewriteRootTrees(walk, c);
                 Try.io(walk::memoReset);
             }
@@ -187,6 +186,7 @@ public class RepositoryRewriter implements RewriterCommand {
                         blobHit, blobTotal, String.format("%.1f", blobTotal > 0 ? blobHit * 100.0 / blobTotal : 0),
                         treeHit, treeTotal, String.format("%.1f", treeTotal > 0 ? treeHit * 100.0 / treeTotal : 0),
                         hits, total, String.format("%.1f", hits * 100.0 / total));
+                log.info("Entry mapping size: {}, root tree mapping size: {}", entryMapping.size(), rootTreeMapping.size());
             }
             if (entryCache != null) {
                 entryCache.close();
@@ -224,6 +224,7 @@ public class RepositoryRewriter implements RewriterCommand {
             count++;
         }
         Try.io(walk::memoReset);
+        log.info("Parallel rewriting: {} commits with {} threads", count, config.nthreads);
 
         final ForkJoinPool pool = new ForkJoinPool(config.nthreads);
         try {
@@ -239,6 +240,7 @@ public class RepositoryRewriter implements RewriterCommand {
                 });
             }).join();
         } finally {
+            log.debug("Pool stats: steal={}, threads={}", pool.getStealCount(), cxts.size());
             pool.shutdown();
         }
 
