@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.PersonIdent;
 
 import jp.ac.titech.c.se.stein.core.Context;
+import jp.ac.titech.c.se.stein.rewriter.EntryResolver;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -124,8 +125,8 @@ public class Anonymize extends RepositoryRewriter {
     }
 
     @Override
-    protected AnyColdEntry rewriteTreeEntry(TreeEntry entry, Context c) {
-        final AnyColdEntry result = super.rewriteTreeEntry(entry, c);
+    protected AnyColdEntry rewriteTreeEntry(TreeEntry entry, EntryResolver resolver, Context c) {
+        final AnyColdEntry result = super.rewriteTreeEntry(entry, resolver, c);
         if (isTreeNameEnabled && result instanceof Entry e) {
             return Entry.of(e.mode, treeNameMap.convert(e.name), e.id, e.directory);
         }

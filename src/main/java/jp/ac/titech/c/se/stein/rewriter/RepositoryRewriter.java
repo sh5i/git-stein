@@ -370,7 +370,7 @@ public class RepositoryRewriter implements RewriterCommand {
 
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = Entry.of(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
-        final AnyColdEntry newRoot = getEntry(root, c);
+        final AnyColdEntry newRoot = entryResolver.resolve(root, c);
         final ObjectId newId = newRoot instanceof AnyColdEntry.Empty ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
         log.debug("Rewrite root tree: {} -> {} {}", treeId.name(), newId.name(), c);
@@ -379,9 +379,10 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     /**
-     * Obtains tree entries from a tree entry.
+     * The entry resolver that provides cached entry resolution.
+     * Translators use this to resolve child entries during tree rewriting.
      */
-    protected AnyColdEntry getEntry(final Entry entry, final Context c) {
+    protected final EntryResolver entryResolver = (entry, c) -> {
         // computeIfAbsent is unsuitable because this may be invoked recursively
         final AnyColdEntry cached = entryMapping.get(entry);
         if (cached != null) {
@@ -392,7 +393,7 @@ public class RepositoryRewriter implements RewriterCommand {
         final AnyColdEntry result = rewriteEntry(entry, c);
         entryMapping.put(entry, result);
         return result;
-    }
+    };
 
     /**
      * Rewrites an entry by dispatching to the appropriate type.
@@ -404,7 +405,7 @@ public class RepositoryRewriter implements RewriterCommand {
             case tree -> {
                 final String path = entry.isRoot() ? "" : c.getPath() + "/" + entry.name;
                 final String dir = isPathSensitive ? path : null;
-                yield rewriteTreeEntry(HotEntry.ofTree(entry, source, dir), uc.with(Key.path, path));
+                yield rewriteTreeEntry(HotEntry.ofTree(entry, source, dir), entryResolver, uc.with(Key.path, path));
             }
             case link -> rewriteLinkEntry(entry, uc);
         };
@@ -420,10 +421,10 @@ public class RepositoryRewriter implements RewriterCommand {
      * Rewrites a tree entry. Loads children from the source, rewrites each with caching,
      * and writes the resulting tree to the target.
      */
-    protected AnyColdEntry rewriteTreeEntry(TreeEntry entry, Context c) {
+    protected AnyColdEntry rewriteTreeEntry(TreeEntry entry, EntryResolver resolver, Context c) {
         final List<Entry> entries = new ArrayList<>();
         for (final Entry e : entry.getEntries()) {
-            final AnyColdEntry rewritten = getEntry(e, c);
+            final AnyColdEntry rewritten = resolver.resolve(e, c);
             rewritten.stream().filter(r -> !r.getId().equals(ZERO)).forEach(entries::add);
         }
         final ObjectId newId = entries.isEmpty() ? ZERO : target.writeTree(entries, c);
