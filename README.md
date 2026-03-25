@@ -100,7 +100,7 @@ public class MyTranslator implements BlobTranslator {
 - `-d`, `--duplicate`: Duplicate the source repository and overwrites it. **Requires `-o`**.
 - `--clean`: Delete the target repository before applying the transformation if it exists. **Requires `-o`**.
 - `--bare`: Treat that the specified repositories are bare.
-- `-j`, `--jobs=<nthreads>`: Rewrites trees in parallel using `<nthreads>` threads. If the number of threads is omitted (just `-j` is given), _total number of processors - 1_ is used.
+- `-j`, `--jobs=<nthreads>`: Rewrites trees in parallel using `<nthreads>` threads (see [Parallel Rewriting](#parallel-rewriting)). If the number of threads is omitted (just `-j` is given), the number of available processors is used.
 - `-n`, `--dry-run`: Do not actually modify the target repository.
 - `--stream-size-limit=<num>{,K,M,G}`: increase the stream size limit.
 - `--no-notes`: Stop noting the source commit ID to the commits in the target repository (see [Notes](#notes)).
@@ -259,6 +259,21 @@ Options:
 #### @id
 A no-op rewriter that copies all objects without transformation.
 Useful for verifying that the rewriting pipeline preserves repository content.
+
+
+## Parallel Rewriting
+
+With `-j`, git-stein rewrites trees in parallel using multiple threads.
+The rewriting is done in two passes over the commit history:
+
+1. **Tree rewriting pass** (parallel): all root trees are rewritten in parallel using a `ForkJoinPool`.
+The commit list is split into contiguous chunks, and each chunk is processed by a worker thread.
+Consecutive commits within a chunk share many tree entries, so the entry mapping cache is effective within each chunk.
+2. **Commit writing pass** (sequential): commits are written in topological order.
+Since each commit depends on its parent's ID, this pass must be sequential.
+The tree rewriting results are looked up from the first pass.
+
+The number of threads can be specified explicitly (e.g., `-j4`) or left to default (`-j` alone uses all available processors).
 
 
 ## Chaining Commands

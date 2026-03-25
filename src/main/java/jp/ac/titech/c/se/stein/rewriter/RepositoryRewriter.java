@@ -68,7 +68,7 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Root tree-to-tree mapping.
      */
-    protected Map<ObjectId, ObjectId> rootTreeMapping = new HashMap<>();
+    protected Map<ObjectId, ObjectId> rootTreeMapping = new ConcurrentHashMap<>();
 
     /**
      * Commit-to-commit mapping.
@@ -156,10 +156,8 @@ public class RepositoryRewriter implements RewriterCommand {
 
     public void rewrite(final Context c) {
         setUp(c);
-        try {
-            final RevWalk walk = prepareRevisionWalk(c);
+        try (final RevWalk walk = prepareRevisionWalk(c)) {
             if (config.nthreads >= 2) {
-                log.debug("Parallel rewriting");
                 rewriteRootTrees(walk, c);
                 Try.io(walk::memoReset);
             }
@@ -188,6 +186,7 @@ public class RepositoryRewriter implements RewriterCommand {
                         blobHit, blobTotal, String.format("%.1f", blobTotal > 0 ? blobHit * 100.0 / blobTotal : 0),
                         treeHit, treeTotal, String.format("%.1f", treeTotal > 0 ? treeHit * 100.0 / treeTotal : 0),
                         hits, total, String.format("%.1f", hits * 100.0 / total));
+                log.info("Entry mapping size: {}, root tree mapping size: {}", entryMapping.size(), rootTreeMapping.size());
             }
             if (entryCache != null) {
                 entryCache.close();
@@ -219,18 +218,19 @@ public class RepositoryRewriter implements RewriterCommand {
     protected void rewriteRootTrees(final RevWalk walk, final Context c) {
         final Map<Long, Context> cxts = new ConcurrentHashMap<>();
 
+        // Count commits without closing the walk
         long count = 0;
-        try (walk) {
-            for (final RevCommit commit : walk) {
-                count++;
-            }
+        for (final RevCommit ignored : walk) {
+            count++;
         }
         Try.io(walk::memoReset);
+        log.info("Parallel rewriting: {} commits with {} threads", count, config.nthreads);
 
-        try (walk) {
+        final ForkJoinPool pool = new ForkJoinPool(config.nthreads);
+        try {
             final int characteristics = Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.SIZED;
             final Spliterator<RevCommit> split = Spliterators.spliterator(walk.iterator(), count, characteristics);
-            new ForkJoinPool(config.nthreads).submit(() -> {
+            pool.submit(() -> {
                 final Stream<RevCommit> stream = StreamSupport.stream(split, true);
                 stream.forEach(commit -> {
                     final long id = Thread.currentThread().getId();
@@ -239,6 +239,9 @@ public class RepositoryRewriter implements RewriterCommand {
                     rewriteRootTree(commit.getTree().getId(), uuc);
                 });
             }).join();
+        } finally {
+            log.debug("Pool stats: steal={}, threads={}", pool.getStealCount(), cxts.size());
+            pool.shutdown();
         }
 
         // finalize

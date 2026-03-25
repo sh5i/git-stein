@@ -77,8 +77,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         void setNumberOfThreads(final int nthreads) {
             this.nthreads = nthreads;
             if (nthreads == 0) {
-                final int nprocs = Runtime.getRuntime().availableProcessors();
-                this.nthreads = nprocs > 1 ? nprocs - 1 : 1;
+                this.nthreads = Runtime.getRuntime().availableProcessors();
             }
         }
         public int nthreads = 1;
