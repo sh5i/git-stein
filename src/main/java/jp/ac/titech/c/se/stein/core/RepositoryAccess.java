@@ -35,8 +35,7 @@ public class RepositoryAccess implements AutoCloseable {
 
     public final Repository repo;
 
-    @Getter
-    protected final NoteMap defaultNotes;
+    private final Map<String, NoteMap> notesCache = new HashMap<>();
 
     protected boolean isDryRunning = false;
 
@@ -51,7 +50,6 @@ public class RepositoryAccess implements AutoCloseable {
 
     public RepositoryAccess(final Repository repo) {
         this.repo = repo;
-        this.defaultNotes = readNotes();
     }
 
     @Override
@@ -388,7 +386,6 @@ public class RepositoryAccess implements AutoCloseable {
         final ObjectId commit = writeCommit(NO_PARENTS, treeId, ident, ident, message, writingContext);
 
         applyRefUpdate(new RefEntry(ref, commit));
-
     }
 
     /**
@@ -403,10 +400,17 @@ public class RepositoryAccess implements AutoCloseable {
     }
 
     /**
-     * Reads notes from the default notes ref ({@code refs/notes/commits}).
+     * Returns the notes for the default ref ({@code refs/notes/commits}), reading lazily.
      */
-    public NoteMap readNotes() {
-        return readNotes(Constants.R_NOTES_COMMITS);
+    public NoteMap getDefaultNotes() {
+        return getNotes(Constants.R_NOTES_COMMITS);
+    }
+
+    /**
+     * Returns the notes for the specified ref, reading lazily and caching the result.
+     */
+    public NoteMap getNotes(final String noteRef) {
+        return notesCache.computeIfAbsent(noteRef, this::readNotes);
     }
 
     /**
