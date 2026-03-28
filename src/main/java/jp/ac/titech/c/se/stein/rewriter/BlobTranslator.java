@@ -24,6 +24,10 @@ public interface BlobTranslator extends RewriterCommand {
         return (entry, c) -> entry.update(f.apply(entry.getContent()));
     }
 
+    static BlobTranslator composite(BlobTranslator... translators) {
+        return new Composite(translators);
+    }
+
     default RepositoryRewriter toRewriter() {
         return new Single(this);
     }
