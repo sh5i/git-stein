@@ -1,6 +1,6 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
-import jp.ac.titech.c.se.stein.app.blob.HistorageViaJDT.Module;
+import jp.ac.titech.c.se.stein.app.blob.HistorageJdt.Module;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
@@ -23,18 +23,18 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class HistorageViaJDTTest {
+public class HistorageJdtTest {
 
     static String sampleSource;
     static RepositoryAccess source, result;
 
     @BeforeAll
     static void setUp() throws IOException {
-        try (InputStream is = HistorageViaJDTTest.class.getResourceAsStream("/sample/Hello.java.v3")) {
+        try (InputStream is = HistorageJdtTest.class.getResourceAsStream("/sample/Hello.java.v3")) {
             sampleSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
         source = TestRepo.createSample();
-        result = TestRepo.rewrite(source,new HistorageViaJDT());
+        result = TestRepo.rewrite(source,new HistorageJdt());
     }
 
     @AfterAll
@@ -44,10 +44,10 @@ public class HistorageViaJDTTest {
     }
 
     List<Module> generateModules() {
-        return generateModules(new HistorageViaJDT());
+        return generateModules(new HistorageJdt());
     }
 
-    List<Module> generateModules(HistorageViaJDT historage) {
+    List<Module> generateModules(HistorageJdt historage) {
         SourceText text = SourceText.ofNormalized(sampleSource.getBytes(StandardCharsets.UTF_8));
         return historage.new ModuleGenerator("Hello.java", text).generate();
     }
@@ -125,7 +125,7 @@ public class HistorageViaJDTTest {
 
     @Test
     public void testExcludeClasses() {
-        HistorageViaJDT historage = new HistorageViaJDT();
+        HistorageJdt historage = new HistorageJdt();
         historage.requiresClasses = false;
         assertTrue(generateModules(historage).stream()
                 .noneMatch(m -> m.getFilename().endsWith(".cjava")));
@@ -133,7 +133,7 @@ public class HistorageViaJDTTest {
 
     @Test
     public void testExcludeMethods() {
-        HistorageViaJDT historage = new HistorageViaJDT();
+        HistorageJdt historage = new HistorageJdt();
         historage.requiresMethods = false;
         assertTrue(generateModules(historage).stream()
                 .noneMatch(m -> m.getFilename().endsWith(".mjava")));
@@ -141,7 +141,7 @@ public class HistorageViaJDTTest {
 
     @Test
     public void testExcludeFields() {
-        HistorageViaJDT historage = new HistorageViaJDT();
+        HistorageJdt historage = new HistorageJdt();
         historage.requiresFields = false;
         assertTrue(generateModules(historage).stream()
                 .noneMatch(m -> m.getFilename().endsWith(".fjava")));
@@ -149,7 +149,7 @@ public class HistorageViaJDTTest {
 
     @Test
     public void testDigestParameters() {
-        HistorageViaJDT historage = new HistorageViaJDT();
+        HistorageJdt historage = new HistorageJdt();
         historage.digestParameters = true;
         List<Module> modules = generateModules(historage);
 
@@ -166,7 +166,7 @@ public class HistorageViaJDTTest {
     @Test
     public void testNonJavaFilePassedThrough() {
         BlobEntry entry = HotEntry.ofBlob("README.md", "# Hello");
-        HistorageViaJDT historage = new HistorageViaJDT();
+        HistorageJdt historage = new HistorageJdt();
         AnyHotEntry result = historage.rewriteBlobEntry(entry, Context.init());
         assertEquals(1, result.size());
         assertSame(entry, result.stream().findFirst().orElseThrow());
@@ -174,7 +174,7 @@ public class HistorageViaJDTTest {
 
     @Test
     public void testRequiresOriginals() {
-        HistorageViaJDT historage = new HistorageViaJDT();
+        HistorageJdt historage = new HistorageJdt();
         historage.requiresOriginals = false;
         BlobEntry entry = HotEntry.ofBlob("Hello.java", sampleSource);
         AnyHotEntry result = historage.rewriteBlobEntry(entry, Context.init());

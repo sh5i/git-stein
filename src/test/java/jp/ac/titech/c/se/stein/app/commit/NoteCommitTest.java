@@ -1,7 +1,7 @@
 package jp.ac.titech.c.se.stein.app.commit;
 
-import jp.ac.titech.c.se.stein.app.blob.HistorageViaJDT;
-import jp.ac.titech.c.se.stein.app.blob.TokenizeViaJDT;
+import jp.ac.titech.c.se.stein.app.blob.HistorageJdt;
+import jp.ac.titech.c.se.stein.app.blob.TokenizeJdt;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -50,7 +50,7 @@ public class NoteCommitTest {
         // Tokenize → NoteCommit: notes contain original commit IDs
         final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
 
-        try (RepositoryAccess tokenized = TestRepo.rewrite(source,new TokenizeViaJDT());
+        try (RepositoryAccess tokenized = TestRepo.rewrite(source,new TokenizeJdt());
              RepositoryAccess noted = TestRepo.rewrite(tokenized,new NoteCommit())) {
 
             final List<RevCommit> commits = noted.collectCommits("refs/heads/main");
@@ -70,8 +70,8 @@ public class NoteCommitTest {
         // Historage → Tokenize → NoteCommit: notes should still trace back to original
         final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
 
-        try (RepositoryAccess step1 = TestRepo.rewrite(source,new HistorageViaJDT());
-             RepositoryAccess step2 = TestRepo.rewrite(step1,new TokenizeViaJDT());
+        try (RepositoryAccess step1 = TestRepo.rewrite(source,new HistorageJdt());
+             RepositoryAccess step2 = TestRepo.rewrite(step1,new TokenizeJdt());
              RepositoryAccess noted = TestRepo.rewrite(step2,new NoteCommit())) {
 
             final List<RevCommit> commits = noted.collectCommits("refs/heads/main");

@@ -1,6 +1,6 @@
 package jp.ac.titech.c.se.stein.rewriter;
 
-import jp.ac.titech.c.se.stein.app.blob.TokenizeViaJDT;
+import jp.ac.titech.c.se.stein.app.blob.TokenizeJdt;
 import jp.ac.titech.c.se.stein.app.commit.NoteCommit;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
@@ -125,11 +125,11 @@ public class CommitTranslatorTest {
         final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
 
         final CommitTranslator composite = CommitTranslator.composite(
-                CommitTranslator.fromBlob(new TokenizeViaJDT()),
+                CommitTranslator.fromBlob(new TokenizeJdt()),
                 new NoteCommit());
 
         try (RepositoryAccess compositeResult = TestRepo.rewrite(source, composite);
-             RepositoryAccess step1 = TestRepo.rewrite(source, new TokenizeViaJDT());
+             RepositoryAccess step1 = TestRepo.rewrite(source, new TokenizeJdt());
              RepositoryAccess sequentialResult = TestRepo.rewrite(step1, new NoteCommit())) {
 
             final List<RevCommit> compositeCommits = compositeResult.collectCommits("refs/heads/main");

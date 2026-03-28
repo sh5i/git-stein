@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 /**
  * A Historage generator using universal-ctags.
  * Splits source files into finer-grained modules (one file per language object)
- * based on ctags output. For Java-specific splitting via JDT, see {@link HistorageViaJDT}.
+ * based on ctags output. For Java-specific splitting via JDT, see {@link HistorageJdt}.
  *
  * <p>Requires the {@code ctags} command to be available on the system.</p>
  */

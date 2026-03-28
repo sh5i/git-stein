@@ -5,7 +5,7 @@ import jp.ac.titech.c.se.stein.core.Context;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.app.Identity;
-import jp.ac.titech.c.se.stein.app.blob.HistorageViaJDT;
+import jp.ac.titech.c.se.stein.app.blob.HistorageJdt;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
@@ -85,11 +85,11 @@ public class PersistentEntryCacheTest {
     @Test
     public void testCacheWithHistorage() {
         try (RepositoryAccess target = TestRepo.create(true)) {
-            rewriteWithCache(new HistorageViaJDT().toRewriter(), target.repo);
+            rewriteWithCache(new HistorageJdt().toRewriter(), target.repo);
             final List<RevCommit> firstRun = target.collectCommits("refs/heads/main");
             assertFalse(firstRun.isEmpty());
 
-            rewriteWithCache(new HistorageViaJDT().toRewriter(), target.repo);
+            rewriteWithCache(new HistorageJdt().toRewriter(), target.repo);
             final List<RevCommit> secondRun = target.collectCommits("refs/heads/main");
 
             assertEquals(firstRun.size(), secondRun.size());
