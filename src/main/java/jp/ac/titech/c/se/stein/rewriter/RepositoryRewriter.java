@@ -96,6 +96,7 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     public static final String R_NOTES_ORIG = "refs/notes/git-stein-orig";
 
+    @Getter
     protected RepositoryAccess source, target;
 
     /**
