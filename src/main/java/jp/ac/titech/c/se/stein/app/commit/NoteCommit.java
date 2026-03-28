@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 @ToString
 @Command(name = "@note-commit", description = "Note original commit id on each commit message")
-public class NoteCommit extends RepositoryRewriter {
+public class NoteCommit implements CommitTranslator {
     @Option(names = "--length", paramLabel = "<num>", description = "length of SHA1 hash (default: ${DEFAULT-VALUE})")
     protected int length = 40;
 
