@@ -56,7 +56,7 @@ public class RewriteBenchmark {
         results.add(benchmark("tokenize-jdt", sourceDir, () -> new TokenizeViaJDT().toRewriter(), alternates, cache));
         results.add(benchmark("historage-jdt", sourceDir, () -> new HistorageViaJDT().toRewriter(), alternates, cache));
         results.add(benchmark("historage+tokenize", sourceDir,
-                () -> new BlobTranslator.Composite(new HistorageViaJDT(), new TokenizeViaJDT()), alternates, cache));
+                () -> BlobTranslator.composite(new HistorageViaJDT(), new TokenizeViaJDT()).toRewriter(), alternates, cache));
 
         // summary
         System.out.println();

@@ -4,7 +4,6 @@ import jp.ac.titech.c.se.stein.app.blob.HistorageViaJDT;
 import jp.ac.titech.c.se.stein.app.blob.TokenizeViaJDT;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -30,18 +29,19 @@ public class NoteCommitTest {
 
     @Test
     public void testNoTransform() {
-        // NoteCommit directly on source: no prior notes → zero id prefix
-        try (RepositoryAccess result = TestRepo.rewrite(source,new NoteCommit())) {
+        // NoteCommit directly on source: no prior notes → commit's own id prefix
+        final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
+
+        try (RepositoryAccess result = TestRepo.rewrite(source, new NoteCommit())) {
             final List<RevCommit> commits = result.collectCommits("refs/heads/main");
             assertEquals(3, commits.size());
 
-            final String zeroId = ObjectId.zeroId().name();
-            for (RevCommit commit : commits) {
-                assertTrue(commit.getFullMessage().startsWith(zeroId + " "));
+            for (int i = 0; i < 3; i++) {
+                final String msg = commits.get(i).getFullMessage();
+                final String expectedPrefix = sourceCommits.get(i).getId().name();
+                assertTrue(msg.startsWith(expectedPrefix + " "),
+                        "Expected source id " + expectedPrefix + " in: " + msg);
             }
-            assertEquals(zeroId + " initial", commits.get(0).getFullMessage());
-            assertEquals(zeroId + " add features", commits.get(1).getFullMessage());
-            assertEquals(zeroId + " modern syntax", commits.get(2).getFullMessage());
         }
     }
 

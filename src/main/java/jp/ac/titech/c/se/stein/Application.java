@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.app.Identity;
 import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
 import jp.ac.titech.c.se.stein.util.SettableHelpCommand;
@@ -292,7 +291,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
                 .collect(Collectors.toList());
         if (conf.useComposite) {
             log.debug("Optimizing rewriters...");
-            commands = optimizeRewriters(commands);
+            commands = RewriterCommand.optimize(commands);
         }
         this.rewriters.addAll(prepareRewriters(commands));
 
@@ -305,35 +304,6 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
     public List<RepositoryRewriter> prepareRewriters(final List<RewriterCommand> commands) {
         return commands.stream().map(RewriterCommand::toRewriter).collect(Collectors.toList());
-    }
-
-    public List<RewriterCommand> optimizeRewriters(final List<RewriterCommand> commands) {
-        final List<RewriterCommand> result = new ArrayList<>();
-        final List<BlobTranslator> pending = new ArrayList<>();
-
-        for (final RewriterCommand cmd : commands) {
-            if (cmd instanceof BlobTranslator t) {
-                pending.add(t);
-            } else {
-                flushPendingTranslators(pending, result);
-                result.add(cmd);
-            }
-        }
-        flushPendingTranslators(pending, result);
-        return result;
-    }
-
-    private void flushPendingTranslators(final List<BlobTranslator> pending, final List<RewriterCommand> result) {
-        if (pending.isEmpty()) {
-            return;
-        }
-        if (pending.size() >= 2) {
-            log.info("Compose {} blob translators: {}", pending.size(), pending);
-            result.add(new BlobTranslator.Composite(pending));
-        } else {
-            result.add(new BlobTranslator.Single(pending.get(0)));
-        }
-        pending.clear();
     }
 
     /**

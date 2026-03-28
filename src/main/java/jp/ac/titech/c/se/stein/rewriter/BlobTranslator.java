@@ -24,6 +24,14 @@ public interface BlobTranslator extends RewriterCommand {
         return (entry, c) -> entry.update(f.apply(entry.getContent()));
     }
 
+    static BlobTranslator composite(BlobTranslator... translators) {
+        return new Composite(translators);
+    }
+
+    static BlobTranslator composite(List<BlobTranslator> translators) {
+        return new Composite(translators);
+    }
+
     default RepositoryRewriter toRewriter() {
         return new Single(this);
     }
@@ -44,7 +52,7 @@ public interface BlobTranslator extends RewriterCommand {
     }
 
     @ToString
-    class Composite extends RepositoryRewriter {
+    class Composite implements BlobTranslator {
         BlobTranslator[] translators;
 
         public Composite(BlobTranslator... translators) {

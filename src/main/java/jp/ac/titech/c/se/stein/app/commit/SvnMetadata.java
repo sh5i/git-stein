@@ -16,7 +16,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
+import jp.ac.titech.c.se.stein.rewriter.CommitTranslator;
 import jp.ac.titech.c.se.stein.core.Try;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -29,7 +29,7 @@ import picocli.CommandLine.Option;
 @Slf4j
 @ToString
 @Command(name = "@svn-metadata", description = "Attach metadata obtained from svn2git")
-public class SvnMetadata extends RepositoryRewriter {
+public class SvnMetadata implements CommitTranslator {
     @Option(names = "--svn-mapping", paramLabel = "<log-git-repository>", description = "svn mapping",
             required = true)
     protected Path svnMappingFile;
@@ -41,12 +41,12 @@ public class SvnMetadata extends RepositoryRewriter {
     protected Map<ObjectId, Integer> mapping;
 
     @Override
-    protected void setUp(final Context c) {
+    public void setUp(final Context c) {
         mapping = Try.io(() -> collectCommitMapping(svnMappingFile, objectMappingFile));
     }
 
     @Override
-    protected String rewriteCommitMessage(final String message, final Context c) {
+    public String rewriteCommitMessage(final String message, final Context c) {
         final RevCommit commit = c.getCommit();
         final Integer svnId = mapping.get(commit.getId());
         if (svnId != null) {

@@ -29,8 +29,7 @@ public class BlobTranslatorTest {
 
     @Test
     public void testSingleCompositeSingle() {
-        final RepositoryRewriter translator = new BlobTranslator.Composite(
-                BlobTranslator.of(String::toUpperCase));
+        final BlobTranslator translator = BlobTranslator.composite(BlobTranslator.of(String::toUpperCase));
         final AnyHotEntry result = translator.rewriteBlobEntry(HotEntry.ofBlob("f.txt", "hello"), CTX);
         assertEquals(1, result.size());
         assertEquals("HELLO", result.asBlob().getContent());
@@ -38,7 +37,7 @@ public class BlobTranslatorTest {
 
     @Test
     public void testCompositeMultiple() {
-        final RepositoryRewriter translator = new BlobTranslator.Composite(
+        final BlobTranslator translator = BlobTranslator.composite(
                 BlobTranslator.of(s -> "PREFIX:" + s),
                 BlobTranslator.of(String::toUpperCase));
         final AnyHotEntry result = translator.rewriteBlobEntry(HotEntry.ofBlob("f.txt", "hello"), CTX);
@@ -77,8 +76,7 @@ public class BlobTranslatorTest {
             set.add(entry.rename("copy_" + entry.getName()));
             return set;
         };
-        final RepositoryRewriter translator = new BlobTranslator.Composite(
-                splitter, BlobTranslator.of(String::toUpperCase));
+        final BlobTranslator translator = BlobTranslator.composite(splitter, BlobTranslator.of(String::toUpperCase));
         final List<? extends HotEntry> entries = translator
                 .rewriteBlobEntry(HotEntry.ofBlob("f.txt", "hello"), CTX)
                 .stream().collect(Collectors.toList());
@@ -90,8 +88,7 @@ public class BlobTranslatorTest {
     @Test
     public void testFinerGit() throws IOException {
         try (RepositoryAccess source = TestRepo.createSample()) {
-            final RepositoryRewriter composite =
-                    new BlobTranslator.Composite(new HistorageViaJDT(), new TokenizeViaJDT());
+            final BlobTranslator composite = BlobTranslator.composite(new HistorageViaJDT(), new TokenizeViaJDT());
 
             try (RepositoryAccess compositeResult = TestRepo.rewrite(source, composite);
                  RepositoryAccess step1 = TestRepo.rewrite(source, new HistorageViaJDT());

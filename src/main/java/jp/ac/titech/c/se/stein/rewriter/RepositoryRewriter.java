@@ -15,6 +15,7 @@ import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.core.cache.*;
 import jp.ac.titech.c.se.stein.entry.*;
 import jp.ac.titech.c.se.stein.jgit.RevWalk;
+import lombok.Getter;
 import lombok.Setter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -95,6 +96,7 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     public static final String R_NOTES_ORIG = "refs/notes/git-stein-orig";
 
+    @Getter
     protected RepositoryAccess source, target;
 
     /**
@@ -155,18 +157,19 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     public void rewrite(final Context c) {
-        setUp(c);
-        try (final RevWalk walk = prepareRevisionWalk(c)) {
+        final Context uc = c.with(Key.rewriter, this);
+        setUp(uc);
+        try (final RevWalk walk = prepareRevisionWalk(uc)) {
             if (config.nthreads >= 2) {
-                rewriteRootTrees(walk, c);
+                rewriteRootTrees(walk, uc);
                 Try.io(walk::memoReset);
             }
-            rewriteCommits(walk, c);
-            updateRefs(c);
+            rewriteCommits(walk, uc);
+            updateRefs(uc);
             if (config.isAddingNotes) {
-                prevNotes.write(R_NOTES_PREV, c);
+                prevNotes.write(R_NOTES_PREV, uc);
                 if (isChained) {
-                    origNotes.write(R_NOTES_ORIG, c);
+                    origNotes.write(R_NOTES_ORIG, uc);
                 } else {
                     // Single transformation: orig = prev, share the same ref
                     target.applyRefUpdate(new RefEntry(R_NOTES_ORIG, target.getRef(R_NOTES_PREV).getObjectId()));
@@ -174,7 +177,7 @@ public class RepositoryRewriter implements RewriterCommand {
                 // Default notes = orig (for git log display)
                 target.applyRefUpdate(new RefEntry(Constants.R_NOTES_COMMITS, target.getRef(R_NOTES_ORIG).getObjectId()));
             } else {
-                target.writeNotes(target.getDefaultNotes(), c);
+                target.writeNotes(target.getDefaultNotes(), uc);
             }
         } finally {
             final long blobHit = blobCacheHits.get(), blobMiss = blobCacheMisses.get();
@@ -191,7 +194,7 @@ public class RepositoryRewriter implements RewriterCommand {
             if (entryCache != null) {
                 entryCache.close();
             }
-            cleanUp(c);
+            cleanUp(uc);
         }
     }
 
@@ -370,7 +373,7 @@ public class RepositoryRewriter implements RewriterCommand {
 
         // A root tree is represented as a special entry whose name is "/"
         final Entry root = Entry.of(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
-        final AnyColdEntry newRoot = getEntry(root, c);
+        final AnyColdEntry newRoot = entryResolver.resolve(root, c);
         final ObjectId newId = newRoot instanceof AnyColdEntry.Empty ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
 
         log.debug("Rewrite root tree: {} -> {} {}", treeId.name(), newId.name(), c);
@@ -379,9 +382,10 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     /**
-     * Obtains tree entries from a tree entry.
+     * The entry resolver that provides cached entry resolution.
+     * Translators use this to resolve child entries during tree rewriting.
      */
-    protected AnyColdEntry getEntry(final Entry entry, final Context c) {
+    protected final EntryResolver entryResolver = (entry, c) -> {
         // computeIfAbsent is unsuitable because this may be invoked recursively
         final AnyColdEntry cached = entryMapping.get(entry);
         if (cached != null) {
@@ -392,7 +396,7 @@ public class RepositoryRewriter implements RewriterCommand {
         final AnyColdEntry result = rewriteEntry(entry, c);
         entryMapping.put(entry, result);
         return result;
-    }
+    };
 
     /**
      * Rewrites an entry by dispatching to the appropriate type.
@@ -404,7 +408,7 @@ public class RepositoryRewriter implements RewriterCommand {
             case tree -> {
                 final String path = entry.isRoot() ? "" : c.getPath() + "/" + entry.name;
                 final String dir = isPathSensitive ? path : null;
-                yield rewriteTreeEntry(HotEntry.ofTree(entry, source, dir), uc.with(Key.path, path));
+                yield rewriteTreeEntry(HotEntry.ofTree(entry, source, dir), entryResolver, uc.with(Key.path, path));
             }
             case link -> rewriteLinkEntry(entry, uc);
         };
@@ -420,10 +424,10 @@ public class RepositoryRewriter implements RewriterCommand {
      * Rewrites a tree entry. Loads children from the source, rewrites each with caching,
      * and writes the resulting tree to the target.
      */
-    protected AnyColdEntry rewriteTreeEntry(TreeEntry entry, Context c) {
+    protected AnyColdEntry rewriteTreeEntry(TreeEntry entry, EntryResolver resolver, Context c) {
         final List<Entry> entries = new ArrayList<>();
         for (final Entry e : entry.getEntries()) {
-            final AnyColdEntry rewritten = getEntry(e, c);
+            final AnyColdEntry rewritten = resolver.resolve(e, c);
             rewritten.stream().filter(r -> !r.getId().equals(ZERO)).forEach(entries::add);
         }
         final ObjectId newId = entries.isEmpty() ? ZERO : target.writeTree(entries, c);
