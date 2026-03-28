@@ -10,6 +10,7 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
+import jp.ac.titech.c.se.stein.rewriter.CommitTranslator;
 import jp.ac.titech.c.se.stein.app.Identity;
 import jp.ac.titech.c.se.stein.rewriter.RewriterCommand;
 import jp.ac.titech.c.se.stein.util.SettableHelpCommand;
@@ -308,30 +309,70 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     }
 
     public List<RewriterCommand> optimizeRewriters(final List<RewriterCommand> commands) {
+        return composeCommitTranslators(composeBlobTranslators(commands));
+    }
+
+    /**
+     * Phase 1: compose consecutive BlobTranslators.
+     */
+    private List<RewriterCommand> composeBlobTranslators(final List<RewriterCommand> commands) {
         final List<RewriterCommand> result = new ArrayList<>();
         final List<BlobTranslator> pending = new ArrayList<>();
-
         for (final RewriterCommand cmd : commands) {
             if (cmd instanceof BlobTranslator t) {
                 pending.add(t);
             } else {
-                flushPendingTranslators(pending, result);
+                flushBlobs(pending, result);
                 result.add(cmd);
             }
         }
-        flushPendingTranslators(pending, result);
+        flushBlobs(pending, result);
         return result;
     }
 
-    private void flushPendingTranslators(final List<BlobTranslator> pending, final List<RewriterCommand> result) {
+    private void flushBlobs(final List<BlobTranslator> pending, final List<RewriterCommand> result) {
         if (pending.isEmpty()) {
             return;
         }
         if (pending.size() >= 2) {
             log.info("Compose {} blob translators: {}", pending.size(), pending);
-            result.add(new BlobTranslator.Composite(pending));
+            result.add(BlobTranslator.composite(pending));
         } else {
-            result.add(new BlobTranslator.Single(pending.get(0)));
+            result.add(pending.get(0));
+        }
+        pending.clear();
+    }
+
+    /**
+     * Phase 2: compose consecutive CommitTranslators and BlobTranslators (lifting BlobTranslators).
+     */
+    private List<RewriterCommand> composeCommitTranslators(final List<RewriterCommand> commands) {
+        final List<RewriterCommand> result = new ArrayList<>();
+        final List<RewriterCommand> pending = new ArrayList<>();
+        for (final RewriterCommand cmd : commands) {
+            if (cmd instanceof CommitTranslator || cmd instanceof BlobTranslator) {
+                pending.add(cmd);
+            } else {
+                flushCommits(pending, result);
+                result.add(cmd);
+            }
+        }
+        flushCommits(pending, result);
+        return result;
+    }
+
+    private void flushCommits(final List<RewriterCommand> pending, final List<RewriterCommand> result) {
+        if (pending.isEmpty()) {
+            return;
+        }
+        if (pending.size() >= 2) {
+            final List<CommitTranslator> lifted = pending.stream()
+                    .map(c -> c instanceof BlobTranslator t ? CommitTranslator.fromBlob(t) : (CommitTranslator) c)
+                    .collect(Collectors.toList());
+            log.info("Compose {} commit translators: {}", lifted.size(), lifted);
+            result.add(CommitTranslator.composite(lifted));
+        } else {
+            result.addAll(pending);
         }
         pending.clear();
     }
