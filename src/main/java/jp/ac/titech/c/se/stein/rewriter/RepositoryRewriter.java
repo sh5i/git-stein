@@ -15,6 +15,7 @@ import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.core.cache.*;
 import jp.ac.titech.c.se.stein.entry.*;
 import jp.ac.titech.c.se.stein.jgit.RevWalk;
+import lombok.Getter;
 import lombok.Setter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -155,18 +156,19 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     public void rewrite(final Context c) {
-        setUp(c);
-        try (final RevWalk walk = prepareRevisionWalk(c)) {
+        final Context uc = c.with(Key.rewriter, this);
+        setUp(uc);
+        try (final RevWalk walk = prepareRevisionWalk(uc)) {
             if (config.nthreads >= 2) {
-                rewriteRootTrees(walk, c);
+                rewriteRootTrees(walk, uc);
                 Try.io(walk::memoReset);
             }
-            rewriteCommits(walk, c);
-            updateRefs(c);
+            rewriteCommits(walk, uc);
+            updateRefs(uc);
             if (config.isAddingNotes) {
-                prevNotes.write(R_NOTES_PREV, c);
+                prevNotes.write(R_NOTES_PREV, uc);
                 if (isChained) {
-                    origNotes.write(R_NOTES_ORIG, c);
+                    origNotes.write(R_NOTES_ORIG, uc);
                 } else {
                     // Single transformation: orig = prev, share the same ref
                     target.applyRefUpdate(new RefEntry(R_NOTES_ORIG, target.getRef(R_NOTES_PREV).getObjectId()));
@@ -174,7 +176,7 @@ public class RepositoryRewriter implements RewriterCommand {
                 // Default notes = orig (for git log display)
                 target.applyRefUpdate(new RefEntry(Constants.R_NOTES_COMMITS, target.getRef(R_NOTES_ORIG).getObjectId()));
             } else {
-                target.writeNotes(target.getDefaultNotes(), c);
+                target.writeNotes(target.getDefaultNotes(), uc);
             }
         } finally {
             final long blobHit = blobCacheHits.get(), blobMiss = blobCacheMisses.get();
@@ -191,7 +193,7 @@ public class RepositoryRewriter implements RewriterCommand {
             if (entryCache != null) {
                 entryCache.close();
             }
-            cleanUp(c);
+            cleanUp(uc);
         }
     }
 

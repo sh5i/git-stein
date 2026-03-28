@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import jp.ac.titech.c.se.stein.Application;
+import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -31,7 +32,7 @@ public class Context implements Map<Context.Key, Object> {
      * The keys that can be stored in a context.
      */
     public enum Key {
-        commit, path, entry, rev, tag, ref, conf, inserter;
+        commit, path, entry, rev, tag, ref, conf, inserter, rewriter;
 
         public static final Key[] ALL = Key.values();
         public static final int SIZE = ALL.length;
@@ -229,5 +230,12 @@ public class Context implements Map<Context.Key, Object> {
      */
     public ObjectInserter getInserter() {
         return (ObjectInserter) get(Key.inserter);
+    }
+
+    /**
+     * Returns the rewriter, or {@code null} if not set.
+     */
+    public RepositoryRewriter getRewriter() {
+        return (RepositoryRewriter) get(Key.rewriter);
     }
 }
