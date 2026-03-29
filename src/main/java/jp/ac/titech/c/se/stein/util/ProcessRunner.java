@@ -83,9 +83,6 @@ public class ProcessRunner implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
-        try (final BufferedReader err = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
-            err.lines().forEach(line -> log.warn("stderr: {} {}", line, c));
-        }
         if (reader != null) {
             reader.close();
         }
