@@ -70,6 +70,7 @@ public class ProcessRunner implements AutoCloseable {
 
     /**
      * Returns a reader for the process's stdout. The reader is closed when this runner is closed.
+     * Mutually exclusive with {@link #getResult()}.
      */
     public BufferedReader getResultReader() {
         reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
@@ -78,6 +79,7 @@ public class ProcessRunner implements AutoCloseable {
 
     /**
      * Reads and returns the entire stdout as a byte array.
+     * Mutually exclusive with {@link #getResultReader()}.
      */
     public byte[] getResult() {
         try (final InputStream in = proc.getInputStream()) {
