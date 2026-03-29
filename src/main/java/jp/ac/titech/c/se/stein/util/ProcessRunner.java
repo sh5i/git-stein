@@ -48,17 +48,23 @@ public class ProcessRunner implements AutoCloseable {
     }
 
     /**
-     * Runs the given command, writing {@code input} to its stdin.
+     * Runs the given command, writing {@code input} to its stdin in a separate thread
+     * to avoid deadlock when the command's stdout buffer fills up.
      */
     public ProcessRunner(final String[] cmdline, final byte[] input, final Context c) throws IOException {
         this.proc = new ProcessBuilder()
                 .command(cmdline)
                 .redirectError(ProcessBuilder.Redirect.INHERIT)
                 .start();
-        // FIXME: does not work if the target command blocks
-        try (final OutputStream out = proc.getOutputStream()) {
-            out.write(input);
-        }
+        final Thread writer = new Thread(() -> {
+            try (final OutputStream out = proc.getOutputStream()) {
+                out.write(input);
+            } catch (IOException e) {
+                log.warn("Failed to write to stdin: {} {}", e.getMessage(), c);
+            }
+        });
+        writer.setDaemon(true);
+        writer.start();
         this.c = c;
     }
 
