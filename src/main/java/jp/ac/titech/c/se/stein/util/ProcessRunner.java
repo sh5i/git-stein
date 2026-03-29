@@ -86,5 +86,14 @@ public class ProcessRunner implements AutoCloseable {
         if (reader != null) {
             reader.close();
         }
+        try {
+            final int exitCode = proc.waitFor();
+            if (exitCode != 0) {
+                log.warn("Process exited with code {}: {}", exitCode, c);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while waiting for process: {}", c);
+        }
     }
 }
