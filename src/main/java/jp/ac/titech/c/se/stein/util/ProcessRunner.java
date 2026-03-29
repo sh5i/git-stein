@@ -18,8 +18,12 @@ public class ProcessRunner implements AutoCloseable {
         try {
             final Process p = new ProcessBuilder(command, "--version")
                     .redirectErrorStream(true).start();
-            p.getInputStream().readAllBytes();
-            return p.waitFor() == 0;
+            try {
+                p.getInputStream().readAllBytes();
+                return p.waitFor() == 0;
+            } finally {
+                p.destroyForcibly();
+            }
         } catch (Exception e) {
             return false;
         }
