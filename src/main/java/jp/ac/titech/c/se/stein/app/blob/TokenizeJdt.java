@@ -23,10 +23,10 @@ import picocli.CommandLine.Command;
 @Slf4j
 @ToString
 @Command(name = "@tokenize-jdt", description = "Encode Java source files to linetoken format via JDT")
-public class TokenizeViaJDT implements BlobTranslator {
+public class TokenizeJdt implements BlobTranslator {
     @Override
     public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
-        if (!HistorageViaJDT.JAVA.accept(entry)) {
+        if (!HistorageJdt.JAVA.accept(entry)) {
             return entry;
         }
         final String text = SourceText.of(entry.getBlob()).getContent();

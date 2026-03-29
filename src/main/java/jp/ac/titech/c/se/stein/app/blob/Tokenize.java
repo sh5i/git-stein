@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
  * The inverse operation is {@link Untokenize}.
  *
  * <p>Tokenization is language-agnostic, splitting on whitespace, word characters, and symbols.
- * For Java-aware tokenization, see {@link TokenizeViaJDT}.</p>
+ * For Java-aware tokenization, see {@link TokenizeJdt}.</p>
  */
 @ToString
 @Command(name = "@tokenize", description = "Encode source files to linetoken format")

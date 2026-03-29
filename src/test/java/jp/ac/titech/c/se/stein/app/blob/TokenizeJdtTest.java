@@ -9,33 +9,33 @@ import java.nio.charset.StandardCharsets;
 import static jp.ac.titech.c.se.stein.app.blob.TokenizeTest.tokens;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class TokenizeViaJDTTest {
+public class TokenizeJdtTest {
 
     @Test
     public void testEncode() {
-        assertEquals("", TokenizeViaJDT.encode(""));
+        assertEquals("", TokenizeJdt.encode(""));
 
         assertEquals(tokens("int", " ", "x", " ", "=", " ", "1", ";"),
-                TokenizeViaJDT.encode("int x = 1;"));
+                TokenizeJdt.encode("int x = 1;"));
     }
 
     @Test
     public void testEncodePreservesComments() {
         // JDT scanner includes trailing newline in line comment token
         assertEquals(tokens("// comment\r", "int", " ", "x", ";"),
-                TokenizeViaJDT.encode("// comment\nint x;"));
+                TokenizeJdt.encode("// comment\nint x;"));
     }
 
     @Test
     public void testEncodePreservesStringLiteral() {
         assertEquals(tokens("String", " ", "s", " ", "=", " ", "\"hello\"", ";"),
-                TokenizeViaJDT.encode("String s = \"hello\";"));
+                TokenizeJdt.encode("String s = \"hello\";"));
     }
 
     @Test
     public void testEncodeMultiline() {
         assertEquals(tokens("class", " ", "A", " ", "{", "\r", "}"),
-                TokenizeViaJDT.encode("class A {\n}"));
+                TokenizeJdt.encode("class A {\n}"));
     }
 
     @Test
@@ -47,6 +47,6 @@ public class TokenizeViaJDTTest {
     }
 
     private void assertRoundTrip(String source) {
-        assertEquals(source, Untokenize.decode(TokenizeViaJDT.encode(source)));
+        assertEquals(source, Untokenize.decode(TokenizeJdt.encode(source)));
     }
 }

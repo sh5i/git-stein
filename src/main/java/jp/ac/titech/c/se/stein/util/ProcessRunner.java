@@ -18,8 +18,12 @@ public class ProcessRunner implements AutoCloseable {
         try {
             final Process p = new ProcessBuilder(command, "--version")
                     .redirectErrorStream(true).start();
-            p.getInputStream().readAllBytes();
-            return p.waitFor() == 0;
+            try {
+                p.getInputStream().readAllBytes();
+                return p.waitFor() == 0;
+            } finally {
+                p.destroyForcibly();
+            }
         } catch (Exception e) {
             return false;
         }
@@ -44,22 +48,29 @@ public class ProcessRunner implements AutoCloseable {
     }
 
     /**
-     * Runs the given command, writing {@code input} to its stdin.
+     * Runs the given command, writing {@code input} to its stdin in a separate thread
+     * to avoid deadlock when the command's stdout buffer fills up.
      */
     public ProcessRunner(final String[] cmdline, final byte[] input, final Context c) throws IOException {
         this.proc = new ProcessBuilder()
                 .command(cmdline)
                 .redirectError(ProcessBuilder.Redirect.INHERIT)
                 .start();
-        // FIXME: does not work if the target command blocks
-        try (final OutputStream out = proc.getOutputStream()) {
-            out.write(input);
-        }
+        final Thread writer = new Thread(() -> {
+            try (final OutputStream out = proc.getOutputStream()) {
+                out.write(input);
+            } catch (IOException e) {
+                log.warn("Failed to write to stdin: {} {}", e.getMessage(), c);
+            }
+        });
+        writer.setDaemon(true);
+        writer.start();
         this.c = c;
     }
 
     /**
      * Returns a reader for the process's stdout. The reader is closed when this runner is closed.
+     * Mutually exclusive with {@link #getResult()}.
      */
     public BufferedReader getResultReader() {
         reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
@@ -68,6 +79,7 @@ public class ProcessRunner implements AutoCloseable {
 
     /**
      * Reads and returns the entire stdout as a byte array.
+     * Mutually exclusive with {@link #getResultReader()}.
      */
     public byte[] getResult() {
         try (final InputStream in = proc.getInputStream()) {
@@ -79,11 +91,17 @@ public class ProcessRunner implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
-        try (final BufferedReader err = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
-            err.lines().forEach(line -> log.warn("stderr: {} {}", line, c));
-        }
         if (reader != null) {
             reader.close();
+        }
+        try {
+            final int exitCode = proc.waitFor();
+            if (exitCode != 0) {
+                log.warn("Process exited with code {}: {}", exitCode, c);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while waiting for process: {}", c);
         }
     }
 }

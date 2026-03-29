@@ -36,7 +36,7 @@ import picocli.CommandLine.Option;
 @Slf4j
 @ToString
 @Command(name = "@historage-jdt", description = "Generate finer-grained Java modules via JDT")
-public class HistorageViaJDT implements BlobTranslator {
+public class HistorageJdt implements BlobTranslator {
     public static final NameFilter JAVA = new NameFilter(true, "*.java");
 
     public static final Gson GSON = new Gson();
