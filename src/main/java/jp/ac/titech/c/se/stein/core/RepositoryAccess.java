@@ -20,6 +20,7 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTag;
+import org.eclipse.jgit.storage.file.WindowCacheConfig;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,17 @@ public class RepositoryAccess implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(RepositoryAccess.class);
 
     public static final ObjectId[] NO_PARENTS = new ObjectId[0];
+
+    /**
+     * Sets the JGit stream-file threshold (process-global).
+     * Objects whose serialized size is at or above this value cannot be loaded into a {@code byte[]} and
+     * must be streamed; in particular, reading large trees requires a sufficient threshold.
+     */
+    public static void setStreamFileThreshold(final int threshold) {
+        final WindowCacheConfig wcc = new WindowCacheConfig();
+        wcc.setStreamFileThreshold(threshold);
+        wcc.install();
+    }
 
     public final Repository repo;
 

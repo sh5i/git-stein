@@ -1,12 +1,15 @@
 package jp.ac.titech.c.se.stein.core;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.testing.TestRepo;
+import org.eclipse.jgit.errors.LargeObjectException;
 import org.eclipse.jgit.errors.ObjectWritingException;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.notes.NoteMap;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.storage.pack.PackConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -64,7 +67,7 @@ public class RepositoryAccessTest {
     public void testTree() {
         final ObjectId blob1 = ra.writeBlob(HELLO, c);
         final ObjectId blob2 = ra.writeBlob(WORLD, c);
-        Entry[] entries1 = new Entry[]{Entry.of(BLOB_MODE, "hello.txt", blob1), Entry.of(BLOB_MODE, "world.txt", blob2)};
+        Entry[] entries1 = new Entry[] { Entry.of(BLOB_MODE, "hello.txt", blob1), Entry.of(BLOB_MODE, "world.txt", blob2) };
         final ObjectId treeId = ra.writeTree(List.of(entries1), c);
         flush();
 
@@ -77,7 +80,7 @@ public class RepositoryAccessTest {
 
     @Test
     public void testTreeWithPath() {
-        Entry[] entries1 = new Entry[]{Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c))};
+        Entry[] entries1 = new Entry[] { Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c)) };
         final ObjectId treeId = ra.writeTree(List.of(entries1), c);
         flush();
 
@@ -87,9 +90,9 @@ public class RepositoryAccessTest {
 
     @Test
     public void testNestedTree() {
-        Entry[] entries1 = new Entry[]{Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c))};
+        Entry[] entries1 = new Entry[] { Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c)) };
         final ObjectId inner = ra.writeTree(List.of(entries1), c);
-        Entry[] entries = new Entry[]{Entry.of(FileMode.TREE.getBits(), "subdir", inner)};
+        Entry[] entries = new Entry[] { Entry.of(FileMode.TREE.getBits(), "subdir", inner) };
         final ObjectId outer = ra.writeTree(List.of(entries), c);
         flush();
 
@@ -108,11 +111,55 @@ public class RepositoryAccessTest {
         assertTrue(ra.readTree(treeId, null).isEmpty());
     }
 
+    /**
+     * Builds a tree whose serialized size exceeds JGit's default threshold (50MB).
+     * Requires an on-disk (file-based) repo because {@link org.eclipse.jgit.storage.file.WindowCacheConfig} only applies there.
+     */
+    private static ObjectId buildLargeTree(final RepositoryAccess ra) throws IOException {
+        try (final ObjectInserter ins = ra.repo.newObjectInserter()) {
+            final Context tc = Context.init().with(Context.Key.inserter, ins);
+            final ObjectId blobId = ra.writeBlob(HELLO, tc);
+            final TreeFormatter f = new TreeFormatter();
+            final String suffix = "x".repeat(192);
+            // Entry [mode + space + name(200) + null + sha(20)] (~228) * 235,000 > 50MB
+            for (int i = 0; i < 235000; i++) {
+                f.append(String.format("%08d%s", i, suffix), FileMode.REGULAR_FILE, blobId);
+            }
+            final ObjectId treeId = f.insertTo(ins);
+            ins.flush();
+            try (final ObjectReader reader = ra.repo.newObjectReader()) {
+                assertTrue(reader.getObjectSize(treeId, Constants.OBJ_TREE) > 50L * 1024 * 1024);
+            }
+            return treeId;
+        }
+    }
+
+    @Test
+    public void testReadLargeTreeFailsAtDefault() throws Exception {
+        // With JGit's default threashold (50MB), a tree larger than 50MB throws LargeObjectException
+        RepositoryAccess.setStreamFileThreshold(PackConfig.DEFAULT_BIG_FILE_THRESHOLD);
+        try (final RepositoryAccess ra = TestRepo.create(true)) {
+            final ObjectId treeId = buildLargeTree(ra);
+            assertThrows(LargeObjectException.class, () -> ra.readTree(treeId, null));
+        }
+    }
+
+    @Test
+    public void testReadLargeTreeSucceedsAtMax() throws Exception {
+        // With the production setting (Integer.MAX_VALUE), the same tree round-trips successfully
+        RepositoryAccess.setStreamFileThreshold(Integer.MAX_VALUE);
+        try (final RepositoryAccess ra = TestRepo.create(true)) {
+            final ObjectId treeId = buildLargeTree(ra);
+            final List<Entry> entries = ra.readTree(treeId, null);
+            assertFalse(entries.isEmpty());
+        }
+    }
+
     // --- Commit ---
 
     @Test
     public void testCommit() {
-        Entry[] entries = new Entry[]{Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c))};
+        Entry[] entries = new Entry[] { Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c)) };
         final ObjectId treeId = ra.writeTree(List.of(entries), c);
         final ObjectId commit1 = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT, "first", c);
         flush();
@@ -120,7 +167,7 @@ public class RepositoryAccessTest {
         assertNotEquals(ObjectId.zeroId(), commit1);
         assertEquals(Constants.OBJ_COMMIT, ra.getObjectType(commit1));
 
-        final ObjectId commit2 = ra.writeCommit(new ObjectId[]{commit1}, treeId, IDENT, IDENT, "second", c);
+        final ObjectId commit2 = ra.writeCommit(new ObjectId[] { commit1 }, treeId, IDENT, IDENT, "second", c);
         flush();
         assertNotEquals(commit1, commit2);
     }
@@ -151,7 +198,7 @@ public class RepositoryAccessTest {
             try (final ObjectInserter targetInserter = targetRepo.newObjectInserter()) {
                 final Context tc = Context.init().with(Context.Key.inserter, targetInserter);
 
-                Entry[] entries = new Entry[]{Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c))};
+                Entry[] entries = new Entry[] { Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c)) };
                 final ObjectId treeId = ra.writeTree(List.of(entries), c);
                 flush();
 
@@ -166,7 +213,7 @@ public class RepositoryAccessTest {
 
     @Test
     public void testRef() {
-        Entry[] entries = new Entry[]{Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c))};
+        Entry[] entries = new Entry[] { Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c)) };
         ObjectId treeId = ra.writeTree(List.of(entries), c);
         final ObjectId commitId = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT, "hello", c);
         flush();
@@ -183,7 +230,7 @@ public class RepositoryAccessTest {
 
     @Test
     public void testRefDelete() {
-        Entry[] entries = new Entry[]{Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c))};
+        Entry[] entries = new Entry[] { Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c)) };
         ObjectId treeId = ra.writeTree(List.of(entries), c);
         final ObjectId commitId = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT, "hello", c);
         flush();
@@ -199,7 +246,7 @@ public class RepositoryAccessTest {
 
     @Test
     public void testNotes() {
-        Entry[] entries = new Entry[]{Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c))};
+        Entry[] entries = new Entry[] { Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c)) };
         ObjectId treeId = ra.writeTree(List.of(entries), c);
         final ObjectId commitId = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT, "hello", c);
         flush();
@@ -270,10 +317,10 @@ public class RepositoryAccessTest {
 
     @Test
     public void testCollectCommits() {
-        Entry[] entries = new Entry[]{Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c))};
+        Entry[] entries = new Entry[] { Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c)) };
         ObjectId treeId = ra.writeTree(List.of(entries), c);
         final ObjectId commit1 = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT, "first", c);
-        final ObjectId commit2 = ra.writeCommit(new ObjectId[]{commit1}, treeId, IDENT, IDENT, "second", c);
+        final ObjectId commit2 = ra.writeCommit(new ObjectId[] { commit1 }, treeId, IDENT, IDENT, "second", c);
         flush();
 
         ra.applyRefUpdate(new RefEntry("refs/heads/main", commit2));

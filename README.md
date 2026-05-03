@@ -102,7 +102,6 @@ public class MyTranslator implements BlobTranslator {
 - `--bare`: Treat that the specified repositories are bare.
 - `-j`, `--jobs=<nthreads>`: Rewrites trees in parallel using `<nthreads>` threads (see [Parallel Rewriting](#parallel-rewriting)). If the number of threads is omitted (just `-j` is given), the number of available processors is used.
 - `-n`, `--dry-run`: Do not actually modify the target repository.
-- `--stream-size-limit=<num>{,K,M,G}`: increase the stream size limit.
 - `--no-notes`: Stop noting the source commit ID to the commits in the target repository (see [Notes](#notes)).
 - `--no-pack`: Stop packing objects after transformation finished.
 - `--alternates`: Share source objects via Git alternates to skip writing unchanged objects, which speeds up transformations where many objects are unchanged. The target repository will depend on the source's object store until repacked.

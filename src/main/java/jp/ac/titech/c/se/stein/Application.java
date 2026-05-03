@@ -18,7 +18,6 @@ import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
-import org.eclipse.jgit.storage.file.WindowCacheConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -108,18 +107,6 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
         @Option(names = "--extra-attributes", description = "rewrite encoding and signature in commits", order = MIDDLE)
         public boolean isRewritingExtraAttributes = false;
-
-        @SuppressWarnings("unused")
-        @Option(names = "--stream-size-limit", paramLabel = "<num>{,K,M,G}", description = "increase stream size limit", order = MIDDLE,
-                converter = SizeConverter.class)
-        void setSizeLimit(final long limit) {
-            // default: 50MB is too small
-            final int intLimit = (int) Math.min(limit, Integer.MAX_VALUE);
-            log.info("Set stream size limit: {}", intLimit);
-            final WindowCacheConfig config = new WindowCacheConfig();
-            config.setStreamFileThreshold(intLimit);
-            config.install();
-        }
 
         @SuppressWarnings("unused")
         @Option(names = "--cmdpath", split = ":", paramLabel = "<p>", description = "add packages for search for commands", order = LOW)
@@ -317,6 +304,8 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     }
 
     public static void main(final String[] args) {
+        RepositoryAccess.setStreamFileThreshold(Integer.MAX_VALUE);
+
         final Application app = new Application();
         final CommandLine cmdline = new CommandLine(app);
         loadCommands(cmdline, BUILTIN_COMMAND_PACKAGE);
