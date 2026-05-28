@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.jgit.RevWalk;
 import jp.ac.titech.c.se.stein.jgit.TreeFormatter;
+import jp.ac.titech.c.se.stein.util.RawCommitUtils;
 import lombok.Getter;
 import org.eclipse.jgit.errors.ObjectWritingException;
 import org.eclipse.jgit.lib.*;
@@ -333,7 +334,19 @@ public class RepositoryAccess implements AutoCloseable {
     }
 
     /**
-     * Writes a commit object.
+     * Writes a commit object, preserving arbitrary extra headers (e.g., {@code encoding},
+     * {@code gpgsig}, {@code change-id}, {@code mergetag}) as raw bytes.
+     * The {@code extraHeaders} bytes are spliced verbatim between the committer line and the
+     * blank line separating headers from the message.
+     */
+    public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer,
+            final byte[] extraHeaders, final String message, final Charset encoding, final Context writingContext) {
+        final byte[] data = RawCommitUtils.buildCommit(parentIds, treeId, author, committer, extraHeaders, message, encoding);
+        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_COMMIT, data) : ins.insert(Constants.OBJ_COMMIT, data), writingContext);
+    }
+
+    /**
+     * Writes a commit object using {@link CommitBuilder}.
      */
     public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer,
             final String message, final Charset encoding, final GpgSignature signature, final Context writingContext) {

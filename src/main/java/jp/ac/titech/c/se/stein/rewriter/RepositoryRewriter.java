@@ -1,8 +1,5 @@
 package jp.ac.titech.c.se.stein.rewriter;
 
-import static java.nio.charset.StandardCharsets.US_ASCII;
-
-import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -13,13 +10,13 @@ import java.util.stream.StreamSupport;
 import com.google.common.cache.CacheBuilder;
 import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.core.cache.*;
+import jp.ac.titech.c.se.stein.util.RawCommitUtils;
 import jp.ac.titech.c.se.stein.entry.*;
 import jp.ac.titech.c.se.stein.jgit.RevWalk;
 import lombok.Getter;
 import lombok.Setter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
-import org.eclipse.jgit.lib.GpgSignature;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
@@ -322,9 +319,9 @@ public class RepositoryRewriter implements RewriterCommand {
         final String msg = rewriteCommitMessage(commit.getFullMessage(), uc);
         ObjectId newId;
         if (config.isRewritingExtraAttributes) {
-            final Charset enc = rewriteEncoding(commit.getEncoding(), uc);
-            final GpgSignature sig = rewriteSignature(commit.getRawGpgSignature(), uc);
-            newId = target.writeCommit(parentIds, treeId, author, committer, msg, enc, sig, uc);
+            final CommitHeaders headers = rewriteExtraHeaders(
+                    new CommitHeaders(RawCommitUtils.extractExtraHeaders(commit)), uc);
+            newId = target.writeCommit(parentIds, treeId, author, committer, headers.toBytes(), msg, commit.getEncoding(), uc);
         } else {
             newId = target.writeCommit(parentIds, treeId, author, committer, msg, uc);
         }
@@ -477,25 +474,14 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     /**
-     * Rewrites an encoding.
+     * Rewrites the extra headers (those between {@code committer} and the blank line) of a
+     * commit. Called only when {@code --extra-attributes} is enabled. The default returns
+     * {@code headers} unchanged, which preserves the original bytes verbatim.
      */
-    protected Charset rewriteEncoding(final Charset encoding, @SuppressWarnings("unused") final Context c) {
-        return encoding;
+    protected CommitHeaders rewriteExtraHeaders(final CommitHeaders headers, @SuppressWarnings("unused") final Context c) {
+        return headers;
     }
 
-    /**
-     * Rewrites a GPG signature.
-     */
-    protected GpgSignature rewriteSignature(final byte[] rawSignature, @SuppressWarnings("unused") final Context c) {
-        if (rawSignature != null) {
-            final String original = new String(rawSignature, US_ASCII);
-            // TODO fixing the spacing. Why this is needed?
-            final String fixed = original.replaceAll("\n ", "\n") + "\n";
-            return new GpgSignature(fixed.getBytes(US_ASCII));
-        } else {
-            return null;
-        }
-    }
 
     /**
      * Updates ref objects.

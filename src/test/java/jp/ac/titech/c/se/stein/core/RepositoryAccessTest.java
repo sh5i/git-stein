@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.core;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
+import jp.ac.titech.c.se.stein.util.RawCommitUtils;
 import org.eclipse.jgit.errors.LargeObjectException;
 import org.eclipse.jgit.errors.ObjectWritingException;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -170,6 +172,89 @@ public class RepositoryAccessTest {
         final ObjectId commit2 = ra.writeCommit(new ObjectId[] { commit1 }, treeId, IDENT, IDENT, "second", c);
         flush();
         assertNotEquals(commit1, commit2);
+    }
+
+    @Test
+    public void testCommitWithExtraHeaders() throws Exception {
+        // Verify that extra headers (change-id, custom) survive a write → extract → rewrite cycle
+        // byte-for-byte. CommitBuilder cannot represent these headers, so this exercises the
+        // raw-byte path in writeCommit / extractExtraHeaders.
+        final Entry[] entries = new Entry[] { Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c)) };
+        final ObjectId treeId = ra.writeTree(List.of(entries), c);
+        final byte[] extra = ("change-id Iabcdef0123456789abcdef0123456789abcdef01\n"
+                + "x-custom-header some-value\n").getBytes(StandardCharsets.UTF_8);
+        final ObjectId commitId = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT,
+                extra, "hello", null, c);
+        flush();
+
+        // Parse and verify
+        try (final org.eclipse.jgit.revwalk.RevWalk walk = new org.eclipse.jgit.revwalk.RevWalk(repo)) {
+            final RevCommit parsed = walk.parseCommit(commitId);
+            final String raw = new String(parsed.getRawBuffer(), StandardCharsets.UTF_8);
+            assertTrue(raw.contains("\nchange-id Iabcdef0123456789abcdef0123456789abcdef01\n"));
+            assertTrue(raw.contains("\nx-custom-header some-value\n"));
+
+            // Extracted extras match what we wrote
+            assertArrayEquals(extra, RawCommitUtils.extractExtraHeaders(parsed));
+
+            // Rewriting the same commit with the extracted bytes yields the same ID
+            final ObjectId commitId2 = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT,
+                    RawCommitUtils.extractExtraHeaders(parsed), parsed.getFullMessage(), parsed.getEncoding(), c);
+            flush();
+            assertEquals(commitId, commitId2);
+        }
+    }
+
+    @Test
+    public void testCommitNonUtf8EncodingRoundTrip() throws Exception {
+        // A commit declaring a non-UTF-8 encoding must round-trip identically: JGit decodes the
+        // author name and message using the encoding header, and writeCommit re-encodes with the
+        // same charset (commit.getEncoding()), so the object ID is preserved.
+        final Charset latin1 = Charset.forName("ISO-8859-1");
+        final ObjectId treeId = ra.writeTree(List.of(), c);
+
+        // Build a raw commit by hand: author "Müller", message "Grüße", encoding ISO-8859-1
+        final String ident = "Müller <m@example.com> 1700000000 +0900";
+        final java.io.ByteArrayOutputStream raw = new java.io.ByteArrayOutputStream();
+        raw.write(("tree " + treeId.name() + "\n").getBytes(StandardCharsets.US_ASCII));
+        raw.write("author ".getBytes(StandardCharsets.US_ASCII));
+        raw.write(ident.getBytes(latin1));
+        raw.write('\n');
+        raw.write("committer ".getBytes(StandardCharsets.US_ASCII));
+        raw.write(ident.getBytes(latin1));
+        raw.write('\n');
+        raw.write("encoding ISO-8859-1\n".getBytes(StandardCharsets.US_ASCII));
+        raw.write('\n');
+        raw.write("Grüße\n".getBytes(latin1));
+        final ObjectId srcId = ra.insert(ins -> ins.insert(Constants.OBJ_COMMIT, raw.toByteArray()), c);
+        flush();
+
+        try (final org.eclipse.jgit.revwalk.RevWalk walk = new org.eclipse.jgit.revwalk.RevWalk(repo)) {
+            final RevCommit src = walk.parseCommit(srcId);
+            assertEquals(latin1, src.getEncoding());
+
+            // Rewrite through the extra-headers path the way RepositoryRewriter does
+            final ObjectId rewritten = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId,
+                    src.getAuthorIdent(), src.getCommitterIdent(),
+                    RawCommitUtils.extractExtraHeaders(src), src.getFullMessage(), src.getEncoding(), c);
+            flush();
+            assertEquals(srcId, rewritten);
+        }
+    }
+
+    @Test
+    public void testExtractExtraHeadersEmpty() throws Exception {
+        // A commit without any extra headers should yield an empty byte array.
+        final Entry[] entries = new Entry[] { Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c)) };
+        final ObjectId treeId = ra.writeTree(List.of(entries), c);
+        final ObjectId commitId = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT,
+                null, "hello", null, c);
+        flush();
+
+        try (final org.eclipse.jgit.revwalk.RevWalk walk = new org.eclipse.jgit.revwalk.RevWalk(repo)) {
+            final RevCommit parsed = walk.parseCommit(commitId);
+            assertEquals(0, RawCommitUtils.extractExtraHeaders(parsed).length);
+        }
     }
 
     // --- Copy ---
