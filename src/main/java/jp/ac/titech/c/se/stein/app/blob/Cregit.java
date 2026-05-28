@@ -53,6 +53,9 @@ public class Cregit implements BlobTranslator {
     @Option(names = "--srcml", description = "srcml command path")
     protected String srcml = "srcml";
 
+    @Option(names = "--position", description = "include line:column position in output")
+    protected boolean position = false;
+
     @Mixin
     private final NameFilter filter = new NameFilter();
 
@@ -97,11 +100,15 @@ public class Cregit implements BlobTranslator {
      * @return the cregit-formatted output, or {@code null} on failure
      */
     public byte[] convert(byte[] source, String lang, Context c) {
-        final String[] cmd = { srcml, "--language", lang };
+        final String[] cmd = position
+                ? new String[]{ srcml, "--language", lang, "--position" }
+                : new String[]{ srcml, "--language", lang };
         try (final ProcessRunner proc = new ProcessRunner(cmd, source, c)) {
             final InputSource input = new InputSource(new ByteArrayInputStream(proc.getResult()));
-            final SAXParser parser = SAXParserFactory.newInstance().newSAXParser();
-            final Handler handler = new Handler();
+            final SAXParserFactory factory = SAXParserFactory.newInstance();
+            factory.setNamespaceAware(true);
+            final SAXParser parser = factory.newSAXParser();
+            final Handler handler = new Handler(position);
             parser.parse(input, handler);
             return handler.getResult();
         } catch (final IOException | ParserConfigurationException | SAXException e) {
@@ -128,30 +135,43 @@ public class Cregit implements BlobTranslator {
     }
 
     static class Handler extends DefaultHandler {
+        private static final String POS_NS = "http://www.srcML.org/srcML/position";
+
+        final boolean includePosition;
         final StringBuilder content = new StringBuilder();
         String contentType;
+        String contentPos;
 
         final Stack<String> elements = new Stack<>();
 
         final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-
         final PrintStream out = new PrintStream(buffer, false, StandardCharsets.UTF_8);
+
+        Handler(boolean includePosition) {
+            this.includePosition = includePosition;
+        }
 
         @Override
         public void startElement(String uri, String localName, String qName, Attributes attributes) {
-             if (elements.size() <= 1)  {
+            if (elements.size() <= 1) {
                 final String revision = attributes.getValue("revision");
                 final String language = attributes.getValue("language");
                 if (qName.equals("unit") && revision != null && language != null) {
+                    printPos("-:-");
                     out.println("begin_unit|" +
                                     "revision:" + revision + ";" +
                                     "language:" + language + ";" +
                                     "cregit-version:" + CREGIT_VERSION);
                 } else {
+                    printPos("-:-");
                     out.print("begin_" + qName + "\n");
                 }
             }
             dump();
+            final String pos = attributes.getValue(POS_NS, "start");
+            if (pos != null) {
+                contentPos = pos;
+            }
             elements.push(qName);
         }
 
@@ -159,7 +179,8 @@ public class Cregit implements BlobTranslator {
         public void endElement(String uri, String localName, String qName) {
             dump();
             elements.pop();
-            if (elements.size() <= 1)  {
+            if (elements.size() <= 1) {
+                printPos("-:-");
                 out.print("end_" + qName + "\n");
             }
         }
@@ -179,9 +200,17 @@ public class Cregit implements BlobTranslator {
             if (content.length() > 0) {
                 String trimmed = content.toString().trim().replace('\n', ' ').replace("\r", "");
                 if (!trimmed.isEmpty()) {
+                    printPos(contentPos);
                     out.print(contentType + "|" + trimmed + "\n");
                 }
                 content.setLength(0);
+            }
+        }
+
+        private void printPos(String pos) {
+            if (includePosition) {
+                out.print(pos != null ? pos : "-:-");
+                out.print("|");
             }
         }
 

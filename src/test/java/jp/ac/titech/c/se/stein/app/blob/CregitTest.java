@@ -116,10 +116,30 @@ public class CregitTest {
     }
 
     private String convert(String source, String language) {
+        return convert(source, language, false);
+    }
+
+    private String convert(String source, String language, boolean position) {
         final Cregit cregit = new Cregit();
+        cregit.position = position;
         final byte[] sourceBlob = source.getBytes(StandardCharsets.UTF_8);
         final byte[] resultBlob = cregit.convert(sourceBlob, language, Context.init());
         return new String(resultBlob);
+    }
+
+    @Test
+    public void testCregitOutputWithPosition() {
+        assumeTrue(ProcessRunner.isAvailable("srcml"), "srcml not available");
+
+        final String result = convert("int add(int a, int b) { return a + b; }", "C", true);
+        // Each line should start with line:col|
+        for (String line : result.split("\n")) {
+            assertTrue(line.matches("^\\d+:\\d+\\|.+|^-:-\\|.+"),
+                    "Expected position prefix in: " + line);
+        }
+        assertTrue(result.contains("-:-|begin_unit|"));
+        assertTrue(result.contains("1:1|name|int"));
+        assertTrue(result.contains("-:-|end_function"));
     }
 
     // --- Integration tests (srcml required) ---
