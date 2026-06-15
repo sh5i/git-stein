@@ -334,6 +334,17 @@ public class RepositoryAccess implements AutoCloseable {
     }
 
     /**
+     * Writes a commit object from already-serialized raw parts, preserving the author/committer
+     * line bytes and message bytes verbatim (so legacy encodings survive byte-for-byte), and
+     * splicing {@code extraHeaders} between the committer line and the blank line.
+     */
+    public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final byte[] author, final byte[] committer,
+            final byte[] extraHeaders, final byte[] message, final Context writingContext) {
+        final byte[] data = RawCommitUtils.buildCommit(parentIds, treeId, author, committer, extraHeaders, message);
+        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_COMMIT, data) : ins.insert(Constants.OBJ_COMMIT, data), writingContext);
+    }
+
+    /**
      * Writes a commit object, preserving arbitrary extra headers (e.g., {@code encoding},
      * {@code gpgsig}, {@code change-id}, {@code mergetag}) as raw bytes.
      * The {@code extraHeaders} bytes are spliced verbatim between the committer line and the

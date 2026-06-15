@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.rewriter;
 
+import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -314,14 +315,24 @@ public class RepositoryRewriter implements RewriterCommand {
         final Context uc = c.with(Key.rev, commit, Key.commit, commit);
         final ObjectId[] parentIds = rewriteParents(commit.getParents(), uc);
         final ObjectId treeId = rewriteRootTree(commit.getTree().getId(), uc);
-        final PersonIdent author = rewriteAuthor(commit.getAuthorIdent(), uc);
-        final PersonIdent committer = rewriteCommitter(commit.getCommitterIdent(), uc);
-        final String msg = rewriteCommitMessage(commit.getFullMessage(), uc);
+        final PersonIdent origAuthor = commit.getAuthorIdent();
+        final PersonIdent origCommitter = commit.getCommitterIdent();
+        final String origMessage = commit.getFullMessage();
+        final PersonIdent author = rewriteAuthor(origAuthor, uc);
+        final PersonIdent committer = rewriteCommitter(origCommitter, uc);
+        final String msg = rewriteCommitMessage(origMessage, uc);
         ObjectId newId;
         if (config.isRewritingExtraAttributes) {
+            final Charset enc = commit.getEncoding();
+            // Preserve original bytes for unchanged fields so legacy encodings (e.g. a Latin-1
+            // author name with no encoding header) survive byte-for-byte; re-serialize only when
+            // the rewriter actually changed the value.
+            final byte[] authorBytes = author.equals(origAuthor) ? RawCommitUtils.rawAuthor(commit) : author.toExternalString().getBytes(enc);
+            final byte[] committerBytes = committer.equals(origCommitter) ? RawCommitUtils.rawCommitter(commit) : committer.toExternalString().getBytes(enc);
+            final byte[] msgBytes = msg.equals(origMessage) ? RawCommitUtils.rawMessage(commit) : msg.getBytes(enc);
             final CommitHeaders headers = rewriteExtraHeaders(
                     new CommitHeaders(RawCommitUtils.extractExtraHeaders(commit)), uc);
-            newId = target.writeCommit(parentIds, treeId, author, committer, headers.toBytes(), msg, commit.getEncoding(), uc);
+            newId = target.writeCommit(parentIds, treeId, authorBytes, committerBytes, headers.toBytes(), msgBytes, uc);
         } else {
             newId = target.writeCommit(parentIds, treeId, author, committer, msg, uc);
         }

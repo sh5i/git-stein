@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -50,29 +51,67 @@ public class RawCommitUtils {
     }
 
     /**
-     * Builds the raw bytes of a commit object. The {@code extraHeaders} bytes are spliced
-     * verbatim between the committer line and the blank line separating headers from the message.
-     * The {@code encoding} (defaulting to UTF-8) is used to encode the author/committer names
-     * and the message; it should match the {@code encoding} header in {@code extraHeaders}.
+     * Returns the raw bytes of the author line's value (everything after {@code "author "} up to,
+     * but excluding, the terminating {@code LF}), or {@code null} if absent. Preserving these
+     * bytes keeps the original encoding of the name even when no {@code encoding} header is
+     * present (e.g., legacy Latin-1 names), which re-serializing a parsed {@link PersonIdent}
+     * would not.
+     */
+    public static byte[] rawAuthor(final RevCommit commit) {
+        final byte[] raw = commit.getRawBuffer();
+        return rawIdent(raw, RawParseUtils.author(raw, 0));
+    }
+
+    /**
+     * Returns the raw bytes of the committer line's value. See {@link #rawAuthor}.
+     */
+    public static byte[] rawCommitter(final RevCommit commit) {
+        final byte[] raw = commit.getRawBuffer();
+        return rawIdent(raw, RawParseUtils.committer(raw, 0));
+    }
+
+    private static byte[] rawIdent(final byte[] raw, final int start) {
+        if (start < 0) {
+            return null;
+        }
+        final int afterLine = RawParseUtils.nextLF(raw, start);
+        return Arrays.copyOfRange(raw, start, afterLine - 1);
+    }
+
+    /**
+     * Returns the raw bytes of the commit message body (everything after the blank line that
+     * separates the header section from the message).
+     */
+    public static byte[] rawMessage(final RevCommit commit) {
+        final byte[] raw = commit.getRawBuffer();
+        return Arrays.copyOfRange(raw, RawParseUtils.commitMessage(raw, 0), raw.length);
+    }
+
+    /**
+     * Builds the raw bytes of a commit object from already-serialized parts. The {@code author}
+     * and {@code committer} bytes are the line values that follow {@code "author "} /
+     * {@code "committer "}; {@code extraHeaders} are spliced verbatim before the blank line; and
+     * {@code message} is the raw body bytes.
      *
      * This duplicates the serialization done by {@link org.eclipse.jgit.lib.CommitBuilder#build()},
      * which cannot be used here because it only emits the fixed set of headers it knows
      * ({@code tree}, {@code parent}, {@code author}, {@code committer}, {@code encoding},
-     * {@code gpgsig}) and drops arbitrary extra headers. Author/committer formatting is delegated
-     * to {@link PersonIdent#toExternalString()} to stay consistent with CommitBuilder.
+     * {@code gpgsig}) and drops arbitrary extra headers.
      */
     public static byte[] buildCommit(final ObjectId[] parentIds, final ObjectId treeId,
-            final PersonIdent author, final PersonIdent committer,
-            final byte[] extraHeaders, final String message, final Charset encoding) {
-        final Charset enc = encoding != null ? encoding : StandardCharsets.UTF_8;
+            final byte[] author, final byte[] committer, final byte[] extraHeaders, final byte[] message) {
         try {
             final ByteArrayOutputStream out = new ByteArrayOutputStream();
             writeHeader(out, "tree", treeId);
             for (final ObjectId p : parentIds) {
                 writeHeader(out, "parent", p);
             }
-            writeIdentHeader(out, "author", author, enc);
-            writeIdentHeader(out, "committer", committer, enc);
+            out.write("author ".getBytes(StandardCharsets.US_ASCII));
+            out.write(author);
+            out.write('\n');
+            out.write("committer ".getBytes(StandardCharsets.US_ASCII));
+            out.write(committer);
+            out.write('\n');
             if (extraHeaders != null && extraHeaders.length > 0) {
                 out.write(extraHeaders);
                 if (extraHeaders[extraHeaders.length - 1] != '\n') {
@@ -80,24 +119,31 @@ public class RawCommitUtils {
                 }
             }
             out.write('\n');
-            out.write(message.getBytes(enc));
+            out.write(message);
             return out.toByteArray();
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
+    /**
+     * Convenience variant of {@link #buildCommit(ObjectId[], ObjectId, byte[], byte[], byte[], byte[])}
+     * that serializes {@code author}/{@code committer} via {@link PersonIdent#toExternalString()}
+     * (consistent with CommitBuilder) and encodes the message with {@code encoding} (default UTF-8).
+     */
+    public static byte[] buildCommit(final ObjectId[] parentIds, final ObjectId treeId,
+            final PersonIdent author, final PersonIdent committer,
+            final byte[] extraHeaders, final String message, final Charset encoding) {
+        final Charset enc = encoding != null ? encoding : StandardCharsets.UTF_8;
+        return buildCommit(parentIds, treeId,
+                author.toExternalString().getBytes(enc), committer.toExternalString().getBytes(enc),
+                extraHeaders, message.getBytes(enc));
+    }
+
     private static void writeHeader(final ByteArrayOutputStream out, final String key, final ObjectId id) throws IOException {
         out.write(key.getBytes(StandardCharsets.US_ASCII));
         out.write(' ');
         out.write(id.name().getBytes(StandardCharsets.US_ASCII));
-        out.write('\n');
-    }
-
-    private static void writeIdentHeader(final ByteArrayOutputStream out, final String key, final PersonIdent ident, final Charset encoding) throws IOException {
-        out.write(key.getBytes(StandardCharsets.US_ASCII));
-        out.write(' ');
-        out.write(ident.toExternalString().getBytes(encoding));
         out.write('\n');
     }
 }
