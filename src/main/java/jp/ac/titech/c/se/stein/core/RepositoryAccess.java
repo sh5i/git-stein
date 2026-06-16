@@ -11,8 +11,7 @@ import java.util.function.Consumer;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.jgit.RevWalk;
 import jp.ac.titech.c.se.stein.jgit.TreeFormatter;
-import jp.ac.titech.c.se.stein.util.RawCommitUtils;
-import lombok.Getter;
+import jp.ac.titech.c.se.stein.util.RawGitObjectCodec;
 import org.eclipse.jgit.errors.ObjectWritingException;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.notes.Note;
@@ -340,7 +339,7 @@ public class RepositoryAccess implements AutoCloseable {
      */
     public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final byte[] author, final byte[] committer,
             final byte[] extraHeaders, final byte[] message, final Context writingContext) {
-        final byte[] data = RawCommitUtils.buildCommit(parentIds, treeId, author, committer, extraHeaders, message);
+        final byte[] data = RawGitObjectCodec.buildCommit(parentIds, treeId, author, committer, extraHeaders, message);
         return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_COMMIT, data) : ins.insert(Constants.OBJ_COMMIT, data), writingContext);
     }
 
@@ -352,7 +351,7 @@ public class RepositoryAccess implements AutoCloseable {
      */
     public ObjectId writeCommit(final ObjectId[] parentIds, final ObjectId treeId, final PersonIdent author, final PersonIdent committer,
             final byte[] extraHeaders, final String message, final Charset encoding, final Context writingContext) {
-        final byte[] data = RawCommitUtils.buildCommit(parentIds, treeId, author, committer, extraHeaders, message, encoding);
+        final byte[] data = RawGitObjectCodec.buildCommit(parentIds, treeId, author, committer, extraHeaders, message, encoding);
         return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_COMMIT, data) : ins.insert(Constants.OBJ_COMMIT, data), writingContext);
     }
 
@@ -468,7 +467,17 @@ public class RepositoryAccess implements AutoCloseable {
     }
 
     /**
-     * Writes a tag object.
+     * Writes a tag object from already-serialized raw parts, preserving the tagger line bytes,
+     * any extra-header bytes, and the message bytes verbatim (so legacy encodings and historical
+     * extra headers survive byte-for-byte).
+     */
+    public ObjectId writeTag(final ObjectId objectId, final int type, final String tag, final byte[] tagger, final byte[] extraHeaders, final byte[] message, final Context writingContext) {
+        final byte[] data = RawGitObjectCodec.buildTag(objectId, type, tag, tagger, extraHeaders, message);
+        return insert(ins -> isDryRunning ? ins.idFor(Constants.OBJ_TAG, data) : ins.insert(Constants.OBJ_TAG, data), writingContext);
+    }
+
+    /**
+     * Writes a tag object using {@link TagBuilder}.
      */
     public ObjectId writeTag(final ObjectId objectId, final int type, final String tag, final PersonIdent tagger, final String message, final Context writingContext) {
         final TagBuilder builder = new TagBuilder();

@@ -2,7 +2,7 @@ package jp.ac.titech.c.se.stein.core;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
-import jp.ac.titech.c.se.stein.util.RawCommitUtils;
+import jp.ac.titech.c.se.stein.util.RawGitObjectCodec;
 import org.eclipse.jgit.errors.LargeObjectException;
 import org.eclipse.jgit.errors.ObjectWritingException;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
@@ -10,11 +10,14 @@ import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.notes.NoteMap;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevTag;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.pack.PackConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
@@ -188,18 +191,18 @@ public class RepositoryAccessTest {
         flush();
 
         // Parse and verify
-        try (final org.eclipse.jgit.revwalk.RevWalk walk = new org.eclipse.jgit.revwalk.RevWalk(repo)) {
+        try (final RevWalk walk = new RevWalk(repo)) {
             final RevCommit parsed = walk.parseCommit(commitId);
             final String raw = new String(parsed.getRawBuffer(), StandardCharsets.UTF_8);
             assertTrue(raw.contains("\nchange-id Iabcdef0123456789abcdef0123456789abcdef01\n"));
             assertTrue(raw.contains("\nx-custom-header some-value\n"));
 
             // Extracted extras match what we wrote
-            assertArrayEquals(extra, RawCommitUtils.extractExtraHeaders(parsed));
+            assertArrayEquals(extra, RawGitObjectCodec.extractExtraHeaders(parsed));
 
             // Rewriting the same commit with the extracted bytes yields the same ID
             final ObjectId commitId2 = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT,
-                    RawCommitUtils.extractExtraHeaders(parsed), parsed.getFullMessage(), parsed.getEncoding(), c);
+                    RawGitObjectCodec.extractExtraHeaders(parsed), parsed.getFullMessage(), parsed.getEncoding(), c);
             flush();
             assertEquals(commitId, commitId2);
         }
@@ -215,7 +218,7 @@ public class RepositoryAccessTest {
 
         // Build a raw commit by hand: author "Müller", message "Grüße", encoding ISO-8859-1
         final String ident = "Müller <m@example.com> 1700000000 +0900";
-        final java.io.ByteArrayOutputStream raw = new java.io.ByteArrayOutputStream();
+        final ByteArrayOutputStream raw = new ByteArrayOutputStream();
         raw.write(("tree " + treeId.name() + "\n").getBytes(StandardCharsets.US_ASCII));
         raw.write("author ".getBytes(StandardCharsets.US_ASCII));
         raw.write(ident.getBytes(latin1));
@@ -229,16 +232,87 @@ public class RepositoryAccessTest {
         final ObjectId srcId = ra.insert(ins -> ins.insert(Constants.OBJ_COMMIT, raw.toByteArray()), c);
         flush();
 
-        try (final org.eclipse.jgit.revwalk.RevWalk walk = new org.eclipse.jgit.revwalk.RevWalk(repo)) {
+        try (final RevWalk walk = new RevWalk(repo)) {
             final RevCommit src = walk.parseCommit(srcId);
             assertEquals(latin1, src.getEncoding());
 
             // Rewrite through the extra-headers path the way RepositoryRewriter does
             final ObjectId rewritten = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId,
                     src.getAuthorIdent(), src.getCommitterIdent(),
-                    RawCommitUtils.extractExtraHeaders(src), src.getFullMessage(), src.getEncoding(), c);
+                    RawGitObjectCodec.extractExtraHeaders(src), src.getFullMessage(), src.getEncoding(), c);
             flush();
             assertEquals(srcId, rewritten);
+        }
+    }
+
+    @Test
+    public void testTagWithLegacyEncodingRoundTrip() throws Exception {
+        // A tag with a legacy (Latin-1) tagger name and message has no encoding header, so the
+        // TagBuilder path re-encodes to UTF-8 and changes the SHA. The raw-byte writeTag must
+        // preserve the tagger/message bytes and reproduce the original tag object ID.
+        final Charset latin1 = Charset.forName("ISO-8859-1");
+        final ObjectId blobId = ra.writeBlob(HELLO, c);
+
+        final String ident = "Müller <m@example.com> 1700000000 +0900";
+        final ByteArrayOutputStream raw = new ByteArrayOutputStream();
+        raw.write(("object " + blobId.name() + "\n").getBytes(StandardCharsets.US_ASCII));
+        raw.write("type blob\n".getBytes(StandardCharsets.US_ASCII));
+        raw.write("tag v1.0\n".getBytes(StandardCharsets.US_ASCII));
+        raw.write("tagger ".getBytes(StandardCharsets.US_ASCII));
+        raw.write(ident.getBytes(latin1));
+        raw.write('\n');
+        raw.write('\n');
+        raw.write("Grüße\n".getBytes(latin1));
+        final ObjectId srcId = ra.insert(ins -> ins.insert(Constants.OBJ_TAG, raw.toByteArray()), c);
+        flush();
+
+        try (final RevWalk walk = new RevWalk(repo)) {
+            final RevTag src = walk.parseTag(srcId);
+
+            // TagBuilder path corrupts the SHA (re-encodes Latin-1 to UTF-8)
+            final ObjectId viaBuilder = ra.writeTag(blobId, Constants.OBJ_BLOB, src.getTagName(),
+                    src.getTaggerIdent(), src.getFullMessage(), c);
+            flush();
+            assertNotEquals(srcId, viaBuilder);
+
+            // Raw-byte path preserves the bytes and reproduces the original ID
+            final ObjectId viaRaw = ra.writeTag(blobId, Constants.OBJ_BLOB, src.getTagName(),
+                    RawGitObjectCodec.rawTagger(src), RawGitObjectCodec.extractTagHeaders(src),
+                    RawGitObjectCodec.rawTagMessage(src), c);
+            flush();
+            assertEquals(srcId, viaRaw);
+        }
+    }
+
+    @Test
+    public void testTagWithExtraHeaderRoundTrip() throws Exception {
+        // A tag with a header after 'tagger' (here 'encoding') is non-conformant — git mktag won't
+        // create one — but git reads/clones such an object, so if one is ever present the raw path
+        // must reproduce it byte-for-byte. We have no evidence such tags occur in practice; this
+        // pins the unconditional byte-for-byte invariant, symmetric with commit extra headers.
+        final Charset latin1 = Charset.forName("ISO-8859-1");
+        final ObjectId blobId = ra.writeBlob(HELLO, c);
+
+        final ByteArrayOutputStream raw = new ByteArrayOutputStream();
+        raw.write(("object " + blobId.name() + "\n").getBytes(StandardCharsets.US_ASCII));
+        raw.write("type blob\n".getBytes(StandardCharsets.US_ASCII));
+        raw.write("tag v1.0\n".getBytes(StandardCharsets.US_ASCII));
+        raw.write("tagger Test <t@example.com> 1700000000 +0900\n".getBytes(StandardCharsets.US_ASCII));
+        raw.write("encoding ISO-8859-1\n".getBytes(StandardCharsets.US_ASCII));
+        raw.write('\n');
+        raw.write("Grüße\n".getBytes(latin1));
+        final ObjectId srcId = ra.insert(ins -> ins.insert(Constants.OBJ_TAG, raw.toByteArray()), c);
+        flush();
+
+        try (final RevWalk walk = new RevWalk(repo)) {
+            final RevTag src = walk.parseTag(srcId);
+            assertArrayEquals("encoding ISO-8859-1\n".getBytes(StandardCharsets.US_ASCII),
+                    RawGitObjectCodec.extractTagHeaders(src));
+            final ObjectId rebuilt = ra.writeTag(blobId, Constants.OBJ_BLOB, src.getTagName(),
+                    RawGitObjectCodec.rawTagger(src), RawGitObjectCodec.extractTagHeaders(src),
+                    RawGitObjectCodec.rawTagMessage(src), c);
+            flush();
+            assertEquals(srcId, rebuilt);
         }
     }
 
@@ -251,9 +325,9 @@ public class RepositoryAccessTest {
                 null, "hello", null, c);
         flush();
 
-        try (final org.eclipse.jgit.revwalk.RevWalk walk = new org.eclipse.jgit.revwalk.RevWalk(repo)) {
+        try (final RevWalk walk = new RevWalk(repo)) {
             final RevCommit parsed = walk.parseCommit(commitId);
-            assertEquals(0, RawCommitUtils.extractExtraHeaders(parsed).length);
+            assertEquals(0, RawGitObjectCodec.extractExtraHeaders(parsed).length);
         }
     }
 

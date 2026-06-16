@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.rewriter;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -11,7 +12,7 @@ import java.util.stream.StreamSupport;
 import com.google.common.cache.CacheBuilder;
 import jp.ac.titech.c.se.stein.core.*;
 import jp.ac.titech.c.se.stein.core.cache.*;
-import jp.ac.titech.c.se.stein.util.RawCommitUtils;
+import jp.ac.titech.c.se.stein.util.RawGitObjectCodec;
 import jp.ac.titech.c.se.stein.entry.*;
 import jp.ac.titech.c.se.stein.jgit.RevWalk;
 import lombok.Getter;
@@ -327,11 +328,11 @@ public class RepositoryRewriter implements RewriterCommand {
             // Preserve original bytes for unchanged fields so legacy encodings (e.g. a Latin-1
             // author name with no encoding header) survive byte-for-byte; re-serialize only when
             // the rewriter actually changed the value.
-            final byte[] authorBytes = author.equals(origAuthor) ? RawCommitUtils.rawAuthor(commit) : author.toExternalString().getBytes(enc);
-            final byte[] committerBytes = committer.equals(origCommitter) ? RawCommitUtils.rawCommitter(commit) : committer.toExternalString().getBytes(enc);
-            final byte[] msgBytes = msg.equals(origMessage) ? RawCommitUtils.rawMessage(commit) : msg.getBytes(enc);
+            final byte[] authorBytes = author.equals(origAuthor) ? RawGitObjectCodec.rawAuthor(commit) : author.toExternalString().getBytes(enc);
+            final byte[] committerBytes = committer.equals(origCommitter) ? RawGitObjectCodec.rawCommitter(commit) : committer.toExternalString().getBytes(enc);
+            final byte[] msgBytes = msg.equals(origMessage) ? RawGitObjectCodec.rawMessage(commit) : msg.getBytes(enc);
             final CommitHeaders headers = rewriteExtraHeaders(
-                    new CommitHeaders(RawCommitUtils.extractExtraHeaders(commit)), uc);
+                    new CommitHeaders(RawGitObjectCodec.extractExtraHeaders(commit)), uc);
             newId = target.writeCommit(parentIds, treeId, authorBytes, committerBytes, headers.toBytes(), msgBytes, uc);
         } else {
             newId = target.writeCommit(parentIds, treeId, author, committer, msg, uc);
@@ -624,9 +625,33 @@ public class RepositoryRewriter implements RewriterCommand {
         log.debug("Rewrite tag object: {} -> {} {}", oldObjectId.name(), newObjectId.name(), c);
 
         final String tagName = tag.getTagName();
-        final PersonIdent tagger = rewriteTagger(tag.getTaggerIdent(), tag, uc);
-        final String message = rewriteTagMessage(tag.getFullMessage(), uc);
-        final ObjectId newId = target.writeTag(newObjectId, type, tagName, tagger, message, uc);
+        final PersonIdent origTagger = tag.getTaggerIdent();
+        final String origMessage = tag.getFullMessage();
+        final PersonIdent tagger = rewriteTagger(origTagger, tag, uc);
+        final String message = rewriteTagMessage(origMessage, uc);
+        final ObjectId newId;
+        if (config.isRewritingExtraAttributes) {
+            // Preserve original bytes for unchanged fields so a legacy-encoded tagger or message
+            // survives byte-for-byte; re-serialize only when the rewriter changed the value.
+            final byte[] taggerBytes;
+            if (tagger == null) {
+                taggerBytes = null;
+            } else if (tagger.equals(origTagger)) {
+                taggerBytes = RawGitObjectCodec.rawTagger(tag);
+            } else {
+                taggerBytes = tagger.toExternalString().getBytes(StandardCharsets.UTF_8);
+            }
+            final byte[] messageBytes = message.equals(origMessage)
+                    ? RawGitObjectCodec.rawTagMessage(tag)
+                    : message.getBytes(StandardCharsets.UTF_8);
+            // Preserve any bytes between the tagger line and the blank line. Empty for every
+            // conformant tag (and every tag we have observed); carried only so the byte-for-byte
+            // invariant holds unconditionally. See extractTagHeaders.
+            final byte[] extraHeaders = RawGitObjectCodec.extractTagHeaders(tag);
+            newId = target.writeTag(newObjectId, type, tagName, taggerBytes, extraHeaders, messageBytes, uc);
+        } else {
+            newId = target.writeTag(newObjectId, type, tagName, tagger, message, uc);
+        }
         log.debug("Rewrite tag: {} -> {} {}", oldId.name(), newId.name(), c);
 
         tagMapping.put(oldId, newId);
