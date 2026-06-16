@@ -12,111 +12,19 @@ SOURCE_DIR="$WORK_DIR/source.git"
 TARGET_DIR="$WORK_DIR/target.git"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "=== Cloning $REPO_URL ==="
-git clone --bare "$REPO_URL" "$SOURCE_DIR"
-
-# Collect commit IDs from non-notes refs
+# Collect commit IDs reachable from non-notes refs, in topological order.
 collect_commits() {
     local repo="$1"
     git -C "$repo" rev-list --topo-order --reverse \
         $(git -C "$repo" show-ref | grep -v refs/notes/ | awk '{print $2}')
 }
 
-echo "=== Collecting commit IDs before transformation ==="
-BEFORE="$WORK_DIR/before.txt"
-collect_commits "$SOURCE_DIR" > "$BEFORE"
-COMMIT_COUNT=$(wc -l < "$BEFORE" | tr -d ' ')
-echo "  $COMMIT_COUNT commits"
+# Collect (object, refname) pairs including peeled tag targets, excluding notes refs.
+collect_refs() {
+    git -C "$1" show-ref --dereference 2>/dev/null | grep -v ' refs/notes/' | sort -k2
+}
 
-echo "=== Running identity transformation ==="
-cd "$SCRIPT_DIR"
-./gradlew -q run --args="--bare --no-notes --extra-attributes -j ${NTHREADS:-1} $SOURCE_DIR -o $TARGET_DIR @id"
-
-echo "=== Collecting commit IDs after transformation ==="
-AFTER="$WORK_DIR/after.txt"
-collect_commits "$TARGET_DIR" > "$AFTER"
-AFTER_COUNT=$(wc -l < "$AFTER" | tr -d ' ')
-echo "  $AFTER_COUNT commits"
-
-echo "=== Comparing ==="
-if [ "$COMMIT_COUNT" -ne "$AFTER_COUNT" ]; then
-    echo "FAIL: Commit count differs: $COMMIT_COUNT (source) vs $AFTER_COUNT (target)"
-    echo ""
-    echo "--- Refs in source (excl. notes) ---"
-    git -C "$SOURCE_DIR" show-ref | grep -v refs/notes/ | sort -k2
-    echo ""
-    echo "--- Refs in target (excl. notes) ---"
-    git -C "$TARGET_DIR" show-ref | grep -v refs/notes/ | sort -k2
-    exit 1
-fi
-
-if diff -q "$BEFORE" "$AFTER" > /dev/null 2>&1; then
-    echo "PASS: All $COMMIT_COUNT commit IDs are identical."
-    exit 0
-fi
-
-echo "FAIL: Commit IDs differ."
-echo ""
-
-# Find the first diverging commit (oldest in topo order)
-FIRST_SRC=""
-FIRST_DST=""
-while IFS= read -r line; do
-    SRC=$(echo "$line" | cut -d'|' -f1)
-    DST=$(echo "$line" | cut -d'|' -f2)
-    if [ "$SRC" != "$DST" ]; then
-        FIRST_SRC="$SRC"
-        FIRST_DST="$DST"
-        break
-    fi
-done < <(paste -d'|' "$BEFORE" "$AFTER")
-
-if [ -z "$FIRST_SRC" ]; then
-    echo "ERROR: Could not find diverging commit."
-    exit 1
-fi
-
-LINE_NUM=$(grep -n "^${FIRST_SRC}$" "$BEFORE" | head -1 | cut -d: -f1)
-echo "First diverging commit at position $LINE_NUM / $COMMIT_COUNT:"
-echo "  source: $FIRST_SRC"
-echo "  target: $FIRST_DST"
-echo ""
-
-# Compare commit objects field by field
-echo "=== Commit object diff ==="
-SRC_RAW="$WORK_DIR/src_commit.txt"
-DST_RAW="$WORK_DIR/dst_commit.txt"
-git -C "$SOURCE_DIR" cat-file commit "$FIRST_SRC" > "$SRC_RAW"
-git -C "$TARGET_DIR" cat-file commit "$FIRST_DST" > "$DST_RAW"
-
-if ! diff -q "$SRC_RAW" "$DST_RAW" > /dev/null 2>&1; then
-    echo "Commit content differs:"
-    diff --unified=0 "$SRC_RAW" "$DST_RAW" || true
-    echo ""
-fi
-
-# Extract fields
-src_tree=$(sed -n 's/^tree //p' "$SRC_RAW")
-dst_tree=$(sed -n 's/^tree //p' "$DST_RAW")
-
-echo "Tree IDs:"
-echo "  source: $src_tree"
-echo "  target: $dst_tree"
-
-if [ "$src_tree" = "$dst_tree" ]; then
-    echo "  Trees are identical. Difference is in commit metadata only."
-    echo ""
-    echo "=== Raw commit bytes diff ==="
-    git -C "$SOURCE_DIR" cat-file commit "$FIRST_SRC" | xxd > "$WORK_DIR/src_hex.txt"
-    git -C "$TARGET_DIR" cat-file commit "$FIRST_DST" | xxd > "$WORK_DIR/dst_hex.txt"
-    diff --unified=3 "$WORK_DIR/src_hex.txt" "$WORK_DIR/dst_hex.txt" | head -40 || true
-    exit 1
-fi
-
-echo "  Trees differ — drilling down..."
-echo ""
-
-# Recursively compare trees to find the root cause
+# Recursively compare two trees to locate the first differing entry (failure forensics).
 drill_tree() {
     local src_repo="$1" dst_repo="$2" src_tree="$3" dst_tree="$4" path="$5"
 
@@ -140,12 +48,11 @@ drill_tree() {
         src_line=$(grep -E "[[:space:]]${name}$" "$src_entries" | head -1)
         dst_line=$(grep -E "[[:space:]]${name}$" "$dst_entries" | head -1)
 
-        local src_mode src_type src_id dst_mode dst_type dst_id
+        local src_mode src_type src_id dst_mode dst_id
         src_mode=$(echo "$src_line" | awk '{print $1}')
         src_type=$(echo "$src_line" | awk '{print $2}')
         src_id=$(echo "$src_line" | awk '{print $3}')
         dst_mode=$(echo "$dst_line" | awk '{print $1}')
-        dst_type=$(echo "$dst_line" | awk '{print $2}')
         dst_id=$(echo "$dst_line" | awk '{print $3}')
 
         if [ "$src_id" != "$dst_id" ]; then
@@ -175,6 +82,139 @@ drill_tree() {
         | head -30 || true
 }
 
-drill_tree "$SOURCE_DIR" "$TARGET_DIR" "$src_tree" "$dst_tree" ""
+# Report where the before/after commit-ID lists first diverge (failure forensics).
+report_commit_divergence() {
+    local first_src="" first_dst="" line src dst
+    while IFS= read -r line; do
+        src=$(echo "$line" | cut -d'|' -f1)
+        dst=$(echo "$line" | cut -d'|' -f2)
+        if [ "$src" != "$dst" ]; then
+            first_src="$src"
+            first_dst="$dst"
+            break
+        fi
+    done < <(paste -d'|' "$BEFORE" "$AFTER")
 
+    if [ -z "$first_src" ]; then
+        echo "ERROR: Could not find diverging commit."
+        return
+    fi
+
+    local line_num
+    line_num=$(grep -n "^${first_src}$" "$BEFORE" | head -1 | cut -d: -f1)
+    echo "First diverging commit at position $line_num / $COMMIT_COUNT:"
+    echo "  source: $first_src"
+    echo "  target: $first_dst"
+    echo ""
+
+    echo "=== Commit object diff ==="
+    local src_raw="$WORK_DIR/src_commit.txt" dst_raw="$WORK_DIR/dst_commit.txt"
+    git -C "$SOURCE_DIR" cat-file commit "$first_src" > "$src_raw"
+    git -C "$TARGET_DIR" cat-file commit "$first_dst" > "$dst_raw"
+    if ! diff -q "$src_raw" "$dst_raw" > /dev/null 2>&1; then
+        echo "Commit content differs:"
+        diff --unified=0 "$src_raw" "$dst_raw" || true
+        echo ""
+    fi
+
+    local src_tree dst_tree
+    src_tree=$(sed -n 's/^tree //p' "$src_raw")
+    dst_tree=$(sed -n 's/^tree //p' "$dst_raw")
+    echo "Tree IDs:"
+    echo "  source: $src_tree"
+    echo "  target: $dst_tree"
+
+    if [ "$src_tree" = "$dst_tree" ]; then
+        echo "  Trees are identical. Difference is in commit metadata only."
+        echo ""
+        echo "=== Raw commit bytes diff ==="
+        diff --unified=3 \
+            <(git -C "$SOURCE_DIR" cat-file commit "$first_src" | xxd) \
+            <(git -C "$TARGET_DIR" cat-file commit "$first_dst" | xxd) | head -40 || true
+        return
+    fi
+
+    echo "  Trees differ — drilling down..."
+    echo ""
+    drill_tree "$SOURCE_DIR" "$TARGET_DIR" "$src_tree" "$dst_tree" ""
+}
+
+# Report the first differing tag object (failure forensics for the ref comparison).
+report_ref_divergence() {
+    echo "--- show-ref --dereference diff (source vs target, excl. notes) ---"
+    diff --unified=0 "$REFS_BEFORE" "$REFS_AFTER" | head -40 || true
+    echo ""
+    join -j1 \
+        <(awk '{print $2, $1}' "$REFS_BEFORE" | sort) \
+        <(awk '{print $2, $1}' "$REFS_AFTER" | sort) \
+        | awk '$2 != $3 { print $1, $2, $3 }' \
+        | while read -r ref s d; do
+            [ "$(git -C "$SOURCE_DIR" cat-file -t "$s" 2>/dev/null || true)" = "tag" ] || continue
+            echo "First diverging tag object at $ref:"
+            echo "  source: $s"
+            echo "  target: $d"
+            echo "=== Tag object raw bytes diff ==="
+            diff --unified=3 \
+                <(git -C "$SOURCE_DIR" cat-file tag "$s" | xxd) \
+                <(git -C "$TARGET_DIR" cat-file tag "$d" | xxd) | head -40 || true
+            break
+        done
+}
+
+echo "=== Cloning $REPO_URL ==="
+git clone --bare "$REPO_URL" "$SOURCE_DIR"
+
+echo "=== Collecting commit IDs before transformation ==="
+BEFORE="$WORK_DIR/before.txt"
+collect_commits "$SOURCE_DIR" > "$BEFORE"
+COMMIT_COUNT=$(wc -l < "$BEFORE" | tr -d ' ')
+echo "  $COMMIT_COUNT commits"
+
+echo "=== Running identity transformation ==="
+cd "$SCRIPT_DIR"
+./gradlew -q run --args="--bare --no-notes --extra-attributes -j ${NTHREADS:-1} $SOURCE_DIR -o $TARGET_DIR @id"
+
+echo "=== Collecting commit IDs after transformation ==="
+AFTER="$WORK_DIR/after.txt"
+collect_commits "$TARGET_DIR" > "$AFTER"
+AFTER_COUNT=$(wc -l < "$AFTER" | tr -d ' ')
+echo "  $AFTER_COUNT commits"
+
+echo "=== Comparing commit IDs ==="
+if [ "$COMMIT_COUNT" -ne "$AFTER_COUNT" ]; then
+    echo "FAIL: Commit count differs: $COMMIT_COUNT (source) vs $AFTER_COUNT (target)"
+    echo ""
+    echo "--- Refs in source (excl. notes) ---"
+    git -C "$SOURCE_DIR" show-ref | grep -v refs/notes/ | sort -k2
+    echo ""
+    echo "--- Refs in target (excl. notes) ---"
+    git -C "$TARGET_DIR" show-ref | grep -v refs/notes/ | sort -k2
+    exit 1
+fi
+if ! diff -q "$BEFORE" "$AFTER" > /dev/null 2>&1; then
+    echo "FAIL: Commit IDs differ."
+    echo ""
+    report_commit_divergence
+    exit 1
+fi
+echo "  All $COMMIT_COUNT commit IDs are identical."
+
+# Refs & tag objects: dereference comparison.
+# Catches annotated-tag object SHAs and ref bindings, which the commit-ID set comparison above
+# does not (rev-list peels tags to commits, so a corrupted tag object is invisible there).
+echo "=== Comparing refs & tag objects (show-ref --dereference) ==="
+REFS_BEFORE="$WORK_DIR/refs_before.txt"
+REFS_AFTER="$WORK_DIR/refs_after.txt"
+collect_refs "$SOURCE_DIR" > "$REFS_BEFORE"
+collect_refs "$TARGET_DIR" > "$REFS_AFTER"
+REF_COUNT=$(wc -l < "$REFS_BEFORE" | tr -d ' ')
+
+if diff -q "$REFS_BEFORE" "$REFS_AFTER" > /dev/null 2>&1; then
+    echo "PASS: $COMMIT_COUNT commit IDs and $REF_COUNT ref entries (incl. tag objects) are identical."
+    exit 0
+fi
+
+echo "FAIL: Refs or tag objects differ (commit IDs matched)."
+echo ""
+report_ref_divergence
 exit 1
