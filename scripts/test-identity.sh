@@ -8,9 +8,13 @@ REPO_URL="${1:?Usage: $0 <github-repo-url>}"
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-SOURCE_DIR="$WORK_DIR/source.git"
 TARGET_DIR="$WORK_DIR/target.git"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Cache bare clones so large repos (e.g. the Linux kernel) are fetched only once.
+CACHE_DIR="${GIT_STEIN_IDENTITY_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/git-stein-identity}"
+mkdir -p "$CACHE_DIR"
+SOURCE_DIR="$CACHE_DIR/$(echo "$REPO_URL" | sed 's#[^A-Za-z0-9._-]#_#g').git"
 
 # --- collection ---
 
@@ -122,8 +126,14 @@ report_ref_divergence() {
 
 # --- main ---
 
-echo "=== Cloning $REPO_URL ==="
-git clone --bare "$REPO_URL" "$SOURCE_DIR"
+if [ -d "$SOURCE_DIR" ] && git -C "$SOURCE_DIR" rev-parse --git-dir > /dev/null 2>&1; then
+    echo "=== Using cached clone: $SOURCE_DIR ==="
+else
+    echo "=== Cloning $REPO_URL -> $SOURCE_DIR ==="
+    rm -rf "$SOURCE_DIR" "$SOURCE_DIR.tmp"
+    git clone --bare "$REPO_URL" "$SOURCE_DIR.tmp"
+    mv "$SOURCE_DIR.tmp" "$SOURCE_DIR"
+fi
 
 echo "=== Collecting commit IDs before transformation ==="
 BEFORE="$WORK_DIR/before.txt"
