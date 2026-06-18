@@ -573,11 +573,12 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     /**
-     * Rewrites the referred object by a ref or a tag.
+     * Rewrites the object that a ref or tag points to, yielding the object to bind the ref/tag to.
      */
     protected ObjectId rewriteRefObject(final ObjectId id, final int type, final Context c) {
         return switch (type) {
             case Constants.OBJ_COMMIT -> {
+                // A commit target binds to its rewritten image.
                 final ObjectId newCommitId = commitMapping.get(id);
                 if (newCommitId == null) {
                     log.warn("Rewritten commit not found: {} {}", id.name(), c);
@@ -586,24 +587,54 @@ public class RepositoryRewriter implements RewriterCommand {
                 yield newCommitId;
             }
             case Constants.OBJ_TREE -> {
-                // TODO rewriting opportunity for this tree
-                final ObjectId newTreeId = source.copyTree(id, target, c);
-                log.warn("A ref object tree {} found, just copied {}", id.name(), c);
-                yield newTreeId;
+                // A tree reached only through the ref: delegate to rewriteRefTree, whose
+                // (overridable) implementation decides how the tree maps to a target object.
+                log.warn("A ref or tag points to a tree object {} (not a commit); rewriting it {}", id.name(), c);
+                yield rewriteRefTree(id, c);
             }
             case Constants.OBJ_BLOB -> {
-                // TODO rewriting opportunity for this blob
-                final ObjectId newBlobId = source.copyBlob(id, target, c);
-                log.warn("A ref object blob {} found, just copied {}", id.name(), c);
-                yield newBlobId;
+                // Likewise a blob reached only through the ref: delegate to rewriteRefBlob, whose
+                // (overridable) implementation decides how the blob maps to a target object.
+                log.warn("A ref or tag points to a blob object {} (not a commit); rewriting it {}", id.name(), c);
+                yield rewriteRefBlob(id, c);
             }
             case Constants.OBJ_TAG -> {
+                // A tag pointing to another tag: recurse so the whole chain is rewritten.
                 final ObjectId newTagId = tagMapping.get(id);
                 yield newTagId != null ? newTagId : rewriteTag(source.parseTag(id), c);
             }
             default -> {
                 log.warn("Ignore unknown type ({}): {} {}", type, id.name(), c);
                 yield id;
+            }
+        };
+    }
+
+    /**
+     * Rewrites a tree that a ref or tag points to directly (one not reached through any commit).
+     */
+    protected ObjectId rewriteRefTree(final ObjectId id, final Context c) {
+        return rewriteRootTree(id, c);
+    }
+
+    /**
+     * Rewrites a blob that a ref or tag points to directly (one not contained in any tree).
+     */
+    protected ObjectId rewriteRefBlob(final ObjectId id, final Context c) {
+        // Present the blob as a single regular-file entry at the repository root, named after the
+        // ref, so it goes through the same blob rewriting as tree contents (giving it a path context).
+        final Ref ref = c.getRef();
+        final String name = ref != null ? Repository.shortenRefName(ref.getName()) : "";
+        final Entry entry = Entry.of(FileMode.REGULAR_FILE.getBits(), name, id, isPathSensitive ? "" : null);
+        // Project the rewritten entry (or entries) back onto the single-object ref target.
+        final List<Entry> rewritten = entryResolver.resolve(entry, c).stream().toList();
+        return switch (rewritten.size()) {
+            case 0 -> ZERO;                        // emptied out: delete the ref
+            case 1 -> rewritten.get(0).getId();    // one object: a content change, or a blob-to-tree promotion
+            default -> {
+                // Several entries: wrap them in a tree and bind the ref to it, preserving the
+                // transformation's full output (the ref target's type changes from blob to tree).
+                yield target.writeTree(rewritten, c);
             }
         };
     }
