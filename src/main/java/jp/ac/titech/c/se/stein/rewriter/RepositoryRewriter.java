@@ -238,7 +238,7 @@ public class RepositoryRewriter implements RewriterCommand {
                     final long id = Thread.currentThread().getId();
                     final Context uc = cxts.computeIfAbsent(id, k -> c.with(Key.inserter, target.getInserter()));
                     final Context uuc = uc.with(Key.rev, commit, Key.commit, commit);
-                    rewriteRootTree(commit.getTree().getId(), uuc);
+                    getRootTree(commit.getTree().getId(), uuc);
                 });
             }).join();
         } finally {
@@ -315,7 +315,7 @@ public class RepositoryRewriter implements RewriterCommand {
     protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
         final Context uc = c.with(Key.rev, commit, Key.commit, commit);
         final ObjectId[] parentIds = rewriteParents(commit.getParents(), uc);
-        final ObjectId treeId = rewriteRootTree(commit.getTree().getId(), uc);
+        final ObjectId treeId = getRootTree(commit.getTree().getId(), uc);
         final PersonIdent origAuthor = commit.getAuthorIdent();
         final PersonIdent origCommitter = commit.getCommitterIdent();
         final String origMessage = commit.getFullMessage();
@@ -372,22 +372,30 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     /**
-     * Rewrites the root tree of a commit.
+     * Rewrites a root tree, memoizing and logging the result keyed by the input tree id. Mirrors
+     * the {@link #getRefEntry} wrapper over {@link #rewriteRefEntry}.
      */
-    protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
+    protected ObjectId getRootTree(final ObjectId treeId, final Context c) {
         final ObjectId cache = rootTreeMapping.get(treeId);
         if (cache != null) {
             return cache;
         }
-
-        // A root tree is represented as a special entry whose name is "/"
-        final Entry root = Entry.of(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
-        final AnyColdEntry newRoot = entryResolver.resolve(root, c);
-        final ObjectId newId = newRoot instanceof AnyColdEntry.Empty ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
-
+        final ObjectId newId = rewriteRootTree(treeId, c);
         log.debug("Rewrite root tree: {} -> {} {}", treeId.name(), newId.name(), c);
         rootTreeMapping.put(treeId, newId);
         return newId;
+    }
+
+    /**
+     * Produces the rewritten root tree id from the given tree, without logging or caching. Override
+     * this to change which tree's content becomes the root (for example re-rooting at a
+     * subdirectory) while keeping the input-keyed logging and caching in {@link #getRootTree}.
+     */
+    protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
+        // A root tree is represented as a special entry whose name is "/"
+        final Entry root = Entry.of(FileMode.TREE.getBits(), "", treeId, isPathSensitive ? "" : null);
+        final AnyColdEntry newRoot = entryResolver.resolve(root, c);
+        return newRoot instanceof AnyColdEntry.Empty ? target.writeTree(Collections.emptyList(), c) : ((Entry) newRoot).id;
     }
 
     /**
@@ -614,7 +622,7 @@ public class RepositoryRewriter implements RewriterCommand {
      * Rewrites a tree that a ref or tag points to directly (one not reached through any commit).
      */
     protected ObjectId rewriteRefTree(final ObjectId id, final Context c) {
-        return rewriteRootTree(id, c);
+        return getRootTree(id, c);
     }
 
     /**
