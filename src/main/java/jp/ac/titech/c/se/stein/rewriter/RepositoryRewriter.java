@@ -238,7 +238,7 @@ public class RepositoryRewriter implements RewriterCommand {
                     final long id = Thread.currentThread().getId();
                     final Context uc = cxts.computeIfAbsent(id, k -> c.with(Key.inserter, target.getInserter()));
                     final Context uuc = uc.with(Key.rev, commit, Key.commit, commit);
-                    getRootTree(commit.getTree().getId(), uuc);
+                    resolveRootTree(commit.getTree().getId(), uuc);
                 });
             }).join();
         } finally {
@@ -315,7 +315,7 @@ public class RepositoryRewriter implements RewriterCommand {
     protected ObjectId rewriteCommit(final RevCommit commit, final Context c) {
         final Context uc = c.with(Key.rev, commit, Key.commit, commit);
         final ObjectId[] parentIds = rewriteParents(commit.getParents(), uc);
-        final ObjectId treeId = getRootTree(commit.getTree().getId(), uc);
+        final ObjectId treeId = resolveRootTree(commit.getTree().getId(), uc);
         final PersonIdent origAuthor = commit.getAuthorIdent();
         final PersonIdent origCommitter = commit.getCommitterIdent();
         final String origMessage = commit.getFullMessage();
@@ -373,9 +373,9 @@ public class RepositoryRewriter implements RewriterCommand {
 
     /**
      * Rewrites a root tree, memoizing and logging the result keyed by the input tree id. Mirrors
-     * the {@link #getRefEntry} wrapper over {@link #rewriteRefEntry}.
+     * the {@link #resolveRefEntry} wrapper over {@link #rewriteRefEntry}.
      */
-    protected ObjectId getRootTree(final ObjectId treeId, final Context c) {
+    protected ObjectId resolveRootTree(final ObjectId treeId, final Context c) {
         final ObjectId cache = rootTreeMapping.get(treeId);
         if (cache != null) {
             return cache;
@@ -389,7 +389,7 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Produces the rewritten root tree id from the given tree, without logging or caching. Override
      * this to change which tree's content becomes the root (for example re-rooting at a
-     * subdirectory) while keeping the input-keyed logging and caching in {@link #getRootTree}.
+     * subdirectory) while keeping the input-keyed logging and caching in {@link #resolveRootTree}.
      */
     protected ObjectId rewriteRootTree(final ObjectId treeId, final Context c) {
         // A root tree is represented as a special entry whose name is "/"
@@ -513,9 +513,10 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     /**
-     * Updates a ref object.
+     * Resolves a ref entry to its rewritten form, memoizing the result over
+     * {@link #rewriteRefEntry}.
      */
-    protected RefEntry getRefEntry(final RefEntry entry, final Context c) {
+    protected RefEntry resolveRefEntry(final RefEntry entry, final Context c) {
         final RefEntry cache = refEntryMapping.get(entry);
         if (cache != null) {
             return cache;
@@ -533,7 +534,7 @@ public class RepositoryRewriter implements RewriterCommand {
         final Context uc = c.with(Key.ref, ref);
 
         final RefEntry oldEntry = new RefEntry(ref);
-        final RefEntry newEntry = getRefEntry(oldEntry, uc);
+        final RefEntry newEntry = resolveRefEntry(oldEntry, uc);
         if (newEntry == RefEntry.EMPTY) {
             // delete
             if (isOverwriting) {
@@ -570,7 +571,7 @@ public class RepositoryRewriter implements RewriterCommand {
 
             final Ref targetRef = c.getRef().getTarget();
             final Context uc = c.with(Key.ref, targetRef);
-            final String newTarget = getRefEntry(new RefEntry(targetRef), uc).name;
+            final String newTarget = resolveRefEntry(new RefEntry(targetRef), uc).name;
             return new RefEntry(newName, newTarget);
         } else {
             final String newName = rewriteRefName(entry.name, c);
@@ -622,7 +623,7 @@ public class RepositoryRewriter implements RewriterCommand {
      * Rewrites a tree that a ref or tag points to directly (one not reached through any commit).
      */
     protected ObjectId rewriteRefTree(final ObjectId id, final Context c) {
-        return getRootTree(id, c);
+        return resolveRootTree(id, c);
     }
 
     /**
