@@ -118,6 +118,132 @@ public class FilterCommitTest {
     }
 
     @Test
+    public void testRedundantSplicedEdgeIsPrunedWhenABranchIsFullyDropped() throws IOException {
+        // A -> C kept; the whole feature side A -> B -> M(merge) dropped. D should reconnect to C
+        // alone: the spliced edge D -> A is redundant (A is already reachable through C) and pruned.
+        final RepositoryAccess src = TestRepo.create();
+        try (final ObjectInserter inserter = src.repo.newObjectInserter()) {
+            final Context c = Context.init().with(Context.Key.inserter, inserter);
+            final PersonIdent keep = new PersonIdent("Keeper", "k@x", 0, 0);
+            final PersonIdent drop = new PersonIdent("Dropme", "d@x", 0, 0);
+
+            final ObjectId a = src.writeCommit(RepositoryAccess.NO_PARENTS, tree(src, "a", c), keep, keep, "A", c);
+            final ObjectId cc = src.writeCommit(new ObjectId[]{a}, tree(src, "c", c), keep, keep, "C", c);
+            final ObjectId b = src.writeCommit(new ObjectId[]{a}, tree(src, "b", c), drop, drop, "B", c);
+            final ObjectId m = src.writeCommit(new ObjectId[]{cc, b}, tree(src, "m", c), drop, drop, "M", c);
+            final ObjectId d = src.writeCommit(new ObjectId[]{m}, tree(src, "d", c), keep, keep, "D", c);
+            inserter.flush();
+            src.applyRefUpdate(new RefEntry("refs/heads/main", d));
+            src.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+        }
+
+        final FilterCommit app = new FilterCommit();
+        app.author = Pattern.compile("Keeper");
+        final RepositoryAccess res = TestRepo.rewrite(src, app);
+        try {
+            final List<RevCommit> commits = res.collectCommits("refs/heads/main");
+            final List<String> messages = commits.stream().map(RevCommit::getFullMessage).toList();
+            assertEquals(3, messages.size()); // A, C, D survive; B and M dropped
+            assertFalse(messages.contains("B"));
+            assertFalse(messages.contains("M"));
+
+            final RevCommit head = commits.stream()
+                    .filter(rc -> rc.getFullMessage().equals("D")).findFirst().orElseThrow();
+            assertEquals(1, head.getParentCount()); // redundant edge to A pruned, so D -> C only
+            final RevCommit parent = commits.stream()
+                    .filter(rc -> rc.getId().equals(head.getParent(0))).findFirst().orElseThrow();
+            assertEquals("C", parent.getFullMessage());
+        } finally {
+            res.close();
+            src.close();
+        }
+    }
+
+    @Test
+    public void testKeptMergeKeepsRelabeledOriginalRedundantParent() throws IOException {
+        // A <- B <- C, and D = merge(C, B): D's edge to B is redundant in the source (B is already
+        // reachable through C). Dropping B must not collapse D -- the redundant edge predates the
+        // splice, so it is only relabeled B -> A; D stays a merge of C and A.
+        final RepositoryAccess src = TestRepo.create();
+        try (final ObjectInserter inserter = src.repo.newObjectInserter()) {
+            final Context c = Context.init().with(Context.Key.inserter, inserter);
+            final PersonIdent keep = new PersonIdent("Keeper", "k@x", 0, 0);
+            final PersonIdent drop = new PersonIdent("Dropme", "d@x", 0, 0);
+
+            final ObjectId a = src.writeCommit(RepositoryAccess.NO_PARENTS, tree(src, "a", c), keep, keep, "A", c);
+            final ObjectId b = src.writeCommit(new ObjectId[]{a}, tree(src, "b", c), drop, drop, "B", c);
+            final ObjectId cc = src.writeCommit(new ObjectId[]{b}, tree(src, "c", c), keep, keep, "C", c);
+            final ObjectId d = src.writeCommit(new ObjectId[]{cc, b}, tree(src, "d", c), keep, keep, "D", c);
+            inserter.flush();
+            src.applyRefUpdate(new RefEntry("refs/heads/main", d));
+            src.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+        }
+
+        final FilterCommit app = new FilterCommit();
+        app.author = Pattern.compile("Keeper");
+        final RepositoryAccess res = TestRepo.rewrite(src, app);
+        try {
+            final List<RevCommit> commits = res.collectCommits("refs/heads/main");
+            final List<String> messages = commits.stream().map(RevCommit::getFullMessage).toList();
+            assertEquals(3, messages.size()); // A, C, D survive; B dropped
+            assertFalse(messages.contains("B"));
+
+            final RevCommit head = commits.stream()
+                    .filter(rc -> rc.getFullMessage().equals("D")).findFirst().orElseThrow();
+            assertEquals(2, head.getParentCount()); // still a merge: B was only relabeled to A
+            final List<String> parents = commits.stream()
+                    .filter(rc -> rc.getId().equals(head.getParent(0)) || rc.getId().equals(head.getParent(1)))
+                    .map(RevCommit::getFullMessage).toList();
+            assertTrue(parents.contains("C"));
+            assertTrue(parents.contains("A"));
+        } finally {
+            res.close();
+            src.close();
+        }
+    }
+
+    @Test
+    public void testSpliceInducedRedundancyIsPrunedFromAKeptMerge() throws IOException {
+        // A <- B and A <- C are siblings; D = merge(B, C) is not redundant in the source. Dropping C
+        // relabels its edge to A, which is now an ancestor of B -- a redundancy the splice created,
+        // so it is pruned: D collapses to a plain child of B.
+        final RepositoryAccess src = TestRepo.create();
+        try (final ObjectInserter inserter = src.repo.newObjectInserter()) {
+            final Context c = Context.init().with(Context.Key.inserter, inserter);
+            final PersonIdent keep = new PersonIdent("Keeper", "k@x", 0, 0);
+            final PersonIdent drop = new PersonIdent("Dropme", "d@x", 0, 0);
+
+            final ObjectId a = src.writeCommit(RepositoryAccess.NO_PARENTS, tree(src, "a", c), keep, keep, "A", c);
+            final ObjectId b = src.writeCommit(new ObjectId[]{a}, tree(src, "b", c), keep, keep, "B", c);
+            final ObjectId cc = src.writeCommit(new ObjectId[]{a}, tree(src, "c", c), drop, drop, "C", c);
+            final ObjectId d = src.writeCommit(new ObjectId[]{b, cc}, tree(src, "d", c), keep, keep, "D", c);
+            inserter.flush();
+            src.applyRefUpdate(new RefEntry("refs/heads/main", d));
+            src.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+        }
+
+        final FilterCommit app = new FilterCommit();
+        app.author = Pattern.compile("Keeper");
+        final RepositoryAccess res = TestRepo.rewrite(src, app);
+        try {
+            final List<RevCommit> commits = res.collectCommits("refs/heads/main");
+            final List<String> messages = commits.stream().map(RevCommit::getFullMessage).toList();
+            assertEquals(3, messages.size()); // A, B, D survive; C dropped
+            assertFalse(messages.contains("C"));
+
+            final RevCommit head = commits.stream()
+                    .filter(rc -> rc.getFullMessage().equals("D")).findFirst().orElseThrow();
+            assertEquals(1, head.getParentCount()); // induced redundant edge to A pruned, so D -> B
+            final RevCommit parent = commits.stream()
+                    .filter(rc -> rc.getId().equals(head.getParent(0))).findFirst().orElseThrow();
+            assertEquals("B", parent.getFullMessage());
+        } finally {
+            res.close();
+            src.close();
+        }
+    }
+
+    @Test
     public void testPicocliConvertsRegexAndInstantOptions() {
         final FilterCommit app = new FilterCommit();
         new CommandLine(app).parseArgs("--author", "Alice", "--since", "2024-01-01T00:00:00Z");

@@ -3,7 +3,6 @@ package jp.ac.titech.c.se.stein.app;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.rewriter.CommitDropper;
 import lombok.ToString;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
 import picocli.CommandLine.Command;
@@ -35,7 +34,7 @@ public class FilterCommit extends CommitDropper {
     protected Instant until;
 
     @Override
-    protected boolean shouldDrop(final RevCommit commit, final ObjectId treeId, final ObjectId[] parentIds, final Context c) {
+    protected boolean shouldDrop(final RevCommit commit, final Context c) {
         return !keeps(commit);
     }
 
