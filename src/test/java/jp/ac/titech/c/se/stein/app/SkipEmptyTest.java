@@ -5,7 +5,6 @@ import jp.ac.titech.c.se.stein.core.RefEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
-import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -31,10 +30,9 @@ public class SkipEmptyTest {
         try (final ObjectInserter inserter = source.repo.newObjectInserter()) {
             final Context c = Context.init().with(Context.Key.inserter, inserter);
             final PersonIdent who = new PersonIdent("T", "t@example.com", 0, 0);
-            final int mode = FileMode.REGULAR_FILE.getBits();
 
-            final ObjectId treeA = source.writeTree(List.of(Entry.of(mode, "f.txt", source.writeBlob("v1".getBytes(), c))), c);
-            final ObjectId treeB = source.writeTree(List.of(Entry.of(mode, "f.txt", source.writeBlob("v2".getBytes(), c))), c);
+            final ObjectId treeA = source.writeTree(List.of(Entry.ofBlob("f.txt", source.writeBlob("v1".getBytes(), c))), c);
+            final ObjectId treeB = source.writeTree(List.of(Entry.ofBlob("f.txt", source.writeBlob("v2".getBytes(), c))), c);
             final ObjectId c1 = source.writeCommit(RepositoryAccess.NO_PARENTS, treeA, who, who, "first", c);
             final ObjectId c2 = source.writeCommit(new ObjectId[]{c1}, treeA, who, who, "empty", c);
             final ObjectId c3 = source.writeCommit(new ObjectId[]{c2}, treeB, who, who, "third", c);

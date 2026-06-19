@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 
 import java.util.stream.Stream;
@@ -30,6 +31,13 @@ public class Entry implements AnyColdEntry, SingleEntry {
      */
     public static Entry of(int mode, String name, ObjectId id) {
         return new Entry(mode, name, id, null);
+    }
+
+    /**
+     * Creates a regular-file (blob) entry.
+     */
+    public static Entry ofBlob(String name, ObjectId id) {
+        return new Entry(FileMode.REGULAR_FILE.getBits(), name, id, null);
     }
 
     /**
