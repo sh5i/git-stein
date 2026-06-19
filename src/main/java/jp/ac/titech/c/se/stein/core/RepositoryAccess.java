@@ -22,6 +22,7 @@ import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.storage.file.WindowCacheConfig;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.eclipse.jgit.treewalk.TreeWalk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -249,6 +250,22 @@ public class RepositoryAccess implements AutoCloseable {
             }
         });
         return result;
+    }
+
+    /**
+     * Looks up the slash-separated path within the given tree, returning the object it names — a
+     * blob or a subtree — or {@code null} if the path does not exist. An empty path returns the
+     * tree itself.
+     */
+    public ObjectId lookup(final ObjectId treeId, final String path) {
+        if (path.isEmpty()) {
+            return treeId;
+        }
+        return Try.io(() -> {
+            try (final TreeWalk walk = TreeWalk.forPath(repo, path, treeId)) {
+                return walk == null ? null : walk.getObjectId(0);
+            }
+        });
     }
 
     /**
