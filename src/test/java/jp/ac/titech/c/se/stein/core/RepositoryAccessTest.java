@@ -401,6 +401,27 @@ public class RepositoryAccessTest {
         assertNull(ra.getRef("refs/heads/temp"));
     }
 
+    @Test
+    public void testGetRefTargetResolvesSymbolicAndPeelsTags() {
+        final ObjectId treeId = ra.writeTree(List.of(Entry.of(BLOB_MODE, "hello.txt", ra.writeBlob(HELLO, c))), c);
+        final ObjectId commitId = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT, "hello", c);
+        final ObjectId tagId = ra.writeTag(commitId, Constants.OBJ_COMMIT, "v1", IDENT, "release", c);
+        flush();
+
+        ra.applyRefUpdate(new RefEntry("refs/heads/main", commitId));
+        ra.applyRefUpdate(new RefEntry("refs/tags/v1", tagId));
+        ra.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+
+        // direct ref to a commit: resolves to itself
+        assertEquals(commitId, ra.getRefTarget(new RefEntry("refs/heads/main", commitId)));
+        // annotated tag: peeled to the underlying commit
+        assertEquals(commitId, ra.getRefTarget(new RefEntry("refs/tags/v1", tagId)));
+        // symbolic ref: followed to its target's commit
+        final RefEntry head = new RefEntry(ra.getRef("HEAD"));
+        assertTrue(head.isSymbolic());
+        assertEquals(commitId, ra.getRefTarget(head));
+    }
+
     // --- Notes ---
 
     @Test

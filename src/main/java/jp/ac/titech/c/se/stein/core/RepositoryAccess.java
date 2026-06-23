@@ -182,6 +182,22 @@ public class RepositoryAccess implements AutoCloseable {
     }
 
     /**
+     * Returns the ultimate object a ref resolves to: a symbolic ref is followed to its target
+     * (recursively), and a direct ref is peeled through annotated tags to its underlying object.
+     */
+    public ObjectId getRefTarget(final RefEntry entry) {
+        if (entry.isSymbolic()) {
+            final Ref target = getRef(entry.target);
+            return target != null ? getRefTarget(new RefEntry(target)) : ObjectId.zeroId();
+        }
+        return Try.io(() -> {
+            try (final RevWalk walk = new RevWalk(repo)) {
+                return walk.peel(walk.parseAny(entry.id)).copy();
+            }
+        });
+    }
+
+    /**
      * Returns the object type (e.g., {@link Constants#OBJ_COMMIT}) of the given object.
      */
     public int getObjectType(final ObjectId id) {
