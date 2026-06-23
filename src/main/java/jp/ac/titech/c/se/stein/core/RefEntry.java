@@ -5,7 +5,6 @@ import java.util.Comparator;
 
 import lombok.EqualsAndHashCode;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.Ref;
 
 /**
  * An immutable representation of a Git ref, either direct (pointing to an {@link ObjectId})
@@ -55,15 +54,6 @@ public class RefEntry implements Serializable, Comparable<RefEntry> {
      */
     public static RefEntry of(final String name, final String target) {
         return new RefEntry(name, null, target);
-    }
-
-    /**
-     * Creates a {@link RefEntry} from a JGit {@link Ref}.
-     */
-    public static RefEntry of(final Ref ref) {
-        return new RefEntry(ref.getName(),
-                ref.isSymbolic() ? null : ref.getObjectId(),
-                ref.isSymbolic() ? ref.getTarget().getName() : null);
     }
 
     /**

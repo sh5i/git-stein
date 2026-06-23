@@ -119,6 +119,8 @@ public class RepositoryRewriter implements RewriterCommand {
 
     protected boolean isOverwriting = false;
 
+    protected boolean isSharingObjects = false;
+
     protected boolean isPathSensitive = false;
 
     @Setter
@@ -127,9 +129,15 @@ public class RepositoryRewriter implements RewriterCommand {
     protected PersistentEntryCache entryCache;
 
     public void initialize(final Repository sourceRepo, final Repository targetRepo) {
-        source = new RepositoryAccess(sourceRepo);
-        target = new RepositoryAccess(targetRepo);
-        isOverwriting = sourceRepo == targetRepo;
+        initialize(sourceRepo, RefNamespace.ROOT, targetRepo, RefNamespace.ROOT);
+    }
+
+    public void initialize(final Repository sourceRepo, final RefNamespace sourceNamespace,
+                           final Repository targetRepo, final RefNamespace targetNamespace) {
+        source = new RepositoryAccess(sourceRepo, sourceNamespace);
+        target = new RepositoryAccess(targetRepo, targetNamespace);
+        isSharingObjects = sourceRepo == targetRepo;
+        isOverwriting = isSharingObjects && sourceNamespace.equals(targetNamespace);
         if (config.isDryRunning) {
             source.setDryRunning(true);
             target.setDryRunning(true);

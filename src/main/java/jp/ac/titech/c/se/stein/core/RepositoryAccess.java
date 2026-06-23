@@ -50,6 +50,8 @@ public class RepositoryAccess implements AutoCloseable {
 
     public final Repository repo;
 
+    private final RefNamespace ns;
+
     private final Map<String, NoteMap> notesCache = new HashMap<>();
 
     protected boolean isDryRunning = false;
@@ -64,7 +66,12 @@ public class RepositoryAccess implements AutoCloseable {
     }
 
     public RepositoryAccess(final Repository repo) {
+        this(repo, RefNamespace.ROOT);
+    }
+
+    public RepositoryAccess(final Repository repo, final RefNamespace ns) {
         this.repo = repo;
+        this.ns = ns;
     }
 
     @Override
@@ -162,16 +169,19 @@ public class RepositoryAccess implements AutoCloseable {
     /**
      * Returns the {@link RefEntry} for the given name, or {@code null} if not found.
      */
-    public RefEntry getRef(final String name) {
-        final Ref ref = Try.io(() -> repo.getRefDatabase().findRef(name));
-        return ref != null ? RefEntry.of(ref) : null;
+    public RefEntry getRef(final String logicalName) {
+        final Ref ref = Try.io(() -> repo.getRefDatabase().findRef(ns.toStored(logicalName)));
+        return ref != null ? ns.toLogicalEntry(ref) : null;
     }
 
     /**
-     * Retrieves all refs as {@link RefEntry} values.
+     * Retrieves all refs within this namespace as logical {@link RefEntry} values.
      */
     public List<RefEntry> getRefs() {
-        return Try.io(() -> repo.getRefDatabase().getRefs()).stream().map(RefEntry::of).toList();
+        return Try.io(() -> repo.getRefDatabase().getRefs()).stream()
+                .filter(r -> ns.owns(r.getName()))
+                .map(ns::toLogicalEntry)
+                .toList();
     }
 
     /**
@@ -518,10 +528,10 @@ public class RepositoryAccess implements AutoCloseable {
             return;
         }
         Try.io(() -> {
-            final RefUpdate cmd = repo.getRefDatabase().newUpdate(entry.name, false);
+            final RefUpdate cmd = repo.getRefDatabase().newUpdate(ns.toStored(entry.name), false);
             cmd.setForceUpdate(true);
             if (entry.isSymbolic()) {
-                cmd.link(entry.target);
+                cmd.link(ns.toStored(entry.target));
             } else {
                 cmd.setNewObjectId(entry.id);
                 cmd.update();
@@ -537,7 +547,7 @@ public class RepositoryAccess implements AutoCloseable {
             return;
         }
         Try.io(() -> {
-            final RefUpdate cmd = repo.getRefDatabase().newUpdate(entry.name, false);
+            final RefUpdate cmd = repo.getRefDatabase().newUpdate(ns.toStored(entry.name), false);
             cmd.setForceUpdate(true);
             cmd.delete();
         });
@@ -550,7 +560,7 @@ public class RepositoryAccess implements AutoCloseable {
         if (isDryRunning) {
             return;
         }
-        Try.io(() -> repo.getRefDatabase().newRename(name, newName).rename());
+        Try.io(() -> repo.getRefDatabase().newRename(ns.toStored(name), ns.toStored(newName)).rename());
     }
 
     // Handling ObjectInserter
