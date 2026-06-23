@@ -1,8 +1,8 @@
 package jp.ac.titech.c.se.stein.testing;
 
+import jp.ac.titech.c.se.stein.core.RefEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.Entry;
-import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -49,9 +49,9 @@ public class TestRepoTest {
 
     @Test
     public void testRefs() {
-        final Ref main = testRepo.getRef("refs/heads/main");
+        final RefEntry main = testRepo.getRef("refs/heads/main");
         assertNotNull(main);
-        assertEquals(commits.get(2).getId(), main.getObjectId());
+        assertEquals(commits.get(2).getId(), main.id);
 
         assertNotNull(testRepo.getRef("refs/tags/v1.0"));
     }

@@ -21,7 +21,6 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTag;
@@ -171,10 +170,10 @@ public class RepositoryRewriter implements RewriterCommand {
                     origNotes.write(R_NOTES_ORIG, uc);
                 } else {
                     // Single transformation: orig = prev, share the same ref
-                    target.applyRefUpdate(new RefEntry(R_NOTES_ORIG, target.getRef(R_NOTES_PREV).getObjectId()));
+                    target.applyRefUpdate(new RefEntry(R_NOTES_ORIG, target.getRef(R_NOTES_PREV).id));
                 }
                 // Default notes = orig (for git log display)
-                target.applyRefUpdate(new RefEntry(Constants.R_NOTES_COMMITS, target.getRef(R_NOTES_ORIG).getObjectId()));
+                target.applyRefUpdate(new RefEntry(Constants.R_NOTES_COMMITS, target.getRef(R_NOTES_ORIG).id));
             } else {
                 target.writeNotes(target.getDefaultNotes(), uc);
             }
@@ -273,13 +272,13 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected Collection<ObjectId> collectStarts(final Context c) {
         final List<ObjectId> result = new ArrayList<>();
-        for (final Ref ref : filterRefs(source.getRefs(), c)) {
+        for (final RefEntry ref : filterRefs(source.getRefs(), c)) {
             final ObjectId commitId = source.getRefTarget(ref);
             if (source.getObjectType(commitId) == Constants.OBJ_COMMIT) {
-                log.debug("Ref {}: added as a start point (commit: {})", ref.getName(), commitId.name());
+                log.debug("Ref {}: added as a start point (commit: {})", ref.name, commitId.name());
                 result.add(commitId);
             } else {
-                log.debug("Ref {}: non-commit; skipped (commit: {})", ref.getName(), commitId.name());
+                log.debug("Ref {}: non-commit; skipped (commit: {})", ref.name, commitId.name());
             }
         }
         return result;
@@ -288,9 +287,9 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Confirms whether the given ref is used for a start point.
      */
-    protected List<Ref> filterRefs(final List<Ref> refs, @SuppressWarnings("unused") final Context c) {
+    protected List<RefEntry> filterRefs(final List<RefEntry> refs, @SuppressWarnings("unused") final Context c) {
         return refs.stream()
-                .filter(ref -> ref.getName().equals(Constants.HEAD) || ref.getName().startsWith(Constants.R_HEADS) || ref.getName().startsWith(Constants.R_TAGS))
+                .filter(ref -> ref.name.equals(Constants.HEAD) || ref.name.startsWith(Constants.R_HEADS) || ref.name.startsWith(Constants.R_TAGS))
                 .collect(Collectors.toList());
     }
 
@@ -507,7 +506,7 @@ public class RepositoryRewriter implements RewriterCommand {
      * Updates ref objects.
      */
     protected void updateRefs(final Context c) {
-        for (final Ref ref : filterRefs(source.getRefs(), c)) {
+        for (final RefEntry ref : filterRefs(source.getRefs(), c)) {
             updateRef(ref, c);
         }
     }
@@ -530,10 +529,9 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Updates a ref object.
      */
-    protected void updateRef(final Ref ref, final Context c) {
-        final Context uc = c.with(Key.ref, ref);
+    protected void updateRef(final RefEntry oldEntry, final Context c) {
+        final Context uc = c.with(Key.ref, oldEntry);
 
-        final RefEntry oldEntry = new RefEntry(ref);
         final RefEntry newEntry = resolveRefEntry(oldEntry, uc);
         if (newEntry == RefEntry.EMPTY) {
             // delete
@@ -566,15 +564,17 @@ public class RepositoryRewriter implements RewriterCommand {
      * Rewrites a ref entry.
      */
     protected RefEntry rewriteRefEntry(final RefEntry entry, final Context c) {
+        final String newName = rewriteRefName(entry.name, c);
         if (entry.isSymbolic()) {
-            final String newName = rewriteRefName(entry.name, c);
-
-            final Ref targetRef = c.getRef().getTarget();
-            final Context uc = c.with(Key.ref, targetRef);
-            final String newTarget = resolveRefEntry(new RefEntry(targetRef), uc).name;
+            final RefEntry target = source.getRef(entry.target);
+            if (target == null) {
+                // A dangling target (e.g. an unborn branch) cannot be resolved; keep its name as-is.
+                return new RefEntry(newName, entry.target);
+            }
+            final Context uc = c.with(Key.ref, target);
+            final String newTarget = resolveRefEntry(target, uc).name;
             return new RefEntry(newName, newTarget);
         } else {
-            final String newName = rewriteRefName(entry.name, c);
             final int type = source.getObjectType(entry.id);
             final ObjectId newObjectId = rewriteRefObject(entry.id, type, c);
             return newObjectId == ZERO ? RefEntry.EMPTY : new RefEntry(newName, newObjectId);
@@ -632,8 +632,8 @@ public class RepositoryRewriter implements RewriterCommand {
     protected ObjectId rewriteRefBlob(final ObjectId id, final Context c) {
         // Present the blob as a single regular-file entry at the repository root, named after the
         // ref, so it goes through the same blob rewriting as tree contents (giving it a path context).
-        final Ref ref = c.getRef();
-        final String name = ref != null ? Repository.shortenRefName(ref.getName()) : "";
+        final RefEntry ref = c.getRef();
+        final String name = ref != null ? Repository.shortenRefName(ref.name) : "";
         final Entry entry = Entry.of(FileMode.REGULAR_FILE.getBits(), name, id, isPathSensitive ? "" : null);
         // Project the rewritten entry (or entries) back onto the single-object ref target.
         final List<Entry> rewritten = entryResolver.resolve(entry, c).stream().toList();

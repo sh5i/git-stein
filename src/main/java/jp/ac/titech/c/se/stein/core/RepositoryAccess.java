@@ -109,13 +109,13 @@ public class RepositoryAccess implements AutoCloseable {
      * Returns all commits reachable from the given ref in topological-reverse order (oldest first).
      */
     public List<RevCommit> collectCommits(final String refName) {
-        final Ref ref = getRef(refName);
+        final RefEntry ref = getRef(refName);
         if (ref == null) {
             return List.of();
         }
         final List<RevCommit> result = new ArrayList<>();
         try (final RevWalk walk = walk()) {
-            Try.io(() -> walk.memoMarkStart(walk.parseCommit(ref.getObjectId())));
+            Try.io(() -> walk.memoMarkStart(walk.parseCommit(getRefTarget(ref))));
             walk.forEach(result::add);
         }
         return result;
@@ -125,12 +125,12 @@ public class RepositoryAccess implements AutoCloseable {
      * Returns the head commit of the given ref, or {@code null} if the ref does not exist.
      */
     public RevCommit getHead(final String refName) {
-        final Ref ref = getRef(refName);
+        final RefEntry ref = getRef(refName);
         if (ref == null) {
             return null;
         }
         try (final RevWalk walk = new RevWalk(repo)) {
-            return Try.io(() -> walk.parseCommit(ref.getObjectId()));
+            return Try.io(() -> walk.parseCommit(getRefTarget(ref)));
         }
     }
 
@@ -160,25 +160,18 @@ public class RepositoryAccess implements AutoCloseable {
     // Retrieving and checking objects
 
     /**
-     * Returns the {@link Ref} for the given name, or {@code null} if not found.
+     * Returns the {@link RefEntry} for the given name, or {@code null} if not found.
      */
-    public Ref getRef(final String name) {
-        return Try.io(() -> repo.getRefDatabase().findRef(name));
+    public RefEntry getRef(final String name) {
+        final Ref ref = Try.io(() -> repo.getRefDatabase().findRef(name));
+        return ref != null ? new RefEntry(ref) : null;
     }
 
     /**
-     * Retrieves all Ref objects.
+     * Retrieves all refs as {@link RefEntry} values.
      */
-    public List<Ref> getRefs() {
-        return Try.io(() -> repo.getRefDatabase().getRefs());
-    }
-
-    /**
-     * Returns the ultimate target object ID of the given ref, peeling annotated tags.
-     */
-    public ObjectId getRefTarget(final Ref ref) {
-        final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
-        return peeled.getPeeledObjectId() != null ? peeled.getPeeledObjectId() : ref.getObjectId();
+    public List<RefEntry> getRefs() {
+        return Try.io(() -> repo.getRefDatabase().getRefs()).stream().map(RefEntry::new).toList();
     }
 
     /**
@@ -187,8 +180,8 @@ public class RepositoryAccess implements AutoCloseable {
      */
     public ObjectId getRefTarget(final RefEntry entry) {
         if (entry.isSymbolic()) {
-            final Ref target = getRef(entry.target);
-            return target != null ? getRefTarget(new RefEntry(target)) : ObjectId.zeroId();
+            final RefEntry target = getRef(entry.target);
+            return target != null ? getRefTarget(target) : ObjectId.zeroId();
         }
         return Try.io(() -> {
             try (final RevWalk walk = new RevWalk(repo)) {
@@ -237,14 +230,6 @@ public class RepositoryAccess implements AutoCloseable {
         try (final RevWalk walk = new RevWalk(repo)) {
             return Try.io(() -> walk.parseTag(id));
         }
-    }
-
-    /**
-     * Tests whether the given ref indicates a tag.
-     */
-    public boolean isTag(final Ref ref) {
-        final Ref peeled = Try.io(() -> repo.getRefDatabase().peel(ref));
-        return peeled.getPeeledObjectId() != null;
     }
 
     // Reading and writing objects
@@ -487,7 +472,7 @@ public class RepositoryAccess implements AutoCloseable {
      * Reads notes from the specified ref, returning an empty map if the ref does not exist.
      */
     public NoteMap readNotes(final String noteRef) {
-        final Ref targetRef = getRef(noteRef);
+        final RefEntry targetRef = getRef(noteRef);
         if (targetRef == null) {
             return NoteMap.newEmptyMap();
         }

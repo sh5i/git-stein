@@ -12,7 +12,6 @@ import java.util.stream.Stream;
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import org.eclipse.jgit.lib.ObjectInserter;
-import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevTag;
@@ -107,7 +106,7 @@ public class Context implements Map<Context.Key, Object> {
             case path -> '"' + (String) value + '"';
             case entry -> value.toString();
             case tag -> ((RevTag) value).name();
-            case ref -> ((Ref) value).getName();
+            case ref -> ((RefEntry) value).name;
             default -> null;
         };
     }
@@ -214,8 +213,8 @@ public class Context implements Map<Context.Key, Object> {
     /**
      * Returns the current ref, or {@code null} if not set.
      */
-    public Ref getRef() {
-        return (Ref) get(Key.ref);
+    public RefEntry getRef() {
+        return (RefEntry) get(Key.ref);
     }
 
     /**

@@ -1,10 +1,10 @@
 package jp.ac.titech.c.se.stein.core.cache;
 
+import jp.ac.titech.c.se.stein.core.RefEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import lombok.Getter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.Ref;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,14 +54,14 @@ public class CommitMapping extends AbstractMap<ObjectId, ObjectId> {
      * @param notesRef the notes ref to read from (e.g., {@code refs/notes/git-stein-prev})
      */
     public void restoreFromTarget(RepositoryAccess target, String notesRef) {
-        final List<Ref> targetRefs = target.getRefs();
+        final List<RefEntry> targetRefs = target.getRefs();
         if (targetRefs.isEmpty()) {
             return;
         }
 
         notesMap = new NoteObjectIdMap(target.readNotes(notesRef), target);
 
-        for (final Ref ref : targetRefs) {
+        for (final RefEntry ref : targetRefs) {
             final ObjectId targetTipId = target.getRefTarget(ref);
             if (targetTipId == null || target.getObjectType(targetTipId) != Constants.OBJ_COMMIT) {
                 continue;
@@ -73,7 +73,7 @@ public class CommitMapping extends AbstractMap<ObjectId, ObjectId> {
             map.put(sourceTipId, targetTipId);
             previousSourceTips.add(sourceTipId);
             log.debug("Restored commit mapping from note: {} -> {} (ref: {})",
-                    sourceTipId.name(), targetTipId.name(), ref.getName());
+                    sourceTipId.name(), targetTipId.name(), ref.name);
         }
 
         if (!previousSourceTips.isEmpty()) {

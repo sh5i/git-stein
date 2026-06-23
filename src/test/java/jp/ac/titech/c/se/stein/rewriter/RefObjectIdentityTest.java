@@ -84,7 +84,7 @@ public class RefObjectIdentityTest {
 
     @Test
     public void testLightweightTagToOrphanBlob() {
-        assertEquals(orphanBlob, result.getRef("refs/tags/lwblob").getObjectId());
+        assertEquals(orphanBlob, result.getRef("refs/tags/lwblob").id);
         assertEquals(Constants.OBJ_BLOB, result.getObjectType(orphanBlob));
     }
 
@@ -109,9 +109,9 @@ public class RefObjectIdentityTest {
         // points to (preserving the full output), rather than reverting to the original blob.
         final RepositoryAccess exploded = TestRepo.rewrite(source, new BlobExploder());
         try {
-            final RevTag tag = exploded.parseTag(exploded.getRef("refs/tags/blobtag").getObjectId());
+            final RevTag tag = exploded.parseTag(exploded.getRef("refs/tags/blobtag").id);
             assertEquals(Constants.OBJ_TREE, exploded.getObjectType(tag.getObject().getId()));
-            assertEquals(Constants.OBJ_TREE, exploded.getObjectType(exploded.getRef("refs/tags/lwblob").getObjectId()));
+            assertEquals(Constants.OBJ_TREE, exploded.getObjectType(exploded.getRef("refs/tags/lwblob").id));
         } finally {
             exploded.close();
         }
@@ -133,8 +133,8 @@ public class RefObjectIdentityTest {
     // The tag object id is identical (so its target is preserved by content), and the target is
     // present in the result with the expected id and type.
     private void assertTagTargetPreserved(final String ref, final int targetType, final ObjectId expectedTarget) {
-        assertEquals(source.getRef(ref).getObjectId(), result.getRef(ref).getObjectId());
-        final RevTag tag = result.parseTag(result.getRef(ref).getObjectId());
+        assertEquals(source.getRef(ref).id, result.getRef(ref).id);
+        final RevTag tag = result.parseTag(result.getRef(ref).id);
         assertEquals(expectedTarget, tag.getObject().getId());
         assertEquals(targetType, result.getObjectType(tag.getObject().getId()));
     }

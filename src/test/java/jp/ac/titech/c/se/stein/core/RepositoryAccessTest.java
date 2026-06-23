@@ -380,9 +380,9 @@ public class RepositoryAccessTest {
         ra.applyRefUpdate(new RefEntry("refs/heads/main", commitId));
         ra.applyRefUpdate(new RefEntry("refs/heads/dev", commitId));
 
-        final Ref ref = ra.getRef("refs/heads/main");
+        final RefEntry ref = ra.getRef("refs/heads/main");
         assertNotNull(ref);
-        assertEquals(commitId, ref.getObjectId());
+        assertEquals(commitId, ref.id);
 
         assertTrue(ra.getRefs().size() >= 2);
     }
@@ -417,7 +417,7 @@ public class RepositoryAccessTest {
         // annotated tag: peeled to the underlying commit
         assertEquals(commitId, ra.getRefTarget(new RefEntry("refs/tags/v1", tagId)));
         // symbolic ref: followed to its target's commit
-        final RefEntry head = new RefEntry(ra.getRef("HEAD"));
+        final RefEntry head = ra.getRef("HEAD");
         assertTrue(head.isSymbolic());
         assertEquals(commitId, ra.getRefTarget(head));
     }

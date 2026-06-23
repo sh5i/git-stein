@@ -1,8 +1,8 @@
 package jp.ac.titech.c.se.stein.app;
 
+import jp.ac.titech.c.se.stein.core.RefEntry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
-import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -38,18 +38,18 @@ public class IdentityTest {
 
     @Test
     public void testRefs() {
-        final Ref sourceMain = source.getRef("refs/heads/main");
-        final Ref targetMain = result.getRef("refs/heads/main");
+        final RefEntry sourceMain = source.getRef("refs/heads/main");
+        final RefEntry targetMain = result.getRef("refs/heads/main");
         assertNotNull(targetMain);
-        assertEquals(sourceMain.getObjectId(), targetMain.getObjectId());
+        assertEquals(sourceMain.id, targetMain.id);
     }
 
     @Test
     public void testTagRef() {
-        final Ref sourceTag = source.getRef("refs/tags/v1.0");
-        final Ref targetTag = result.getRef("refs/tags/v1.0");
+        final RefEntry sourceTag = source.getRef("refs/tags/v1.0");
+        final RefEntry targetTag = result.getRef("refs/tags/v1.0");
         assertNotNull(targetTag);
-        assertEquals(sourceTag.getObjectId(), targetTag.getObjectId());
+        assertEquals(sourceTag.id, targetTag.id);
     }
 
     @Test
