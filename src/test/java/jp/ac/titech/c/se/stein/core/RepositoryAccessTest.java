@@ -377,8 +377,8 @@ public class RepositoryAccessTest {
         final ObjectId commitId = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT, "hello", c);
         flush();
 
-        ra.applyRefUpdate(new RefEntry("refs/heads/main", commitId));
-        ra.applyRefUpdate(new RefEntry("refs/heads/dev", commitId));
+        ra.applyRefUpdate(RefEntry.of("refs/heads/main", commitId));
+        ra.applyRefUpdate(RefEntry.of("refs/heads/dev", commitId));
 
         final RefEntry ref = ra.getRef("refs/heads/main");
         assertNotNull(ref);
@@ -394,10 +394,10 @@ public class RepositoryAccessTest {
         final ObjectId commitId = ra.writeCommit(RepositoryAccess.NO_PARENTS, treeId, IDENT, IDENT, "hello", c);
         flush();
 
-        ra.applyRefUpdate(new RefEntry("refs/heads/temp", commitId));
+        ra.applyRefUpdate(RefEntry.of("refs/heads/temp", commitId));
         assertNotNull(ra.getRef("refs/heads/temp"));
 
-        ra.applyRefDelete(new RefEntry("refs/heads/temp", commitId));
+        ra.applyRefDelete(RefEntry.of("refs/heads/temp", commitId));
         assertNull(ra.getRef("refs/heads/temp"));
     }
 
@@ -408,14 +408,14 @@ public class RepositoryAccessTest {
         final ObjectId tagId = ra.writeTag(commitId, Constants.OBJ_COMMIT, "v1", IDENT, "release", c);
         flush();
 
-        ra.applyRefUpdate(new RefEntry("refs/heads/main", commitId));
-        ra.applyRefUpdate(new RefEntry("refs/tags/v1", tagId));
-        ra.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+        ra.applyRefUpdate(RefEntry.of("refs/heads/main", commitId));
+        ra.applyRefUpdate(RefEntry.of("refs/tags/v1", tagId));
+        ra.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
 
         // direct ref to a commit: resolves to itself
-        assertEquals(commitId, ra.getRefTarget(new RefEntry("refs/heads/main", commitId)));
+        assertEquals(commitId, ra.getRefTarget(RefEntry.of("refs/heads/main", commitId)));
         // annotated tag: peeled to the underlying commit
-        assertEquals(commitId, ra.getRefTarget(new RefEntry("refs/tags/v1", tagId)));
+        assertEquals(commitId, ra.getRefTarget(RefEntry.of("refs/tags/v1", tagId)));
         // symbolic ref: followed to its target's commit
         final RefEntry head = ra.getRef("HEAD");
         assertTrue(head.isSymbolic());
@@ -503,7 +503,7 @@ public class RepositoryAccessTest {
         final ObjectId commit2 = ra.writeCommit(new ObjectId[] { commit1 }, treeId, IDENT, IDENT, "second", c);
         flush();
 
-        ra.applyRefUpdate(new RefEntry("refs/heads/main", commit2));
+        ra.applyRefUpdate(RefEntry.of("refs/heads/main", commit2));
 
         final List<RevCommit> commits = ra.collectCommits("refs/heads/main");
         assertEquals(2, commits.size());

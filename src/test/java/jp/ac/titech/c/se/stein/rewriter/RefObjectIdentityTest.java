@@ -57,10 +57,10 @@ public class RefObjectIdentityTest {
             final ObjectId treeTag = source.writeTag(orphanTree, Constants.OBJ_TREE, "treetag", who, "tree tag", c);
             inserter.flush();
 
-            source.applyRefUpdate(new RefEntry("refs/heads/main", commit));
-            source.applyRefUpdate(new RefEntry("refs/tags/blobtag", blobTag));   // annotated -> orphan blob
-            source.applyRefUpdate(new RefEntry("refs/tags/treetag", treeTag));   // annotated -> orphan tree
-            source.applyRefUpdate(new RefEntry("refs/tags/lwblob", orphanBlob)); // lightweight -> orphan blob
+            source.applyRefUpdate(RefEntry.of("refs/heads/main", commit));
+            source.applyRefUpdate(RefEntry.of("refs/tags/blobtag", blobTag));   // annotated -> orphan blob
+            source.applyRefUpdate(RefEntry.of("refs/tags/treetag", treeTag));   // annotated -> orphan tree
+            source.applyRefUpdate(RefEntry.of("refs/tags/lwblob", orphanBlob)); // lightweight -> orphan blob
         }
         result = TestRepo.rewrite(source, new Identity());
     }

@@ -164,14 +164,14 @@ public class RepositoryAccess implements AutoCloseable {
      */
     public RefEntry getRef(final String name) {
         final Ref ref = Try.io(() -> repo.getRefDatabase().findRef(name));
-        return ref != null ? new RefEntry(ref) : null;
+        return ref != null ? RefEntry.of(ref) : null;
     }
 
     /**
      * Retrieves all refs as {@link RefEntry} values.
      */
     public List<RefEntry> getRefs() {
-        return Try.io(() -> repo.getRefDatabase().getRefs()).stream().map(RefEntry::new).toList();
+        return Try.io(() -> repo.getRefDatabase().getRefs()).stream().map(RefEntry::of).toList();
     }
 
     /**
@@ -440,7 +440,7 @@ public class RepositoryAccess implements AutoCloseable {
         final String message = "Notes added by 'git notes add'";
         final ObjectId commit = writeCommit(NO_PARENTS, treeId, ident, ident, message, writingContext);
 
-        applyRefUpdate(new RefEntry(ref, commit));
+        applyRefUpdate(RefEntry.of(ref, commit));
     }
 
     /**

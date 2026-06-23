@@ -36,8 +36,8 @@ public class LinearizeTest {
             final ObjectId side = source.writeCommit(new ObjectId[]{base}, tree("2", c), who, who, "side", c);
             final ObjectId merge = source.writeCommit(new ObjectId[]{main2, side}, tree("3", c), who, who, "merge", c);
             inserter.flush();
-            source.applyRefUpdate(new RefEntry("refs/heads/main", merge));
-            source.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+            source.applyRefUpdate(RefEntry.of("refs/heads/main", merge));
+            source.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
         }
         result = TestRepo.rewrite(source, new Linearize());
     }

@@ -139,9 +139,9 @@ public class TestRepo {
 
             inserter.flush();
 
-            ra.applyRefUpdate(new RefEntry("refs/heads/main", commit3));
-            ra.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
-            ra.applyRefUpdate(new RefEntry("refs/tags/v1.0", tagId));
+            ra.applyRefUpdate(RefEntry.of("refs/heads/main", commit3));
+            ra.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
+            ra.applyRefUpdate(RefEntry.of("refs/tags/v1.0", tagId));
         }
     }
 

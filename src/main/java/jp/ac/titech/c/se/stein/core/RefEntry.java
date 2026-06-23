@@ -46,24 +46,24 @@ public class RefEntry implements Serializable, Comparable<RefEntry> {
     /**
      * Creates a direct ref.
      */
-    public RefEntry(final String name, final ObjectId id) {
-        this(name, id, null);
+    public static RefEntry of(final String name, final ObjectId id) {
+        return new RefEntry(name, id, null);
     }
 
     /**
      * Creates a symbolic ref.
      */
-    public RefEntry(final String name, final String target) {
-        this(name, null, target);
+    public static RefEntry of(final String name, final String target) {
+        return new RefEntry(name, null, target);
     }
 
     /**
      * Creates a {@link RefEntry} from a JGit {@link Ref}.
      */
-    public RefEntry(final Ref ref) {
-        this(ref.getName(),
-             ref.isSymbolic() ? null : ref.getObjectId(),
-             ref.isSymbolic() ? ref.getTarget().getName() : null);
+    public static RefEntry of(final Ref ref) {
+        return new RefEntry(ref.getName(),
+                ref.isSymbolic() ? null : ref.getObjectId(),
+                ref.isSymbolic() ? ref.getTarget().getName() : null);
     }
 
     /**

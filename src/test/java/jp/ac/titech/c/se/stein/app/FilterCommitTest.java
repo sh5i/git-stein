@@ -42,8 +42,8 @@ public class FilterCommitTest {
             final ObjectId c2 = source.writeCommit(new ObjectId[]{c1}, t2, bob, bob, "b", c);
             final ObjectId c3 = source.writeCommit(new ObjectId[]{c2}, t3, alice, alice, "a2", c);
             inserter.flush();
-            source.applyRefUpdate(new RefEntry("refs/heads/main", c3));
-            source.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+            source.applyRefUpdate(RefEntry.of("refs/heads/main", c3));
+            source.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
         }
         final FilterCommit app = new FilterCommit();
         app.author = Pattern.compile("Alice");
@@ -90,8 +90,8 @@ public class FilterCommitTest {
             final ObjectId m = src.writeCommit(new ObjectId[]{cc, b}, tree(src, "m", c), drop, drop, "M", c);
             final ObjectId d = src.writeCommit(new ObjectId[]{m}, tree(src, "d", c), keep, keep, "D", c);
             inserter.flush();
-            src.applyRefUpdate(new RefEntry("refs/heads/main", d));
-            src.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+            src.applyRefUpdate(RefEntry.of("refs/heads/main", d));
+            src.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
         }
 
         final FilterCommit app = new FilterCommit();
@@ -133,8 +133,8 @@ public class FilterCommitTest {
             final ObjectId m = src.writeCommit(new ObjectId[]{cc, b}, tree(src, "m", c), drop, drop, "M", c);
             final ObjectId d = src.writeCommit(new ObjectId[]{m}, tree(src, "d", c), keep, keep, "D", c);
             inserter.flush();
-            src.applyRefUpdate(new RefEntry("refs/heads/main", d));
-            src.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+            src.applyRefUpdate(RefEntry.of("refs/heads/main", d));
+            src.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
         }
 
         final FilterCommit app = new FilterCommit();
@@ -175,8 +175,8 @@ public class FilterCommitTest {
             final ObjectId cc = src.writeCommit(new ObjectId[]{b}, tree(src, "c", c), keep, keep, "C", c);
             final ObjectId d = src.writeCommit(new ObjectId[]{cc, b}, tree(src, "d", c), keep, keep, "D", c);
             inserter.flush();
-            src.applyRefUpdate(new RefEntry("refs/heads/main", d));
-            src.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+            src.applyRefUpdate(RefEntry.of("refs/heads/main", d));
+            src.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
         }
 
         final FilterCommit app = new FilterCommit();
@@ -218,8 +218,8 @@ public class FilterCommitTest {
             final ObjectId cc = src.writeCommit(new ObjectId[]{a}, tree(src, "c", c), drop, drop, "C", c);
             final ObjectId d = src.writeCommit(new ObjectId[]{b, cc}, tree(src, "d", c), keep, keep, "D", c);
             inserter.flush();
-            src.applyRefUpdate(new RefEntry("refs/heads/main", d));
-            src.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+            src.applyRefUpdate(RefEntry.of("refs/heads/main", d));
+            src.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
         }
 
         final FilterCommit app = new FilterCommit();

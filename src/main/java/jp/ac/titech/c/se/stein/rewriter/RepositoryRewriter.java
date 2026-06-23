@@ -170,10 +170,10 @@ public class RepositoryRewriter implements RewriterCommand {
                     origNotes.write(R_NOTES_ORIG, uc);
                 } else {
                     // Single transformation: orig = prev, share the same ref
-                    target.applyRefUpdate(new RefEntry(R_NOTES_ORIG, target.getRef(R_NOTES_PREV).id));
+                    target.applyRefUpdate(RefEntry.of(R_NOTES_ORIG, target.getRef(R_NOTES_PREV).id));
                 }
                 // Default notes = orig (for git log display)
-                target.applyRefUpdate(new RefEntry(Constants.R_NOTES_COMMITS, target.getRef(R_NOTES_ORIG).id));
+                target.applyRefUpdate(RefEntry.of(Constants.R_NOTES_COMMITS, target.getRef(R_NOTES_ORIG).id));
             } else {
                 target.writeNotes(target.getDefaultNotes(), uc);
             }
@@ -569,15 +569,15 @@ public class RepositoryRewriter implements RewriterCommand {
             final RefEntry target = source.getRef(entry.target);
             if (target == null) {
                 // A dangling target (e.g. an unborn branch) cannot be resolved; keep its name as-is.
-                return new RefEntry(newName, entry.target);
+                return RefEntry.of(newName, entry.target);
             }
             final Context uc = c.with(Key.ref, target);
             final String newTarget = resolveRefEntry(target, uc).name;
-            return new RefEntry(newName, newTarget);
+            return RefEntry.of(newName, newTarget);
         } else {
             final int type = source.getObjectType(entry.id);
             final ObjectId newObjectId = rewriteRefObject(entry.id, type, c);
-            return newObjectId == ZERO ? RefEntry.EMPTY : new RefEntry(newName, newObjectId);
+            return newObjectId == ZERO ? RefEntry.EMPTY : RefEntry.of(newName, newObjectId);
         }
     }
 

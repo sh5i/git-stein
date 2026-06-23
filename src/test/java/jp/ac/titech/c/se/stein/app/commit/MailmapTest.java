@@ -93,8 +93,8 @@ public class MailmapTest {
             final ObjectId tree = src.writeTree(List.of(Entry.of(FileMode.REGULAR_FILE.getBits(), ".mailmap", blob)), ctx);
             final ObjectId commit = src.writeCommit(RepositoryAccess.NO_PARENTS, tree, old, old, "c", ctx);
             ins.flush();
-            src.applyRefUpdate(new RefEntry("refs/heads/main", commit));
-            src.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+            src.applyRefUpdate(RefEntry.of("refs/heads/main", commit));
+            src.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
         }
         final RepositoryAccess result = TestRepo.rewrite(src, new Mailmap());
         final PersonIdent author = result.collectCommits("refs/heads/main").get(0).getAuthorIdent();

@@ -68,7 +68,7 @@ public class ExtractCommit extends RepositoryRewriter {
     @Override
     protected void updateRefs(final Context c) {
         // only the main branch, pointed by HEAD
-        target.applyRefUpdate(new RefEntry("refs/heads/main", commitMapping.get(targetCommit.getId())));
-        target.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+        target.applyRefUpdate(RefEntry.of("refs/heads/main", commitMapping.get(targetCommit.getId())));
+        target.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
     }
 }

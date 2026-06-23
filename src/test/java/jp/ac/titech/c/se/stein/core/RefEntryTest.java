@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class RefEntryTest {
     static final ObjectId SAMPLE_ID = ObjectId.fromString("abcdef0123456789abcdef0123456789abcdef01");
-    final RefEntry direct = new RefEntry("refs/heads/main", SAMPLE_ID);
-    final RefEntry symbolic = new RefEntry("HEAD", "refs/heads/main");
+    final RefEntry direct = RefEntry.of("refs/heads/main", SAMPLE_ID);
+    final RefEntry symbolic = RefEntry.of("HEAD", "refs/heads/main");
 
     @Test
     public void testDirectRef() {
@@ -35,11 +35,11 @@ public class RefEntryTest {
 
     @Test
     public void testEquals() {
-        final RefEntry same = new RefEntry("refs/heads/main", SAMPLE_ID);
+        final RefEntry same = RefEntry.of("refs/heads/main", SAMPLE_ID);
         assertEquals(direct, same);
         assertEquals(direct.hashCode(), same.hashCode());
 
-        assertNotEquals(direct, new RefEntry("refs/heads/dev", SAMPLE_ID));
+        assertNotEquals(direct, RefEntry.of("refs/heads/dev", SAMPLE_ID));
         assertNotEquals(direct, symbolic);
     }
 

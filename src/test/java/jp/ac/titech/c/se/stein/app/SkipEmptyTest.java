@@ -37,8 +37,8 @@ public class SkipEmptyTest {
             final ObjectId c2 = source.writeCommit(new ObjectId[]{c1}, treeA, who, who, "empty", c);
             final ObjectId c3 = source.writeCommit(new ObjectId[]{c2}, treeB, who, who, "third", c);
             inserter.flush();
-            source.applyRefUpdate(new RefEntry("refs/heads/main", c3));
-            source.applyRefUpdate(new RefEntry("HEAD", "refs/heads/main"));
+            source.applyRefUpdate(RefEntry.of("refs/heads/main", c3));
+            source.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
         }
         result = TestRepo.rewrite(source, new SkipEmpty());
     }
