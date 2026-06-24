@@ -6,6 +6,7 @@ import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.core.Try;
 import jp.ac.titech.c.se.stein.jgit.RevWalk;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
+import java.util.List;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
@@ -66,9 +67,11 @@ public class ExtractCommit extends RepositoryRewriter {
     }
 
     @Override
-    protected void updateRefs(final Context c) {
+    protected List<RefEntry> rewriteRefs(@SuppressWarnings("unused") final List<RefEntry> sourceRefs,
+                                         @SuppressWarnings("unused") final Context c) {
         // only the main branch, pointed by HEAD
-        target.applyRefUpdate(RefEntry.of("refs/heads/main", commitMapping.get(targetCommit.getId())));
-        target.applyRefUpdate(RefEntry.of("HEAD", "refs/heads/main"));
+        return List.of(
+                RefEntry.of("refs/heads/main", commitMapping.get(targetCommit.getId())),
+                RefEntry.of("HEAD", "refs/heads/main"));
     }
 }

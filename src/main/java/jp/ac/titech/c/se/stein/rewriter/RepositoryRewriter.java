@@ -121,6 +121,12 @@ public class RepositoryRewriter implements RewriterCommand {
 
     protected boolean isSharingObjects = false;
 
+    /**
+     * Whether this run owns the target's head and tag set, pruning refs it does not produce (an
+     * in-place or staging target) rather than only adding to them (a separate output repository).
+     */
+    protected boolean isAuthoritativeRefs = false;
+
     protected boolean isPathSensitive = false;
 
     @Setter
@@ -138,6 +144,7 @@ public class RepositoryRewriter implements RewriterCommand {
         target = new RepositoryAccess(targetRepo, targetNamespace);
         isSharingObjects = sourceRepo == targetRepo;
         isOverwriting = isSharingObjects && sourceNamespace.equals(targetNamespace);
+        isAuthoritativeRefs = isOverwriting || !targetNamespace.isRoot();
         if (config.isDryRunning) {
             source.setDryRunning(true);
             target.setDryRunning(true);
@@ -511,11 +518,23 @@ public class RepositoryRewriter implements RewriterCommand {
 
 
     /**
-     * Updates ref objects.
+     * Writes this run's rewritten refs to the target, pruning obsolete refs when
+     * {@link #isAuthoritativeRefs}.
      */
     protected void updateRefs(final Context c) {
-        for (final RefEntry ref : filterRefs(source.getRefs(), c)) {
-            updateRef(ref, c);
+        final List<RefEntry> desired = rewriteRefs(filterRefs(source.getRefs(), c), c);
+        for (final RefEntry ref : desired) {
+            log.debug("Update ref: {} {}", ref, c);
+            target.applyRefUpdate(ref);
+        }
+        if (isAuthoritativeRefs) {
+            final Set<String> produced = desired.stream().map(r -> r.name).collect(Collectors.toSet());
+            for (final RefEntry ref : filterRefs(target.getRefs(), c)) {
+                if (!produced.contains(ref.name)) {
+                    log.debug("Delete obsolete ref: {} {}", ref, c);
+                    target.applyRefDelete(ref);
+                }
+            }
         }
     }
 
@@ -535,37 +554,18 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     /**
-     * Updates a ref object.
+     * Maps the given source refs to the refs this run wants the target to hold, dropping any that
+     * rewrite to nothing.
      */
-    protected void updateRef(final RefEntry oldEntry, final Context c) {
-        final Context uc = c.with(Key.ref, oldEntry);
-
-        final RefEntry newEntry = resolveRefEntry(oldEntry, uc);
-        if (newEntry == RefEntry.EMPTY) {
-            // delete
-            if (isOverwriting) {
-                log.debug("Delete ref: {} {}", oldEntry, c);
-                target.applyRefDelete(oldEntry);
-            }
-            return;
-        }
-
-        if (!oldEntry.name.equals(newEntry.name)) {
-            // rename
-            if (isOverwriting) {
-                log.debug("Rename ref: {} -> {} {}", oldEntry.name, newEntry.name, c);
-                target.applyRefRename(oldEntry.name, newEntry.name);
+    protected List<RefEntry> rewriteRefs(final List<RefEntry> sourceRefs, final Context c) {
+        final List<RefEntry> desired = new ArrayList<>();
+        for (final RefEntry ref : sourceRefs) {
+            final RefEntry rewritten = resolveRefEntry(ref, c.with(Key.ref, ref));
+            if (rewritten != RefEntry.EMPTY) {
+                desired.add(rewritten);
             }
         }
-
-        final boolean linkEquals = Objects.equals(oldEntry.target, newEntry.target);
-        final boolean idEquals = oldEntry.id == null ? newEntry.id == null : oldEntry.id.name().equals(newEntry.id.name());
-
-        if (!isOverwriting || !linkEquals || !idEquals) {
-            // update
-            log.debug("Update ref: {} -> {} {}", oldEntry, newEntry, c);
-            target.applyRefUpdate(newEntry);
-        }
+        return desired;
     }
 
     /**

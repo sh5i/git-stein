@@ -6,6 +6,7 @@ import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.junit.jupiter.api.AfterAll;
@@ -63,21 +64,11 @@ public class ApplicationTest {
 
     @Test
     public void testNamespacePipeline() throws Exception {
-        final File targetDir = Files.createTempDirectory("git-stein-pipeline").toFile();
-        Files.delete(targetDir.toPath());
-
-        final Application app = new Application();
-        app.conf.source = source.repo.getWorkTree();
-        app.conf.output = new Application.Config.OutputOptions();
-        app.conf.output.target = targetDir;
-        app.conf.isAddingNotes = false;
-        app.rewriters.add(new Identity());
-        app.rewriters.add(new Identity());
-        app.call();
+        final File targetDir = freshTargetDir();
+        runIdentityPipeline(targetDir);
 
         final ObjectId sourceMain = source.repo.resolve("refs/heads/main");
-        try (FileRepository repo = (FileRepository) new FileRepositoryBuilder()
-                .setWorkTree(targetDir).setGitDir(new File(targetDir, ".git")).build()) {
+        try (FileRepository repo = open(targetDir)) {
             // identity x identity preserves the ids end to end into the root namespace
             assertEquals(sourceMain, repo.resolve("refs/heads/main"));
             // the single intermediate version is left in place under its namespace (keep mode)
@@ -86,6 +77,57 @@ public class ApplicationTest {
         }
 
         FileUtils.deleteDirectory(targetDir);
+    }
+
+    @Test
+    public void testObsoleteStagingRefsArePruned() throws Exception {
+        final File targetDir = freshTargetDir();
+        runIdentityPipeline(targetDir);
+
+        // Inject an obsolete staging head, as if left over from a previous, differently-shaped run.
+        // Without pruning it would survive filterRefs and leak into the next run's output.
+        try (FileRepository repo = open(targetDir)) {
+            final ObjectId real = repo.resolve("refs/namespaces/git-stein.1/refs/heads/main");
+            final RefUpdate u = repo.getRefDatabase().newUpdate("refs/namespaces/git-stein.1/refs/heads/ghost", false);
+            u.setNewObjectId(real);
+            u.setForceUpdate(true);
+            u.update();
+        }
+
+        runIdentityPipeline(targetDir);
+
+        final ObjectId sourceMain = source.repo.resolve("refs/heads/main");
+        try (FileRepository repo = open(targetDir)) {
+            // stage 0 rewrites the staging namespace authoritatively, so the obsolete head is pruned
+            assertNull(repo.getRefDatabase().exactRef("refs/namespaces/git-stein.1/refs/heads/ghost"));
+            // and it never reaches the final output
+            assertNull(repo.resolve("refs/heads/ghost"));
+            assertEquals(sourceMain, repo.resolve("refs/heads/main"));
+        }
+
+        FileUtils.deleteDirectory(targetDir);
+    }
+
+    private File freshTargetDir() throws IOException {
+        final File dir = Files.createTempDirectory("git-stein-pipeline").toFile();
+        Files.delete(dir.toPath());
+        return dir;
+    }
+
+    private void runIdentityPipeline(final File targetDir) throws Exception {
+        final Application app = new Application();
+        app.conf.source = source.repo.getWorkTree();
+        app.conf.output = new Application.Config.OutputOptions();
+        app.conf.output.target = targetDir;
+        app.conf.isAddingNotes = false;
+        app.rewriters.add(new Identity());
+        app.rewriters.add(new Identity());
+        app.call();
+    }
+
+    private static FileRepository open(final File dir) throws IOException {
+        return (FileRepository) new FileRepositoryBuilder()
+                .setWorkTree(dir).setGitDir(new File(dir, ".git")).build();
     }
 
     static long dirSize(File dir) {

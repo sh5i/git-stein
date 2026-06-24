@@ -553,16 +553,6 @@ public class RepositoryAccess implements AutoCloseable {
         });
     }
 
-    /**
-     * Renames a ref.
-     */
-    public void applyRefRename(final String name, final String newName) {
-        if (isDryRunning) {
-            return;
-        }
-        Try.io(() -> repo.getRefDatabase().newRename(ns.toStored(name), ns.toStored(newName)).rename());
-    }
-
     // Handling ObjectInserter
 
     /**
