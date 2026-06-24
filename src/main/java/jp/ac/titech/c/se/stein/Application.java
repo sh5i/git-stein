@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.Context.Key;
+import jp.ac.titech.c.se.stein.core.RefNamespace;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import org.slf4j.event.Level;
@@ -37,8 +38,10 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     public static final String BUILTIN_COMMAND_PACKAGE = Identity.class.getPackageName();
 
     @FunctionalInterface
-    public interface TetraConsumer<T, U, V, W> {
-        void accept(T t, U u, V v, W w);
+    public interface StageConsumer {
+        void accept(FileRepository sourceRepo, RefNamespace sourceNamespace,
+                    FileRepository targetRepo, RefNamespace targetNamespace,
+                    RepositoryRewriter rewriter, int index);
     }
 
     public static class Config {
@@ -159,25 +162,29 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
     @Override
     public Integer call() throws Exception {
-        openRepositories((source, target, rewriter, index) -> {
-            log.info("Starting rewriting [{}]: {} -> {}", rewriter, source.getDirectory(), target.getDirectory());
+        openRepositories((sourceRepo, sourceNamespace, targetRepo, targetNamespace, rewriter, index) -> {
+            log.info("Starting rewriting [{}]: {} -> {}", rewriter, sourceRepo.getDirectory(), targetRepo.getDirectory());
             rewriter.setConfig(conf);
-            rewriter.initialize(source, target);
-            if (conf.alternatesMode != null) {
-                new RepositoryAccess(target).setupAlternates(source, conf.alternatesMode == Config.AlternatesMode.relative);
+            rewriter.initialize(sourceRepo, sourceNamespace, targetRepo, targetNamespace);
+            // Alternates only make sense at the external boundary (first stage, distinct repos);
+            // internal stages share the target's object store directly.
+            if (conf.alternatesMode != null && index == 0 && sourceRepo != targetRepo) {
+                new RepositoryAccess(targetRepo).setupAlternates(sourceRepo, conf.alternatesMode == Config.AlternatesMode.relative);
             }
             final Context c = Context.init().with(Key.conf, conf);
             final Instant start = Instant.now();
             rewriter.rewrite(c);
             final Instant finish = Instant.now();
             log.info("Completed rewriting in {} ms", Duration.between(start, finish).toMillis());
-            if (conf.isPackingEnabled) {
-                log.info("Packing objects in {}...", target.getDirectory());
-                new PorcelainAPI(target).repack();
+            final boolean isLast = index == rewriters.size() - 1;
+            // Every stage shares one object store, so pack and check out once, after the final stage.
+            if (conf.isPackingEnabled && isLast) {
+                log.info("Packing objects in {}...", targetRepo.getDirectory());
+                new PorcelainAPI(targetRepo).repack();
             }
-            if (!conf.isBare && index == rewriters.size() - 1) {
-                log.info("Checking out HEAD of {}...", target.getDirectory());
-                new PorcelainAPI(target).checkout();
+            if (!conf.isBare && isLast) {
+                log.info("Checking out HEAD of {}...", targetRepo.getDirectory());
+                new PorcelainAPI(targetRepo).checkout();
             }
         });
 
@@ -185,9 +192,14 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     }
 
     /**
-     * Opens the source and target repositories and run the given block.
+     * Opens the source and target repositories and runs the given block once per rewriter.
+     *
+     * <p>A pipeline of N rewriters runs entirely within the single target repository, with each
+     * intermediate version held under its own ref namespace ({@code refs/namespaces/git-stein.k/}).
+     * The first stage reads the external source at the root namespace; the last stage writes the
+     * final result back to the root namespace. Staging namespaces are left in place.</p>
      */
-    protected void openRepositories(final TetraConsumer<FileRepository, FileRepository, RepositoryRewriter, Integer> f) throws IOException {
+    protected void openRepositories(final StageConsumer f) throws IOException {
         // cleaning
         if (conf.output != null && conf.output.isCleaningEnabled && conf.output.target.exists()) {
             log.info("Delete directory: {}", conf.output.target);
@@ -201,39 +213,38 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         }
 
         final File target = conf.output != null ? conf.output.target : conf.source;
+        final boolean isInPlace = target.equals(conf.source);
 
-        if (rewriters.size() > 1) {
-            try (final FileRepository repo = createRepository(target, conf.isBare, true)) {
-                // create unless exist
-                log.debug("Target repo: {}", repo.getDirectory());
-            }
-        }
-
-        for (int i = 0; i < rewriters.size(); i++) {
-            final File src = i == 0 ? conf.source : createIntermediateRepositoryName(target, i);
-            final File dst = i == rewriters.size() - 1 ? target : createIntermediateRepositoryName(target, i + 1);
-            final boolean isSrcBare = i != 0 || conf.isBare;
-            final boolean isDstBare = i != rewriters.size() - 1 || conf.isBare;
-            if (src.equals(dst)) {
-                try (final FileRepository repo = createRepository(src, isSrcBare, false)) {
-                    f.accept(repo, repo, rewriters.get(i), i);
-                }
+        try (final FileRepository targetRepo = createRepository(target, conf.isBare, true)) {
+            if (isInPlace) {
+                runPipeline(f, targetRepo, targetRepo);
             } else {
-                try (final FileRepository sourceRepo = createRepository(src, isSrcBare, false)) {
-                    try (final FileRepository targetRepo = createRepository(dst, isDstBare, true)) {
-                        f.accept(sourceRepo, targetRepo, rewriters.get(i), i);
-                    }
+                try (final FileRepository sourceRepo = createRepository(conf.source, conf.isBare, false)) {
+                    runPipeline(f, sourceRepo, targetRepo);
                 }
             }
         }
     }
 
     /**
-     * Generate intermediate repository name.
+     * Runs each rewriter as a stage, threading intermediate versions through ref namespaces of the
+     * single target repository. Only the first stage reads from {@code externalSource}.
      */
-    protected File createIntermediateRepositoryName(final File target, final int n) {
-        final File dotgit = conf.isBare ? target : new File(target, Constants.DOT_GIT);
-        return new File(dotgit, ".git-stein." + n);
+    private void runPipeline(final StageConsumer f, final FileRepository externalSource, final FileRepository targetRepo) {
+        final int n = rewriters.size();
+        for (int i = 0; i < n; i++) {
+            final FileRepository sourceRepo = i == 0 ? externalSource : targetRepo;
+            final RefNamespace sourceNamespace = i == 0 ? RefNamespace.ROOT : versionNamespace(i);
+            final RefNamespace targetNamespace = i == n - 1 ? RefNamespace.ROOT : versionNamespace(i + 1);
+            f.accept(sourceRepo, sourceNamespace, targetRepo, targetNamespace, rewriters.get(i), i);
+        }
+    }
+
+    /**
+     * The ref namespace holding the k-th intermediate version of a pipeline.
+     */
+    protected RefNamespace versionNamespace(final int k) {
+        return new RefNamespace("refs/namespaces/git-stein." + k + "/");
     }
 
     /**

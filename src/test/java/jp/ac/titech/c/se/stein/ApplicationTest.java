@@ -3,7 +3,11 @@ package jp.ac.titech.c.se.stein;
 import jp.ac.titech.c.se.stein.app.Identity;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
+import org.apache.commons.io.FileUtils;
+import org.eclipse.jgit.internal.storage.file.FileRepository;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -55,6 +59,33 @@ public class ApplicationTest {
             assertTrue(sizeWith < sizeWithout,
                     "Expected fewer local objects with alternates: with=" + sizeWith + ", without=" + sizeWithout);
         }
+    }
+
+    @Test
+    public void testNamespacePipeline() throws Exception {
+        final File targetDir = Files.createTempDirectory("git-stein-pipeline").toFile();
+        Files.delete(targetDir.toPath());
+
+        final Application app = new Application();
+        app.conf.source = source.repo.getWorkTree();
+        app.conf.output = new Application.Config.OutputOptions();
+        app.conf.output.target = targetDir;
+        app.conf.isAddingNotes = false;
+        app.rewriters.add(new Identity());
+        app.rewriters.add(new Identity());
+        app.call();
+
+        final ObjectId sourceMain = source.repo.resolve("refs/heads/main");
+        try (FileRepository repo = (FileRepository) new FileRepositoryBuilder()
+                .setWorkTree(targetDir).setGitDir(new File(targetDir, ".git")).build()) {
+            // identity x identity preserves the ids end to end into the root namespace
+            assertEquals(sourceMain, repo.resolve("refs/heads/main"));
+            // the single intermediate version is left in place under its namespace (keep mode)
+            assertEquals(sourceMain, repo.getRefDatabase()
+                    .exactRef("refs/namespaces/git-stein.1/refs/heads/main").getObjectId());
+        }
+
+        FileUtils.deleteDirectory(targetDir);
     }
 
     static long dirSize(File dir) {
