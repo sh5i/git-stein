@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.rewriter;
 
 import jp.ac.titech.c.se.stein.Application;
+import jp.ac.titech.c.se.stein.app.Identity;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RefEntry;
 import jp.ac.titech.c.se.stein.core.RefNamespace;
@@ -56,6 +57,35 @@ public class RepositoryRewriterTest {
                     "Second run should reuse previous tips; pruning must not drop the incremental notes");
             assertNull(staged.getRef("refs/heads/ghost"), "Obsolete staging head should be pruned");
             assertEquals(stagedMain, staged.getRef("refs/heads/main").id, "Live head should remain");
+        }
+    }
+
+    @Test
+    public void testInPlaceRewriteSkipsNotesAndDoesNotThrow() throws IOException {
+        try (RepositoryAccess ra = TestRepo.createSample()) {
+            final RepositoryRewriter rewriter = new Identity();
+            rewriter.setConfig(new Application.Config());   // notes enabled by default
+            rewriter.initialize(ra.repo, RefNamespace.ROOT, ra.repo, RefNamespace.ROOT);   // in-place
+            rewriter.useDefaultScope();
+            rewriter.rewrite(Context.init());               // must not throw (no null prevNotes)
+            // an in-place rewrite does not track notes, so no notes ref is written
+            assertNull(ra.repo.getRefDatabase().exactRef("refs/notes/commits"));
+        }
+    }
+
+    @Test
+    public void testNoNotesWritesNoNotesRef() throws IOException {
+        try (RepositoryAccess src = TestRepo.createSample();
+             RepositoryAccess dst = TestRepo.create()) {
+            final RepositoryRewriter rewriter = new Identity();
+            final Application.Config config = new Application.Config();
+            config.isAddingNotes = false;
+            rewriter.setConfig(config);
+            rewriter.initialize(src.repo, dst.repo);
+            rewriter.useDefaultScope();
+            rewriter.rewrite(Context.init());
+            // --no-notes must not create a spurious notes ref
+            assertNull(dst.repo.getRefDatabase().exactRef("refs/notes/commits"));
         }
     }
 }

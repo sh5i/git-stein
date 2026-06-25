@@ -127,6 +127,12 @@ public class RepositoryRewriter implements RewriterCommand {
      */
     protected boolean isAuthoritativeRefs = false;
 
+    /**
+     * Whether this run records original-commit notes. Only a non-in-place rewrite with notes enabled
+     * tracks notes; an in-place (overwriting) rewrite or {@code --no-notes} does not.
+     */
+    protected boolean isTrackingNotes = false;
+
     protected boolean isPathSensitive = false;
 
     /**
@@ -156,7 +162,8 @@ public class RepositoryRewriter implements RewriterCommand {
             source.setDryRunning(true);
             target.setDryRunning(true);
         }
-        if (config.isAddingNotes && !isOverwriting) {
+        isTrackingNotes = config.isAddingNotes && !isOverwriting;
+        if (isTrackingNotes) {
             isChained = source.getRef(R_NOTES_ORIG) != null;
             prevNotes = new NoteObjectIdMap(target.readNotes(R_NOTES_PREV), target);
             if (isChained) {
@@ -186,7 +193,7 @@ public class RepositoryRewriter implements RewriterCommand {
             }
             rewriteCommits(walk, uc);
             updateRefs(uc);
-            if (config.isAddingNotes) {
+            if (isTrackingNotes) {
                 prevNotes.write(R_NOTES_PREV, uc);
                 if (isChained) {
                     origNotes.write(R_NOTES_ORIG, uc);
@@ -196,8 +203,6 @@ public class RepositoryRewriter implements RewriterCommand {
                 }
                 // Default notes = orig (for git log display)
                 target.applyRefUpdate(RefEntry.of(Constants.R_NOTES_COMMITS, target.getRef(R_NOTES_ORIG).id));
-            } else {
-                target.writeNotes(target.getDefaultNotes(), uc);
             }
         } finally {
             final long blobHit = blobCacheHits.get(), blobMiss = blobCacheMisses.get();
@@ -372,7 +377,7 @@ public class RepositoryRewriter implements RewriterCommand {
         commitMapping.put(oldId, newId);
         log.debug("Rewrite commit: {} -> {} {}", oldId.name(), newId.name(), c);
 
-        if (config.isAddingNotes) {
+        if (isTrackingNotes) {
             prevNotes.add(newId, oldId, uc);
             if (isChained) {
                 final ObjectId origId = sourceOrigNotes.get(oldId);
