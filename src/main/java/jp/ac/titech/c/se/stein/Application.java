@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.Context.Key;
+import jp.ac.titech.c.se.stein.core.RefEntry;
 import jp.ac.titech.c.se.stein.core.RefNamespace;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
@@ -36,6 +37,11 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
     private static final Logger log = LoggerFactory.getLogger(Application.class);
 
     public static final String BUILTIN_COMMAND_PACKAGE = Identity.class.getPackageName();
+
+    /**
+     * The ref namespace where an in-place rewrite backs up the original refs.
+     */
+    private static final RefNamespace GIT_STEIN_ORIGINAL = new RefNamespace("refs/namespaces/git-stein.original/");
 
     @FunctionalInterface
     public interface StageConsumer {
@@ -218,6 +224,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
 
         try (final FileRepository targetRepo = createRepository(target, conf.isBare, true)) {
             if (isInPlace) {
+                backupOriginalRefs(targetRepo);
                 runPipeline(f, targetRepo, targetRepo);
             } else {
                 try (final FileRepository sourceRepo = createRepository(conf.source, conf.isBare, false)) {
@@ -246,6 +253,29 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
      */
     protected RefNamespace versionNamespace(final int k) {
         return new RefNamespace("refs/namespaces/git-stein." + k + "/");
+    }
+
+    /**
+     * Backs up the original branches, tags, HEAD, and notes of an in-place rewrite into the
+     * {@code refs/namespaces/git-stein.original/} namespace, overwriting any previous backup, so the
+     * pre-rewrite state can be recovered.
+     */
+    private void backupOriginalRefs(final FileRepository repo) {
+        final RepositoryAccess root = new RepositoryAccess(repo);
+        final RepositoryAccess backup = new RepositoryAccess(repo, GIT_STEIN_ORIGINAL);
+        for (final RefEntry ref : backup.getRefs()) {
+            backup.applyRefDelete(ref);
+        }
+        final List<RefEntry> originals = new ArrayList<>(RepositoryRewriter.defaultScope(root));
+        for (final RefEntry ref : root.getRefs()) {
+            if (ref.name.startsWith(Constants.R_NOTES)) {
+                originals.add(ref);
+            }
+        }
+        for (final RefEntry ref : originals) {
+            backup.applyRefUpdate(ref);
+        }
+        log.info("Backed up {} original refs to refs/namespaces/git-stein.original/", originals.size());
     }
 
     /**

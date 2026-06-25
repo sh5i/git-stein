@@ -108,6 +108,23 @@ public class ApplicationTest {
         FileUtils.deleteDirectory(targetDir);
     }
 
+    @Test
+    public void testInPlaceBackup() throws Exception {
+        try (RepositoryAccess repo = TestRepo.createSample(true)) {
+            final ObjectId origMain = repo.repo.resolve("refs/heads/main");
+
+            final Application app = new Application();
+            app.conf.source = repo.repo.getWorkTree();   // no --output => in-place
+            app.conf.isAddingNotes = false;              // avoid the unrelated in-place + notes NPE
+            app.rewriters.add(new Identity());
+            app.call();
+
+            // the original branch is preserved under the backup namespace
+            assertEquals(origMain, repo.repo.getRefDatabase()
+                    .exactRef("refs/namespaces/git-stein.original/refs/heads/main").getObjectId());
+        }
+    }
+
     private File freshTargetDir() throws IOException {
         final File dir = Files.createTempDirectory("git-stein-pipeline").toFile();
         Files.delete(dir.toPath());
