@@ -112,6 +112,7 @@ public class RewriteBenchmark {
             final RepositoryRewriter rewriter = factory.create();
             rewriter.setConfig(config);
             rewriter.initialize(sourceRepo, targetRepo);
+            rewriter.useDefaultScope();
 
             System.gc();
             final long heapBefore = usedHeap();
@@ -140,6 +141,7 @@ public class RewriteBenchmark {
                 final RepositoryRewriter rewriter2 = factory.create();
                 rewriter2.setConfig(config);
                 rewriter2.initialize(sourceRepo, targetRepo);
+                rewriter2.useDefaultScope();
 
                 System.gc();
                 final long heapBefore2 = usedHeap();

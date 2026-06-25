@@ -166,6 +166,7 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
             log.info("Starting rewriting [{}]: {} -> {}", rewriter, sourceRepo.getDirectory(), targetRepo.getDirectory());
             rewriter.setConfig(conf);
             rewriter.initialize(sourceRepo, sourceNamespace, targetRepo, targetNamespace);
+            rewriter.useDefaultScope();
             // Alternates only make sense at the external boundary (first stage, distinct repos);
             // internal stages share the target's object store directly.
             if (conf.alternatesMode != null && index == 0 && sourceRepo != targetRepo) {

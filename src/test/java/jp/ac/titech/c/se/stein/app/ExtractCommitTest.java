@@ -41,6 +41,7 @@ public class ExtractCommitTest {
 
         final Repository targetRepo = new InMemoryRepository(new DfsRepositoryDescription("target"));
         extractor.initialize(source.repo, targetRepo);
+        extractor.useDefaultScope();
         extractor.rewrite(Context.init());
         return new TemporaryRepositoryAccess(targetRepo);
     }

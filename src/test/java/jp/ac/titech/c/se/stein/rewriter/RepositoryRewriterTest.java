@@ -25,6 +25,7 @@ public class RepositoryRewriterTest {
     private static void rewriteIntoStaging(final RepositoryRewriter rewriter, final RepositoryAccess ra) {
         rewriter.setConfig(new Application.Config());
         rewriter.initialize(ra.repo, RefNamespace.ROOT, ra.repo, STAGING);
+        rewriter.useDefaultScope();
         rewriter.rewrite(Context.init());
     }
 

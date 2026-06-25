@@ -129,6 +129,13 @@ public class RepositoryRewriter implements RewriterCommand {
 
     protected boolean isPathSensitive = false;
 
+    /**
+     * The source refs to rewrite: their tips seed the walk and they form the carry-set written to
+     * the target. Injected by the caller (see {@link #useDefaultScope()}).
+     */
+    @Setter
+    protected List<RefEntry> scope;
+
     @Setter
     protected Config config;
 
@@ -285,9 +292,9 @@ public class RepositoryRewriter implements RewriterCommand {
     /**
      * Collects the set of commit Ids used as start points.
      */
-    protected Collection<ObjectId> collectStarts(final Context c) {
+    protected Collection<ObjectId> collectStarts(@SuppressWarnings("unused") final Context c) {
         final List<ObjectId> result = new ArrayList<>();
-        for (final RefEntry ref : filterRefs(source.getRefs(), c)) {
+        for (final RefEntry ref : scope) {
             final ObjectId commitId = source.getRefTarget(ref);
             if (source.getObjectType(commitId) == Constants.OBJ_COMMIT) {
                 log.debug("Ref {}: added as a start point (commit: {})", ref.name, commitId.name());
@@ -300,12 +307,21 @@ public class RepositoryRewriter implements RewriterCommand {
     }
 
     /**
-     * Confirms whether the given ref is used for a start point.
+     * Sets {@link #scope} to the default: every branch, tag, and HEAD of the source.
      */
-    protected List<RefEntry> filterRefs(final List<RefEntry> refs, @SuppressWarnings("unused") final Context c) {
-        return refs.stream()
-                .filter(ref -> ref.name.equals(Constants.HEAD) || ref.name.startsWith(Constants.R_HEADS) || ref.name.startsWith(Constants.R_TAGS))
-                .collect(Collectors.toList());
+    public void useDefaultScope() {
+        setScope(defaultScope(source));
+    }
+
+    /**
+     * The default scope of the given repository: its branches, tags, and HEAD.
+     */
+    public static List<RefEntry> defaultScope(final RepositoryAccess ra) {
+        return ra.getRefs().stream().filter(ref -> isDefaultScopeRef(ref.name)).collect(Collectors.toList());
+    }
+
+    private static boolean isDefaultScopeRef(final String name) {
+        return name.equals(Constants.HEAD) || name.startsWith(Constants.R_HEADS) || name.startsWith(Constants.R_TAGS);
     }
 
     /**
@@ -522,14 +538,14 @@ public class RepositoryRewriter implements RewriterCommand {
      * {@link #isAuthoritativeRefs}.
      */
     protected void updateRefs(final Context c) {
-        final List<RefEntry> desired = rewriteRefs(filterRefs(source.getRefs(), c), c);
+        final List<RefEntry> desired = rewriteRefs(scope, c);
         for (final RefEntry ref : desired) {
             log.debug("Update ref: {} {}", ref, c);
             target.applyRefUpdate(ref);
         }
         if (isAuthoritativeRefs) {
             final Set<String> produced = desired.stream().map(r -> r.name).collect(Collectors.toSet());
-            for (final RefEntry ref : filterRefs(target.getRefs(), c)) {
+            for (final RefEntry ref : defaultScope(target)) {
                 if (!produced.contains(ref.name)) {
                     log.debug("Delete obsolete ref: {} {}", ref, c);
                     target.applyRefDelete(ref);

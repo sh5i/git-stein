@@ -46,6 +46,7 @@ public class ClusterTest {
 
             final Repository targetRepo = new InMemoryRepository(new DfsRepositoryDescription("target"));
             cluster.initialize(source.repo, targetRepo);
+            cluster.useDefaultScope();
             cluster.rewrite(Context.init());
             return new TemporaryRepositoryAccess(targetRepo);
         } finally {

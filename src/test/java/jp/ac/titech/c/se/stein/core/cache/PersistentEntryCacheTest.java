@@ -44,6 +44,7 @@ public class PersistentEntryCacheTest {
     private void rewriteWithCache(RepositoryRewriter rewriter, Repository targetRepo) {
         rewriter.setConfig(cacheConfig());
         rewriter.initialize(source.repo, targetRepo);
+        rewriter.useDefaultScope();
         rewriter.rewrite(Context.init());
     }
 

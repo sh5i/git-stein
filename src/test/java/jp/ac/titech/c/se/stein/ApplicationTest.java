@@ -85,7 +85,7 @@ public class ApplicationTest {
         runIdentityPipeline(targetDir);
 
         // Inject an obsolete staging head, as if left over from a previous, differently-shaped run.
-        // Without pruning it would survive filterRefs and leak into the next run's output.
+        // Being a branch it is in scope, so without pruning it would leak into the next run's output.
         try (FileRepository repo = open(targetDir)) {
             final ObjectId real = repo.resolve("refs/namespaces/git-stein.1/refs/heads/main");
             final RefUpdate u = repo.getRefDatabase().newUpdate("refs/namespaces/git-stein.1/refs/heads/ghost", false);

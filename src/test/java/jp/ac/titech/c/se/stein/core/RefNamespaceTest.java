@@ -46,6 +46,7 @@ public class RefNamespaceTest {
         final Identity rewriter = new Identity();
         rewriter.setConfig(new Application.Config());
         rewriter.initialize(ra.repo, new RefNamespace("refs/xyz/"), ra.repo, new RefNamespace("refs/abc/"));
+        rewriter.useDefaultScope();
         rewriter.rewrite(Context.init());
     }
 

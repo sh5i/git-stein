@@ -107,6 +107,7 @@ public class TestRepo {
         final RepositoryRewriter rewriter = cmd.toRewriter();
         rewriter.setConfig(new Application.Config());
         rewriter.initialize(source.repo, target.repo);
+        rewriter.useDefaultScope();
         rewriter.rewrite(Context.init());
         return target;
     }

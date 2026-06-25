@@ -47,6 +47,7 @@ public class MemoryProfile {
             };
             rewriter.setConfig(new Application.Config());
             rewriter.initialize(sourceRepo, targetRepo);
+            rewriter.useDefaultScope();
 
             // Before
             System.gc();
