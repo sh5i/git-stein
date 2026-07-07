@@ -337,4 +337,98 @@ public class HistorageTreeSitterTest {
         assertTrue(entries.containsKey("e.cpp"));
         assertTrue(entries.containsKey("e!ok().mcpp"), entries.keySet().toString());
     }
+
+    // --- C# ---
+
+    private static final String CSHARP_SOURCE = """
+            using System;
+            namespace App.Core {
+              public class Widget<T> : Base {
+                private int id;
+                public int a, b;
+                public string Name { get; set; }
+                public const double PI = 3.14;
+                public Widget(int id) { this.id = id; }
+                ~Widget() {}
+                public int GetId() => id;
+                public T Cast<U>(U x) where U : class { return default; }
+                public static bool operator ==(Widget<T> a, Widget<T> b) => true;
+                public event EventHandler Changed;
+                enum Color { Red, Green }
+                struct Point { public int X, Y; }
+              }
+              public interface IThing { void Do(int x); }
+              public record Person(string Name, int Age);
+              public static class Util { public static int Add(int a, int b) => a + b; }
+            }
+            """;
+
+    @Test
+    public void testCsharpModuleNames() {
+        final Map<String, String> entries = rewrite("Widget.cs", CSHARP_SOURCE);
+        assertEquals(Set.of(
+                "Widget.cs",  // original
+                // the namespace is a naming scope only; a qualified name stays one segment
+                "Widget!App.Core.Widget.ccs",
+                "Widget!App.Core.Widget#id.fcs",
+                "Widget!App.Core.Widget#a.fcs",
+                "Widget!App.Core.Widget#b.fcs",       // both members of "int a, b;"
+                "Widget!App.Core.Widget#Name.fcs",    // a property is a field
+                "Widget!App.Core.Widget#PI.fcs",
+                "Widget!App.Core.Widget#Widget(int).mcs",  // constructor
+                "Widget!App.Core.Widget#~Widget().mcs",    // destructor
+                "Widget!App.Core.Widget#GetId().mcs",
+                "Widget!App.Core.Widget#[U]_Cast(U).mcs",  // generic method, FinerGit-style
+                // an operator keeps its symbol; generic angle brackets flatten to be portable
+                "Widget!App.Core.Widget#operator==(Widget[T],Widget[T]).mcs",
+                "Widget!App.Core.Widget#Changed.fcs",      // an event is a field
+                "Widget!App.Core.Widget.Color.ccs",        // nested enum
+                "Widget!App.Core.Widget.Point.ccs",        // nested struct
+                "Widget!App.Core.Widget.Point#X.fcs",
+                "Widget!App.Core.Widget.Point#Y.fcs",
+                "Widget!App.Core.IThing.ccs",
+                "Widget!App.Core.IThing#Do(int).mcs",
+                "Widget!App.Core.Person.ccs",              // record; positional members not split out
+                "Widget!App.Core.Util.ccs",
+                "Widget!App.Core.Util#Add(int,int).mcs"), entries.keySet());
+    }
+
+    @Test
+    public void testCsharpModuleContents() {
+        final Map<String, String> entries = rewrite("Widget.cs", CSHARP_SOURCE);
+
+        // an expression-bodied method keeps its indentation
+        assertEquals("    public int GetId() => id;\n", entries.get("Widget!App.Core.Widget#GetId().mcs"));
+
+        // a property is captured whole
+        assertEquals("    public string Name { get; set; }\n", entries.get("Widget!App.Core.Widget#Name.fcs"));
+    }
+
+    @Test
+    public void testCsharpFileScopedNamespace() {
+        // a file-scoped namespace scopes the declarations that follow it
+        final Map<String, String> entries = rewrite("F.cs", """
+                namespace App;
+
+                public class W {
+                    public int GetId() => 1;
+                }
+                """);
+        assertEquals(Set.of(
+                "F.cs",
+                "F!App.W.ccs",
+                "F!App.W#GetId().mcs"), entries.keySet());
+    }
+
+    @Test
+    public void testCsharpBomFile() {
+        // a UTF-8 BOM must not shift the byte-offset-based name extraction (it is stripped)
+        final byte[] blob = ("\uFEFFnamespace N { class C { void M() {} } }\n")
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        final Map<String, String> entries = rewrite2("B.cs", blob);
+        assertEquals(Set.of(
+                "B.cs",
+                "B!N.C.ccs",
+                "B!N.C#M().mcs"), entries.keySet());
+    }
 }

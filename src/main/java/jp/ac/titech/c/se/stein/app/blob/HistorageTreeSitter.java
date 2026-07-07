@@ -24,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
 import org.treesitter.TSParser;
+import org.treesitter.TreeSitterCSharp;
 import org.treesitter.TreeSitterCpp;
 import org.treesitter.TreeSitterJava;
 import org.treesitter.TreeSitterPython;
@@ -31,10 +32,10 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 /**
- * A Historage generator using tree-sitter, currently supporting Python, Java, and C++.
+ * A Historage generator using tree-sitter, currently supporting Python, Java, C++, and C#.
  * Splits source files into finer-grained modules (one file per class, function, or field).
  * Java files follow the same extraction semantics and FinerGit-compatible naming as
- * {@link HistorageJdt}; Python and C++ files use an analogous naming of their own.
+ * {@link HistorageJdt}; the other languages use an analogous scoped naming of their own.
  *
  * <p>Since tree-sitter parses in an error-tolerant way, modules are extracted even from
  * files that contain syntax errors elsewhere (e.g., historical Python 2 code).</p>
@@ -49,6 +50,8 @@ public class HistorageTreeSitter extends HistorageBase {
 
     public static final NameFilter CPP = new NameFilter(true,
             "*.cpp", "*.cc", "*.cxx", "*.hpp", "*.hh", "*.hxx", "*.h");
+
+    public static final NameFilter CSHARP = new NameFilter(true, "*.cs");
 
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
@@ -66,7 +69,8 @@ public class HistorageTreeSitter extends HistorageBase {
     private final List<LanguageProfile> profiles = List.of(
             new LanguageProfile(PYTHON, TreeSitterPython::new, PythonSource::decode, PythonModuleGenerator::new),
             new LanguageProfile(JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaModuleGenerator::new),
-            new LanguageProfile(CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppModuleGenerator::new));
+            new LanguageProfile(CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppModuleGenerator::new),
+            new LanguageProfile(CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpModuleGenerator::new));
 
     @Override
     protected boolean accepts(final BlobEntry entry) {
@@ -168,6 +172,14 @@ public class HistorageTreeSitter extends HistorageBase {
                 return "";
             }
             return text.getContent().substring(text.toCharIndex(node.getStartByte()), text.toCharIndex(node.getEndByte()));
+        }
+
+        /**
+         * Flattens a possibly qualified name into a file-system-safe leaf, turning the {@code ::}
+         * scope operator into {@code .} and escaping the remaining reserved characters.
+         */
+        protected String flatten(final String name) {
+            return Historage.escape(name.replace("::", "."));
         }
     }
 
@@ -997,12 +1009,189 @@ public class HistorageTreeSitter extends HistorageBase {
             return Historage.escape(eq >= 0 ? type.substring(0, eq) : type);
         }
 
+        protected String contentOf(final TSNode node) {
+            final int beginLine = node.getStartPoint().getRow() + 1;
+            final int endLine = node.getEndPoint().getRow() + 1;
+            return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
+        }
+    }
+
+    /**
+     * Walks the tree-sitter CST of a C# file and generates {@link Module} instances for types
+     * (class/struct/interface/record/enum), methods (methods, constructors, destructors, and
+     * operators), and data members (fields, properties, and events). Namespaces are naming scopes
+     * only; method bodies are not descended into. Property and event declarations are treated as
+     * fields. Names use the scoped naming, escaped to stay portable across file systems.
+     */
+    public class CSharpModuleGenerator extends ModuleGenerator {
+        public CSharpModuleGenerator(final String filename, final SourceText text) {
+            super(filename, text, ScopedNaming.INSTANCE);
+        }
+
+        @Override
+        public List<Module> run(final TSNode root) {
+            walk(root, file);
+            return modules;
+        }
+
+        protected void walk(final TSNode node, Module parent) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                switch (child.getType()) {
+                    case "class_declaration", "struct_declaration", "interface_declaration",
+                         "record_declaration", "record_struct_declaration" -> visitType(child, parent);
+                    case "enum_declaration" -> visitEnum(child, parent);
+                    case "method_declaration", "constructor_declaration", "destructor_declaration",
+                         "operator_declaration" -> visitMethod(child, parent);
+                    case "field_declaration", "event_field_declaration" -> visitField(child, parent);
+                    case "property_declaration" -> visitProperty(child, parent);
+                    case "namespace_declaration" -> visitNamespace(child, parent);
+                    // a file-scoped namespace scopes every sibling that follows it
+                    case "file_scoped_namespace_declaration" -> parent = scopeOf(child, parent);
+                    default -> {
+                        if (!child.isError()) {
+                            walk(child, parent);
+                        }
+                    }
+                }
+            }
+        }
+
+        protected void visitNamespace(final TSNode node, final Module parent) {
+            final Module scope = scopeOf(node, parent);
+            final TSNode body = node.getChildByFieldName("body");
+            if (!body.isNull()) {
+                walk(body, scope);
+            }
+        }
+
         /**
-         * Flattens a possibly qualified name into a file-system-safe leaf, turning the C++ scope
-         * operator {@code ::} into {@code .} and escaping the remaining reserved characters.
+         * The naming scope of a namespace: never emitted as a module (it would span whole files).
+         * An anonymous namespace is transparent.
          */
-        protected String flatten(final String name) {
-            return Historage.escape(name.replace("::", "."));
+        protected Module scopeOf(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            return name.isNull() ? parent : module(Kind.CLASS, flatten(textOf(name)), parent, null);
+        }
+
+        protected void visitType(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            if (name.isNull()) {
+                return;
+            }
+            final Module klass = module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(node));
+            if (requiresClasses) {
+                modules.add(klass);
+            }
+            final TSNode body = node.getChildByFieldName("body");
+            if (!body.isNull()) {
+                walk(body, klass);
+            }
+        }
+
+        protected void visitEnum(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            if (requiresClasses && !name.isNull()) {
+                modules.add(module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(node)));
+            }
+        }
+
+        protected void visitMethod(final TSNode node, final Module parent) {
+            if (requiresMethods) {
+                modules.add(module(Kind.METHOD, methodName(node), parent, contentOf(node)));
+            }
+        }
+
+        /**
+         * A field declaration (each variable declarator), a property, or an event becomes one field
+         * module; properties and events are named members without a parameter signature.
+         */
+        protected void visitField(final TSNode node, final Module parent) {
+            if (!requiresFields) {
+                return;
+            }
+            final String content = contentOf(node);
+            final TSNode declaration = childOfType(node, "variable_declaration");
+            if (declaration == null) {
+                return;
+            }
+            for (int i = 0; i < declaration.getNamedChildCount(); i++) {
+                final TSNode declarator = declaration.getNamedChild(i);
+                if (declarator.getType().equals("variable_declarator")) {
+                    final TSNode name = declarator.getChildByFieldName("name");
+                    if (!name.isNull()) {
+                        modules.add(module(Kind.FIELD, flatten(textOf(name)), parent, content));
+                    }
+                }
+            }
+        }
+
+        protected void visitProperty(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            if (requiresFields && !name.isNull()) {
+                modules.add(module(Kind.FIELD, flatten(textOf(name)), parent, contentOf(node)));
+            }
+        }
+
+        /**
+         * Generates a FinerGit-style method name {@code [typeParams]_name(paramTypes)}, prefixing a
+         * destructor with {@code ~} and naming an operator {@code operator<symbol>}.
+         */
+        protected String methodName(final TSNode node) {
+            final StringBuilder sb = new StringBuilder();
+            final TSNode typeParameters = node.getChildByFieldName("type_parameters");
+            if (typeParameters != null && !typeParameters.isNull()) {
+                sb.append("[").append(typeParameters(typeParameters)).append("]_");
+            }
+            switch (node.getType()) {
+                case "destructor_declaration" -> sb.append("~").append(textOf(node.getChildByFieldName("name")));
+                case "operator_declaration" -> sb.append("operator").append(textOf(node.getChildByFieldName("operator")));
+                default -> sb.append(textOf(node.getChildByFieldName("name")));
+            }
+            sb.append("(").append(signature(node.getChildByFieldName("parameters"))).append(")");
+            return flatten(sb.toString());
+        }
+
+        protected String typeParameters(final TSNode list) {
+            final List<String> names = new ArrayList<>();
+            for (int i = 0; i < list.getNamedChildCount(); i++) {
+                final TSNode child = list.getNamedChild(i);
+                if (child.getType().equals("type_parameter")) {
+                    names.add(textOf(child.getChildByFieldName("name")));
+                }
+            }
+            return String.join(",", names);
+        }
+
+        /**
+         * Renders each parameter as its declared type, dropping the parameter name; the enclosing
+         * {@link #methodName} flattens any generic angle brackets into a portable form.
+         */
+        protected String signature(final TSNode parameters) {
+            if (parameters.isNull()) {
+                return "";
+            }
+            final List<String> types = new ArrayList<>();
+            for (int i = 0; i < parameters.getNamedChildCount(); i++) {
+                final TSNode p = parameters.getNamedChild(i);
+                if (p.getType().equals("parameter")) {
+                    final TSNode type = p.getChildByFieldName("type");
+                    if (!type.isNull()) {
+                        types.add(textOf(type).replaceAll("\\s+", ""));
+                    }
+                }
+            }
+            return String.join(",", types);
+        }
+
+        protected TSNode childOfType(final TSNode node, final String type) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                if (child.getType().equals(type)) {
+                    return child;
+                }
+            }
+            return null;
         }
 
         protected String contentOf(final TSNode node) {
