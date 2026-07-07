@@ -1,6 +1,5 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -10,9 +9,11 @@ import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.historage.FinerGitNaming;
+import jp.ac.titech.c.se.stein.historage.Kind;
+import jp.ac.titech.c.se.stein.historage.Module;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.HashUtils;
-import lombok.AllArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -57,15 +58,6 @@ public class HistorageJdt extends HistorageBase {
     @Option(names = "--mapping", description = "extract mapping file")
     protected boolean requiresMapping = false;
 
-    @Option(names = "--class-ext", paramLabel = "<ext>", description = "class file extension (default: ${DEFAULT-VALUE})")
-    protected String classExtension = ".cjava";
-
-    @Option(names = "--method-ext", paramLabel = "<ext>", description = "method file extension (default: ${DEFAULT-VALUE})")
-    protected String methodExtension = ".mjava";
-
-    @Option(names = "--field-ext", paramLabel = "<ext>", description = "field file extension (default: ${DEFAULT-VALUE})")
-    protected String fieldExtension = ".fjava";
-
     @Option(names = "--comment-ext", paramLabel = "<ext>", description = "comment file extension (default: ${DEFAULT-VALUE})")
     protected String commentExtension = ".com";
 
@@ -94,97 +86,9 @@ public class HistorageJdt extends HistorageBase {
                 .toList();
     }
 
-    /**
-     * A generated Historage module representing a class, method, field, or comment.
-     */
-    @AllArgsConstructor
-    public abstract static class Module {
-        protected final String name;
-        protected final String extension;
-        protected final Module parent;
-
-        protected final String content;
-
-        protected final int beginLine;
-
-        protected final int endLine;
-
-        /**
-         * The maximum length of a single file name on common file systems.
-         */
-        private static final int MAX_FILENAME_BYTES = 255;
-
-        public String getBasename() {
-            return name;
-        }
-
-        public String getFilename() {
-            final int budget = MAX_FILENAME_BYTES - extension.getBytes(StandardCharsets.UTF_8).length;
-            return HashUtils.abbreviateToBytes(getBasename(), budget) + extension;
-        }
-
-        public byte[] getBlob() {
-            return content.getBytes(StandardCharsets.UTF_8);
-        }
-
-        public JsonObject toJsonObject() {
-            final JsonObject result = new JsonObject();
-            result.addProperty("filename", getFilename());
-            result.addProperty("beginLine", beginLine);
-            result.addProperty("endLine", endLine);
-            return result;
-        }
-    }
-
-    /**
-     * A virtual root module representing the source file itself.
-     */
-    public static class FileModule extends Module {
-        public FileModule(final String name) {
-            super(name, null, null, null, -1, -1);
-        }
-    }
-
-    public class ClassModule extends Module {
-        public ClassModule(final String name, final Module parent, final String content, final int beginLine, final int endLine) {
-            super(name, classExtension, parent, content, beginLine, endLine);
-        }
-
-        @Override
-        public String getBasename() {
-            if (parent instanceof ClassModule cm) {
-                return cm.getBasename() + "." + name;
-            } else {
-                return parent.getBasename().equals(name) ? name : name + "[" + parent.getBasename() + "]";
-            }
-        }
-    }
-
-    public class MethodModule extends Module {
-        public MethodModule(final String name, final Module parent, final String content, final int beginLine, final int endLine) {
-            super(name, methodExtension, parent, content, beginLine, endLine);
-        }
-
-        @Override
-        public String getBasename() {
-            return parent.getBasename() + "#" + name;
-        }
-    }
-
-    public class FieldModule extends Module {
-        public FieldModule(final String name, final Module parent, final String content, final int beginLine, final int endLine) {
-            super(name, fieldExtension, parent, content, beginLine, endLine);
-        }
-
-        @Override
-        public String getBasename() {
-            return parent.getBasename() + "#" + name;
-        }
-    }
-
     public class CommentModule extends Module {
         public CommentModule(final Module parent, final String content) {
-            super(null, commentExtension, parent, content, -1, -1);
+            super(parent, content, commentExtension);
         }
 
         @Override
@@ -227,7 +131,7 @@ public class HistorageJdt extends HistorageBase {
 
     public class MappingModule extends Module {
         public MappingModule(final Module parent, final List<Module> modules) {
-            super(null, mappingExtension, parent, generateMappingContent(modules), -1, -1);
+            super(parent, generateMappingContent(modules), mappingExtension);
         }
 
         @Override
@@ -238,7 +142,13 @@ public class HistorageJdt extends HistorageBase {
 
     protected static String generateMappingContent(final List<Module> modules) {
         return modules.stream()
-                .map(m -> GSON.toJson(m.toJsonObject()) + "\n")
+                .map(m -> {
+                    final JsonObject o = new JsonObject();
+                    o.addProperty("filename", m.getFilename());
+                    o.addProperty("beginLine", m.getBeginLine());
+                    o.addProperty("endLine", m.getEndLine());
+                    return GSON.toJson(o) + "\n";
+                })
                 .collect(Collectors.joining());
     }
 
@@ -246,6 +156,7 @@ public class HistorageJdt extends HistorageBase {
      * Walks the JDT AST and generates {@link Module} instances for classes, methods, and fields.
      */
     public class ModuleGenerator extends ASTVisitor {
+        private final String filename;
         private final SourceText text;
         private final CompilationUnit unit;
         private final Stack<Module> stack = new Stack<>();
@@ -253,9 +164,10 @@ public class HistorageJdt extends HistorageBase {
         private final CommentSet commentSet;
 
         public ModuleGenerator(final String filename, final SourceText text) {
+            this.filename = filename;
             this.text = text;
             final String basename = filename.substring(0, filename.lastIndexOf('.'));
-            stack.push(new FileModule(basename));
+            stack.push(Module.ofFile(basename, FinerGitNaming.INSTANCE));
             this.unit = parse();
             this.commentSet = new CommentSet(this.unit);
         }
@@ -268,6 +180,7 @@ public class HistorageJdt extends HistorageBase {
                 return Collections.emptyList();
             }
             unit.accept(this);
+            Module.resolveNameConflicts(modules);
             if (requiresMapping && !modules.isEmpty()) {
                 modules.add(new MappingModule(stack.peek(), modules));
             }
@@ -493,12 +406,21 @@ public class HistorageJdt extends HistorageBase {
             endVisitType(node);
         }
 
+        /**
+         * Builds a module for the given declaration, recording its source line range.
+         */
+        private Module newModule(final Kind kind, final String name, final Fragment fragment, final BodyDeclaration node) {
+            final Module module = new Module(kind, name, stack.peek(), getContent(fragment, node),
+                    kind.extension(filename), FinerGitNaming.INSTANCE);
+            module.setBeginLine(unit.getLineNumber(fragment.getBegin()));
+            module.setEndLine(unit.getLineNumber(fragment.getEnd()));
+            return module;
+        }
+
         protected boolean visitType(final AbstractTypeDeclaration node) {
             final String name = node.getName().getIdentifier();
             final Fragment fragment = getFragmentWithSurroundingComments(node);
-            final int beginLine = unit.getLineNumber(fragment.getBegin());
-            final int endLine = unit.getLineNumber(fragment.getEnd());
-            final Module klass = new ClassModule(name, stack.peek(), getContent(fragment, node), beginLine, endLine);
+            final Module klass = newModule(Kind.CLASS, name, fragment, node);
             if (requiresClasses) {
                 modules.add(klass);
                 if (requiresComments) {
@@ -523,9 +445,7 @@ public class HistorageJdt extends HistorageBase {
             if (requiresMethods) {
                 final String name = new MethodNameGenerator(node).generate();
                 final Fragment fragment = getFragmentWithSurroundingComments(node);
-                final int beginLine = unit.getLineNumber(fragment.getBegin());
-                final int endLine = unit.getLineNumber(fragment.getEnd());
-                final Module method = new MethodModule(name, stack.peek(), getContent(fragment, node), beginLine, endLine);
+                final Module method = newModule(Kind.METHOD, name, fragment, node);
                 modules.add(method);
                 if (requiresComments) {
                     modules.add(new CommentModule(method, getCommentContent(node)));
@@ -540,9 +460,7 @@ public class HistorageJdt extends HistorageBase {
                 for (final Object f : node.fragments()) {
                     final String name = ((VariableDeclarationFragment) f).getName().toString();
                     final Fragment fragment = getFragmentWithSurroundingComments(node);
-                    final int beginLine = unit.getLineNumber(fragment.getBegin());
-                    final int endLine = unit.getLineNumber(fragment.getEnd());
-                    final Module field = new FieldModule(name, stack.peek(), getContent(fragment, node), beginLine, endLine);
+                    final Module field = newModule(Kind.FIELD, name, fragment, node);
                     modules.add(field);
                     if (requiresComments) {
                         modules.add(new CommentModule(field, getCommentContent(node)));

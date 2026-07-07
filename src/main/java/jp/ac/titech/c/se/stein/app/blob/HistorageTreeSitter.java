@@ -1,10 +1,7 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -12,10 +9,12 @@ import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.historage.FinerGitNaming;
+import jp.ac.titech.c.se.stein.historage.Kind;
+import jp.ac.titech.c.se.stein.historage.Module;
+import jp.ac.titech.c.se.stein.historage.PythonNaming;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
-import jp.ac.titech.c.se.stein.util.HashUtils;
 import jp.ac.titech.c.se.stein.util.PythonSource;
-import lombok.AllArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.treesitter.TSNode;
@@ -52,15 +51,6 @@ public class HistorageTreeSitter extends HistorageBase {
     @Option(names = "--no-fields", negatable = true, description = "[ex]/include field files")
     protected boolean requiresFields = true;
 
-    @Option(names = "--class-ext", paramLabel = "<ext>", description = "Python class file extension (default: ${DEFAULT-VALUE})")
-    protected String classExtension = ".cpy";
-
-    @Option(names = "--method-ext", paramLabel = "<ext>", description = "Python function file extension (default: ${DEFAULT-VALUE})")
-    protected String methodExtension = ".mpy";
-
-    @Option(names = "--field-ext", paramLabel = "<ext>", description = "Python field file extension (default: ${DEFAULT-VALUE})")
-    protected String fieldExtension = ".fpy";
-
     /**
      * Tree-sitter parsers are not thread-safe; one per thread and language.
      */
@@ -85,11 +75,11 @@ public class HistorageTreeSitter extends HistorageBase {
     protected List<? extends HotEntry> generateModules(final BlobEntry entry, final Context c) {
         final List<Module> modules;
         if (PYTHON.accept(entry)) {
-            modules = new PythonModuleGenerator(baseName(entry.getName()), PythonSource.decode(entry.getBlob())).generate();
+            modules = new PythonModuleGenerator(entry.getName(), PythonSource.decode(entry.getBlob())).generate();
         } else {
-            modules = new JavaModuleGenerator(baseName(entry.getName()), SourceText.ofNormalized(entry.getBlob())).generate();
+            modules = new JavaModuleGenerator(entry.getName(), SourceText.ofNormalized(entry.getBlob())).generate();
         }
-        resolveNameConflicts(modules);
+        Module.resolveNameConflicts(modules);
         return modules.stream()
                 .map(m -> HotEntry.of(entry.getMode(), m.getFilename(), m.getBlob()))
                 .toList();
@@ -101,117 +91,23 @@ public class HistorageTreeSitter extends HistorageBase {
     }
 
     /**
-     * Appends {@code @2}, {@code @3}, ... to the second and later occurrences of the same filename.
-     */
-    protected void resolveNameConflicts(final List<Module> modules) {
-        final Map<String, Integer> counter = new HashMap<>();
-        for (final Module m : modules) {
-            final int count = counter.merge(m.getFilename(), 1, Integer::sum);
-            if (count >= 2) {
-                m.index = count;
-            }
-        }
-    }
-
-    /**
-     * A generated Historage module representing a class or a function.
-     */
-    /**
-     * The maximum length of a single file name on common file systems.
-     */
-    static final int MAX_FILENAME_BYTES = 255;
-
-    @AllArgsConstructor
-    public abstract static class Module {
-        protected final String name;
-        protected final String extension;
-        protected final Module parent;
-        protected final String content;
-
-        protected int index = 1;
-
-        public Module(final String name, final String extension, final Module parent, final String content) {
-            this(name, extension, parent, content, 1);
-        }
-
-        public abstract String getBasename();
-
-        public String getFilename() {
-            final String suffix = (index >= 2 ? "@" + index : "") + extension;
-            final int budget = MAX_FILENAME_BYTES - suffix.getBytes(StandardCharsets.UTF_8).length;
-            return HashUtils.abbreviateToBytes(getBasename(), budget) + suffix;
-        }
-
-        public byte[] getBlob() {
-            return content.getBytes(StandardCharsets.UTF_8);
-        }
-    }
-
-    /**
-     * A virtual root module representing the source file itself.
-     */
-    public static class FileModule extends Module {
-        public FileModule(final String name) {
-            super(name, null, null, null);
-        }
-
-        @Override
-        public String getBasename() {
-            return name;
-        }
-    }
-
-    public class ClassModule extends Module {
-        public ClassModule(final String name, final Module parent, final String content) {
-            super(name, classExtension, parent, content);
-        }
-
-        @Override
-        public String getBasename() {
-            final String separator = parent instanceof FileModule ? "!" : ".";
-            return parent.getBasename() + separator + name;
-        }
-    }
-
-    public class FunctionModule extends Module {
-        public FunctionModule(final String name, final Module parent, final String content) {
-            super(name, methodExtension, parent, content);
-        }
-
-        @Override
-        public String getBasename() {
-            final String separator = parent instanceof FileModule ? "!" : "#";
-            return parent.getBasename() + separator + name;
-        }
-    }
-
-    public class FieldModule extends Module {
-        public FieldModule(final String name, final Module parent, final String content) {
-            super(name, fieldExtension, parent, content);
-        }
-
-        @Override
-        public String getBasename() {
-            final String separator = parent instanceof FileModule ? "!" : "#";
-            return parent.getBasename() + separator + name;
-        }
-    }
-
-    /**
      * Walks the tree-sitter CST of a Python file and generates {@link Module} instances for
      * classes and functions. Descends into class bodies and statement blocks, but not into
      * function bodies.
      */
     public class PythonModuleGenerator {
+        private final String filename;
+
         private final SourceText text;
 
         private final List<Module> modules = new ArrayList<>();
 
-        private final FileModule file;
+        private final Module file;
 
-        public PythonModuleGenerator(final String basename, final SourceText text) {
+        public PythonModuleGenerator(final String filename, final SourceText text) {
+            this.filename = filename;
             this.text = text;
-            this.file = new FileModule(basename);
+            this.file = Module.ofFile(baseName(filename), PythonNaming.INSTANCE);
         }
 
         /**
@@ -266,7 +162,8 @@ public class HistorageTreeSitter extends HistorageBase {
          */
         protected void visitClass(final TSNode extent, final TSNode def, final Module parent) {
             final String name = textOf(def.getChildByFieldName("name"));
-            final Module klass = new ClassModule(name, parent, contentOf(extent));
+            final Module klass = new Module(Kind.CLASS, name, parent, contentOf(extent),
+                    Kind.CLASS.extension(filename), PythonNaming.INSTANCE);
             if (requiresClasses) {
                 modules.add(klass);
             }
@@ -284,7 +181,8 @@ public class HistorageTreeSitter extends HistorageBase {
             if (requiresMethods) {
                 final String name = textOf(def.getChildByFieldName("name"));
                 final String signature = generateSignature(def.getChildByFieldName("parameters"));
-                modules.add(new FunctionModule(name + "(" + signature + ")", parent, contentOf(extent)));
+                modules.add(new Module(Kind.METHOD, name + "(" + signature + ")", parent, contentOf(extent),
+                        Kind.METHOD.extension(filename), PythonNaming.INSTANCE));
             }
         }
 
@@ -303,7 +201,8 @@ public class HistorageTreeSitter extends HistorageBase {
             }
             final TSNode left = assignment.getChildByFieldName("left");
             if (!left.isNull() && left.getType().equals("identifier")) {
-                modules.add(new FieldModule(textOf(left), parent, contentOf(statement)));
+                modules.add(new Module(Kind.FIELD, textOf(left), parent, contentOf(statement),
+                        Kind.FIELD.extension(filename), PythonNaming.INSTANCE));
             }
         }
 
@@ -370,43 +269,6 @@ public class HistorageTreeSitter extends HistorageBase {
 
     }
 
-    public class JavaClassModule extends Module {
-        public JavaClassModule(final String name, final Module parent, final String content) {
-            super(name, ".cjava", parent, content);
-        }
-
-        @Override
-        public String getBasename() {
-            if (parent instanceof JavaClassModule cm) {
-                return cm.getBasename() + "." + name;
-            } else {
-                return parent.getBasename().equals(name) ? name : name + "[" + parent.getBasename() + "]";
-            }
-        }
-    }
-
-    public class JavaMethodModule extends Module {
-        public JavaMethodModule(final String name, final Module parent, final String content) {
-            super(name, ".mjava", parent, content);
-        }
-
-        @Override
-        public String getBasename() {
-            return parent.getBasename() + "#" + name;
-        }
-    }
-
-    public class JavaFieldModule extends Module {
-        public JavaFieldModule(final String name, final Module parent, final String content) {
-            super(name, ".fjava", parent, content);
-        }
-
-        @Override
-        public String getBasename() {
-            return parent.getBasename() + "#" + name;
-        }
-    }
-
     /**
      * Walks the tree-sitter CST of a Java file and generates {@link Module} instances with the
      * same extraction semantics and FinerGit-compatible naming as {@link HistorageJdt}: type
@@ -415,15 +277,18 @@ public class HistorageTreeSitter extends HistorageBase {
      * initializer blocks are, so local classes there are extracted like HistorageJdt does.
      */
     public class JavaModuleGenerator {
+        private final String filename;
+
         private final SourceText text;
 
         private final List<Module> modules = new ArrayList<>();
 
-        private final FileModule file;
+        private final Module file;
 
-        public JavaModuleGenerator(final String basename, final SourceText text) {
+        public JavaModuleGenerator(final String filename, final SourceText text) {
+            this.filename = filename;
             this.text = text;
-            this.file = new FileModule(basename);
+            this.file = Module.ofFile(baseName(filename), FinerGitNaming.INSTANCE);
         }
 
         /**
@@ -462,7 +327,8 @@ public class HistorageTreeSitter extends HistorageBase {
 
         protected void visitType(final TSNode node, final Module parent) {
             final String name = textOf(node.getChildByFieldName("name"));
-            final Module klass = new JavaClassModule(name, parent, contentOf(node));
+            final Module klass = new Module(Kind.CLASS, name, parent, contentOf(node),
+                    Kind.CLASS.extension(filename), FinerGitNaming.INSTANCE);
             if (requiresClasses) {
                 modules.add(klass);
             }
@@ -474,7 +340,8 @@ public class HistorageTreeSitter extends HistorageBase {
 
         protected void visitMethod(final TSNode node, final Module parent) {
             if (requiresMethods) {
-                modules.add(new JavaMethodModule(generateMethodName(node), parent, contentOf(node)));
+                modules.add(new Module(Kind.METHOD, generateMethodName(node), parent, contentOf(node),
+                        Kind.METHOD.extension(filename), FinerGitNaming.INSTANCE));
             }
         }
 
@@ -487,7 +354,8 @@ public class HistorageTreeSitter extends HistorageBase {
                 final TSNode child = node.getNamedChild(i);
                 if (child.getType().equals("variable_declarator")) {
                     final String name = textOf(child.getChildByFieldName("name"));
-                    modules.add(new JavaFieldModule(name, parent, content));
+                    modules.add(new Module(Kind.FIELD, name, parent, content,
+                            Kind.FIELD.extension(filename), FinerGitNaming.INSTANCE));
                 }
             }
         }

@@ -1,8 +1,8 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
-import jp.ac.titech.c.se.stein.app.blob.HistorageJdt.Module;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.historage.Module;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
