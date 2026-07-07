@@ -187,4 +187,72 @@ public class HistorageTreeSitterTest {
         final AnyHotEntry result = app.rewriteBlobEntry(HotEntry.ofBlob(name, blob), c);
         return result.stream().collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));
     }
+
+    // --- Java ---
+
+    private static final String JAVA_SOURCE = """
+            package example;
+
+            /**
+             * A javadoc.
+             */
+            public class Hello<T> {
+                private int count = 0, max = 10;
+                static final String NAME = "hello";  // trailing comment
+
+                // leading comment
+                public Hello(String name) {
+                }
+
+                public <U extends T> java.util.Map<String, U> get(int[] a, List<? extends U> l, String... rest) {
+                    return null; // not attached
+                }
+
+                static {
+                    class Local {}
+                }
+
+                enum Color {
+                    RED, GREEN {
+                        void shine() {}
+                    };
+                    void mix() {}
+                }
+
+                interface Greeter {
+                    int LIMIT = 10;
+                    void greet(Map<String, Object> m);
+                }
+
+                class Inner {
+                    void run() {}
+                }
+
+                record Point(int x, int y) {
+                    Point {
+                    }
+                    double norm() {
+                        return Math.sqrt(x * x + y * y);
+                    }
+                }
+            }
+
+            class Another {
+                void act(java.util.function.Function<String, Integer> f) {
+                    new Runnable() {
+                        public void run() {}  // anonymous: not extracted
+                    };
+                }
+            }
+            """;
+
+    @Test
+    public void testJavaMatchesHistorageJdt() {
+        final Map<String, String> ts = rewrite("Hello.java", JAVA_SOURCE);
+        final HistorageJdt jdt = new HistorageJdt();
+        final AnyHotEntry out = jdt.rewriteBlobEntry(HotEntry.ofBlob("Hello.java", JAVA_SOURCE), c);
+        final Map<String, String> expected = out.stream()
+                .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));
+        assertEquals(expected, ts);
+    }
 }
