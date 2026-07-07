@@ -12,12 +12,11 @@ import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
-import jp.ac.titech.c.se.stein.historage.CppNaming;
 import jp.ac.titech.c.se.stein.historage.FinerGitNaming;
 import jp.ac.titech.c.se.stein.historage.Kind;
 import jp.ac.titech.c.se.stein.historage.Module;
 import jp.ac.titech.c.se.stein.historage.NamingStrategy;
-import jp.ac.titech.c.se.stein.historage.PythonNaming;
+import jp.ac.titech.c.se.stein.historage.ScopedNaming;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.PythonSource;
 import lombok.ToString;
@@ -179,7 +178,7 @@ public class HistorageTreeSitter extends HistorageBase {
      */
     public class PythonModuleGenerator extends ModuleGenerator {
         public PythonModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text, PythonNaming.INSTANCE);
+            super(filename, text, ScopedNaming.INSTANCE);
         }
 
         @Override
@@ -748,7 +747,7 @@ public class HistorageTreeSitter extends HistorageBase {
      */
     public class CppModuleGenerator extends ModuleGenerator {
         public CppModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text, CppNaming.INSTANCE);
+            super(filename, text, ScopedNaming.INSTANCE);
         }
 
         @Override
