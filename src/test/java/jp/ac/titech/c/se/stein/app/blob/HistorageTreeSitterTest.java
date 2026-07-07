@@ -570,4 +570,167 @@ public class HistorageTreeSitterTest {
         // a member keeps its indentation
         assertEquals("    getId(): number { return this.id; }\n", entries.get("App!App.Widget#getId().mts"));
     }
+
+    // --- C (reuses the C++ generator with the C grammar) ---
+
+    @Test
+    public void testCModuleNames() {
+        final Map<String, String> entries = rewrite("prog.c", """
+                int global = 0;
+                struct Point { int x, y; };
+                enum Color { RED, GREEN };
+                int add(int a, int b) { return a + b; }
+                """);
+        assertEquals(Set.of(
+                "prog.c",
+                "prog!global.fc",
+                "prog!Point.cc",
+                "prog!Point#x.fc",
+                "prog!Point#y.fc",
+                "prog!Color.cc",
+                "prog!add(int,int).mc"), entries.keySet());
+    }
+
+    // --- Go ---
+
+    @Test
+    public void testGoModuleNames() {
+        final Map<String, String> entries = rewrite("s.go", """
+                package main
+                const Pi = 3.14
+                var counter int = 0
+                type Point struct { X, Y int }
+                type Shape interface { Area() float64 }
+                func Add(a int, b int) int { return a + b }
+                func (p *Point) Move(dx int) {}
+                """);
+        assertEquals(Set.of(
+                "s.go",
+                "s!Pi.fgo",
+                "s!counter.fgo",
+                "s!Point.cgo",
+                "s!Point#X.fgo",
+                "s!Point#Y.fgo",         // both names of "X, Y int"
+                "s!Shape.cgo",
+                "s!Shape#Area().mgo",    // interface method
+                "s!Add(int,int).mgo",
+                "s!Point.Move(int).mgo"), entries.keySet());  // a method's receiver type prefixes its name
+    }
+
+    // --- Ruby ---
+
+    @Test
+    public void testRubyModuleNames() {
+        final Map<String, String> entries = rewrite("s.rb", """
+                CONST = 1
+                module Outer
+                  class Widget < Base
+                    VERSION = "1"
+                    def initialize(id)
+                    end
+                    def self.create(x)
+                    end
+                  end
+                end
+                """);
+        assertEquals(Set.of(
+                "s.rb",
+                "s!CONST.frb",
+                // the module is a naming scope; the class nests under it
+                "s!Outer.Widget.crb",
+                "s!Outer.Widget#VERSION.frb",
+                "s!Outer.Widget#initialize(id).mrb",
+                "s!Outer.Widget#create(x).mrb"), entries.keySet());  // def self.create
+    }
+
+    // --- Rust ---
+
+    @Test
+    public void testRustModuleNames() {
+        final Map<String, String> entries = rewrite("s.rs", """
+                const PI: f64 = 3.14;
+                struct Point { x: i32, y: i32 }
+                enum Color { Red, Green }
+                trait Shape { fn area(&self) -> f64; }
+                fn add(a: i32, b: i32) -> i32 { a + b }
+                impl Point { fn new() -> Point { Point{x:0,y:0} } fn dist(&self, o: &Point) -> f64 { 0.0 } }
+                mod inner { fn helper() {} }
+                """);
+        assertEquals(Set.of(
+                "s.rs",
+                "s!PI.frs",
+                "s!Point.crs",
+                "s!Point#x.frs",
+                "s!Point#y.frs",
+                "s!Color.crs",
+                "s!Shape.crs",
+                "s!Shape#area(self).mrs",
+                "s!add(i32,i32).mrs",
+                // impl methods attach to the type, joining the struct's fields under Point#
+                "s!Point#new().mrs",
+                "s!Point#dist(self,&Point).mrs",
+                "s!inner#helper().mrs"), entries.keySet());  // a module is a naming scope
+    }
+
+    // --- Kotlin ---
+
+    @Test
+    public void testKotlinModuleNames() {
+        final Map<String, String> entries = rewrite("s.kt", """
+                package com.example
+                const val PI = 3.14
+                fun add(a: Int, b: Int): Int = a + b
+                interface Shape { fun area(): Double }
+                enum class Color { RED, GREEN }
+                object Singleton { fun run() {} }
+                class Widget(val id: Int) {
+                  val name: String = "w"
+                  fun getId(): Int = id
+                }
+                """);
+        assertEquals(Set.of(
+                "s.kt",
+                "s!PI.fkt",
+                "s!add(Int,Int).mkt",
+                "s!Shape.ckt",
+                "s!Shape#area().mkt",
+                "s!Color.ckt",
+                "s!Singleton.ckt",       // an object declaration is a class
+                "s!Singleton#run().mkt",
+                "s!Widget.ckt",
+                "s!Widget#name.fkt",
+                "s!Widget#getId().mkt"), entries.keySet());
+    }
+
+    // --- Swift ---
+
+    @Test
+    public void testSwiftModuleNames() {
+        final Map<String, String> entries = rewrite("s.swift", """
+                let PI = 3.14
+                func add(a: Int, b: Int) -> Int { return a + b }
+                protocol Shape { func area() -> Double }
+                enum Color { case red, green }
+                struct Point { var x: Int; var y: Int }
+                class Widget: Base {
+                  let name = "w"
+                  init(id: Int) {}
+                  func getId() -> Int { return 0 }
+                }
+                """);
+        assertEquals(Set.of(
+                "s.swift",
+                "s!PI.fswift",
+                "s!add(a,b).mswift",
+                "s!Shape.cswift",
+                "s!Shape#area().mswift",
+                "s!Color.cswift",
+                "s!Point.cswift",
+                "s!Point#x.fswift",
+                "s!Point#y.fswift",
+                "s!Widget.cswift",
+                "s!Widget#name.fswift",
+                "s!Widget#init(id).mswift",  // an initializer is named init
+                "s!Widget#getId().mswift"), entries.keySet());
+    }
 }

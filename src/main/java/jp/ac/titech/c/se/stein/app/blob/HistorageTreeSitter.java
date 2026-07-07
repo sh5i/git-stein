@@ -24,18 +24,24 @@ import lombok.extern.slf4j.Slf4j;
 import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
 import org.treesitter.TSParser;
+import org.treesitter.TreeSitterC;
 import org.treesitter.TreeSitterCSharp;
 import org.treesitter.TreeSitterCpp;
+import org.treesitter.TreeSitterGo;
 import org.treesitter.TreeSitterJava;
 import org.treesitter.TreeSitterJavascript;
+import org.treesitter.TreeSitterKotlin;
 import org.treesitter.TreeSitterPython;
+import org.treesitter.TreeSitterRuby;
+import org.treesitter.TreeSitterRust;
+import org.treesitter.TreeSitterSwift;
 import org.treesitter.TreeSitterTypescript;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 /**
- * A Historage generator using tree-sitter, currently supporting Python, Java, C++, C#, JavaScript,
- * and TypeScript.
+ * A Historage generator using tree-sitter, currently supporting Python, Java, C, C++, C#,
+ * JavaScript, TypeScript, Go, Kotlin, Rust, Swift, and Ruby.
  * Splits source files into finer-grained modules (one file per class, function, or field).
  * Java files follow the same extraction semantics and FinerGit-compatible naming as
  * {@link HistorageJdt}; the other languages use an analogous scoped naming of their own.
@@ -51,8 +57,20 @@ public class HistorageTreeSitter extends HistorageBase {
 
     public static final NameFilter JAVA = new NameFilter(true, "*.java");
 
+    public static final NameFilter C = new NameFilter(true, "*.c");
+
     public static final NameFilter CPP = new NameFilter(true,
             "*.cpp", "*.cc", "*.cxx", "*.hpp", "*.hh", "*.hxx", "*.h");
+
+    public static final NameFilter GO = new NameFilter(true, "*.go");
+
+    public static final NameFilter KOTLIN = new NameFilter(true, "*.kt", "*.kts");
+
+    public static final NameFilter RUST = new NameFilter(true, "*.rs");
+
+    public static final NameFilter SWIFT = new NameFilter(true, "*.swift");
+
+    public static final NameFilter RUBY = new NameFilter(true, "*.rb");
 
     public static final NameFilter CSHARP = new NameFilter(true, "*.cs");
 
@@ -79,7 +97,14 @@ public class HistorageTreeSitter extends HistorageBase {
             new LanguageProfile(CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppModuleGenerator::new),
             new LanguageProfile(CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpModuleGenerator::new),
             new LanguageProfile(JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized, JsModuleGenerator::new),
-            new LanguageProfile(TYPESCRIPT, TreeSitterTypescript::new, SourceText::ofNormalized, TsModuleGenerator::new));
+            new LanguageProfile(TYPESCRIPT, TreeSitterTypescript::new, SourceText::ofNormalized, TsModuleGenerator::new),
+            // C is a subset of C++, so it reuses the C++ generator with the C grammar
+            new LanguageProfile(C, TreeSitterC::new, SourceText::ofNormalized, CppModuleGenerator::new),
+            new LanguageProfile(GO, TreeSitterGo::new, SourceText::ofNormalized, GoModuleGenerator::new),
+            new LanguageProfile(KOTLIN, TreeSitterKotlin::new, SourceText::ofNormalized, KotlinModuleGenerator::new),
+            new LanguageProfile(RUST, TreeSitterRust::new, SourceText::ofNormalized, RustModuleGenerator::new),
+            new LanguageProfile(SWIFT, TreeSitterSwift::new, SourceText::ofNormalized, SwiftModuleGenerator::new),
+            new LanguageProfile(RUBY, TreeSitterRuby::new, SourceText::ofNormalized, RubyModuleGenerator::new));
 
     @Override
     protected boolean accepts(final BlobEntry entry) {
@@ -189,6 +214,28 @@ public class HistorageTreeSitter extends HistorageBase {
          */
         protected String flatten(final String name) {
             return Historage.escape(name.replace("::", "."));
+        }
+
+        /**
+         * The first named child of the given type, or a null node if there is none.
+         */
+        protected TSNode firstChildOfType(final TSNode node, final String type) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                if (child.getType().equals(type)) {
+                    return child;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * The full source lines spanning the given node.
+         */
+        protected String contentOf(final TSNode node) {
+            final int beginLine = node.getStartPoint().getRow() + 1;
+            final int endLine = node.getEndPoint().getRow() + 1;
+            return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
         }
     }
 
@@ -1468,6 +1515,549 @@ public class HistorageTreeSitter extends HistorageBase {
                 case "required_parameter", "optional_parameter" -> paramName(p.getChildByFieldName("pattern"));
                 default -> super.paramName(p);
             };
+        }
+    }
+
+    /**
+     * Walks the tree-sitter CST of a Go file: types (structs and interfaces become classes, with
+     * their fields and interface methods split out; other type specs are fields), free functions,
+     * methods (named {@code Receiver.name}), and package-level constants and variables.
+     */
+    public class GoModuleGenerator extends ModuleGenerator {
+        public GoModuleGenerator(final String filename, final SourceText text) {
+            super(filename, text, ScopedNaming.INSTANCE);
+        }
+
+        @Override
+        public List<Module> run(final TSNode root) {
+            walk(root, file);
+            return modules;
+        }
+
+        protected void walk(final TSNode node, final Module parent) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                switch (child.getType()) {
+                    case "type_declaration" -> visitTypeDeclaration(child, parent);
+                    case "function_declaration" -> visitFunction(child, parent);
+                    case "method_declaration" -> visitMethod(child, parent);
+                    case "const_declaration", "var_declaration" -> visitVariables(child, parent);
+                    default -> {
+                        if (!child.isError()) {
+                            walk(child, parent);
+                        }
+                    }
+                }
+            }
+        }
+
+        protected void visitTypeDeclaration(final TSNode node, final Module parent) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode spec = node.getNamedChild(i);
+                if (!spec.getType().equals("type_spec")) {
+                    continue;
+                }
+                final TSNode name = spec.getChildByFieldName("name");
+                final TSNode type = spec.getChildByFieldName("type");
+                if (name.isNull()) {
+                    continue;
+                }
+                if (type.getType().equals("struct_type") || type.getType().equals("interface_type")) {
+                    final Module klass = module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(node));
+                    if (requiresClasses) {
+                        modules.add(klass);
+                    }
+                    visitTypeBody(type, klass);
+                } else if (requiresFields) {
+                    modules.add(module(Kind.FIELD, flatten(textOf(name)), parent, contentOf(node)));
+                }
+            }
+        }
+
+        protected void visitTypeBody(final TSNode type, final Module klass) {
+            final TSNode body = type.getType().equals("struct_type")
+                    ? firstChildOfType(type, "field_declaration_list") : firstChildOfType(type, "interface_type_body");
+            final TSNode list = body != null ? body : type;
+            for (int i = 0; i < list.getNamedChildCount(); i++) {
+                final TSNode member = list.getNamedChild(i);
+                if (member.getType().equals("field_declaration")) {
+                    for (int j = 0; j < member.getNamedChildCount(); j++) {
+                        final TSNode f = member.getNamedChild(j);
+                        if (f.getType().equals("field_identifier") && requiresFields) {
+                            modules.add(module(Kind.FIELD, flatten(textOf(f)), klass, contentOf(member)));
+                        }
+                    }
+                } else if (member.getType().equals("method_elem") || member.getType().equals("method_spec")) {
+                    if (requiresMethods) {
+                        final TSNode mn = member.getChildByFieldName("name");
+                        modules.add(module(Kind.METHOD, flatten(textOf(mn)) + "(" + signature(member.getChildByFieldName("parameters")) + ")", klass, contentOf(member)));
+                    }
+                }
+            }
+        }
+
+        protected void visitFunction(final TSNode node, final Module parent) {
+            if (requiresMethods) {
+                final TSNode name = node.getChildByFieldName("name");
+                modules.add(module(Kind.METHOD, flatten(textOf(name)) + "(" + signature(node.getChildByFieldName("parameters")) + ")", parent, contentOf(node)));
+            }
+        }
+
+        protected void visitMethod(final TSNode node, final Module parent) {
+            if (!requiresMethods) {
+                return;
+            }
+            final TSNode name = node.getChildByFieldName("name");
+            final String receiver = receiverType(node.getChildByFieldName("receiver"));
+            final String leaf = (receiver.isEmpty() ? "" : receiver + ".") + textOf(name);
+            modules.add(module(Kind.METHOD, flatten(leaf) + "(" + signature(node.getChildByFieldName("parameters")) + ")", parent, contentOf(node)));
+        }
+
+        /**
+         * The receiver type of a method, without a leading pointer star, e.g. {@code Point} for
+         * {@code (p *Point)}.
+         */
+        protected String receiverType(final TSNode receiver) {
+            if (receiver.isNull()) {
+                return "";
+            }
+            final TSNode decl = firstChildOfType(receiver, "parameter_declaration");
+            if (decl == null) {
+                return "";
+            }
+            return textOf(decl.getChildByFieldName("type")).replaceFirst("^\\*", "");
+        }
+
+        protected void visitVariables(final TSNode node, final Module parent) {
+            if (!requiresFields) {
+                return;
+            }
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode spec = node.getNamedChild(i);
+                if (!spec.getType().endsWith("_spec")) {
+                    continue;
+                }
+                for (int j = 0; j < spec.getNamedChildCount(); j++) {
+                    final TSNode c = spec.getNamedChild(j);
+                    if (c.getType().equals("identifier")) {
+                        modules.add(module(Kind.FIELD, flatten(textOf(c)), parent, contentOf(node)));
+                    }
+                }
+            }
+        }
+
+        protected String signature(final TSNode parameters) {
+            if (parameters == null || parameters.isNull()) {
+                return "";
+            }
+            final List<String> types = new ArrayList<>();
+            for (int i = 0; i < parameters.getNamedChildCount(); i++) {
+                final TSNode p = parameters.getNamedChild(i);
+                if (p.getType().equals("parameter_declaration")) {
+                    types.add(Historage.escape(textOf(p.getChildByFieldName("type")).replaceAll("\\s+", "")));
+                }
+            }
+            return String.join(",", types);
+        }
+    }
+
+    /**
+     * Walks the tree-sitter CST of a Ruby file: classes, modules (naming scopes), methods (instance
+     * and singleton {@code def self.x}), and top-level constant assignments (fields).
+     */
+    public class RubyModuleGenerator extends ModuleGenerator {
+        public RubyModuleGenerator(final String filename, final SourceText text) {
+            super(filename, text, ScopedNaming.INSTANCE);
+        }
+
+        @Override
+        public List<Module> run(final TSNode root) {
+            walk(root, file);
+            return modules;
+        }
+
+        protected void walk(final TSNode node, final Module parent) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                switch (child.getType()) {
+                    case "class" -> visitClass(child, parent);
+                    case "module" -> visitModule(child, parent);
+                    case "method", "singleton_method" -> visitMethod(child, parent);
+                    case "assignment" -> visitAssignment(child, parent);
+                    default -> {
+                        if (!child.isError()) {
+                            walk(child, parent);
+                        }
+                    }
+                }
+            }
+        }
+
+        protected void visitClass(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            if (name.isNull()) {
+                return;
+            }
+            final Module klass = module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(node));
+            if (requiresClasses) {
+                modules.add(klass);
+            }
+            final TSNode body = node.getChildByFieldName("body");
+            if (!body.isNull()) {
+                walk(body, klass);
+            }
+        }
+
+        protected void visitModule(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            final Module scope = name.isNull() ? parent : module(Kind.CLASS, flatten(textOf(name)), parent, null);
+            final TSNode body = node.getChildByFieldName("body");
+            if (!body.isNull()) {
+                walk(body, scope);
+            }
+        }
+
+        protected void visitMethod(final TSNode node, final Module parent) {
+            if (requiresMethods) {
+                final TSNode name = node.getChildByFieldName("name");
+                modules.add(module(Kind.METHOD, flatten(textOf(name)) + "(" + signature(node.getChildByFieldName("parameters")) + ")", parent, contentOf(node)));
+            }
+        }
+
+        protected void visitAssignment(final TSNode node, final Module parent) {
+            final TSNode left = node.getChildByFieldName("left");
+            if (requiresFields && !left.isNull() && left.getType().equals("constant")) {
+                modules.add(module(Kind.FIELD, flatten(textOf(left)), parent, contentOf(node)));
+            }
+        }
+
+        protected String signature(final TSNode parameters) {
+            if (parameters == null || parameters.isNull()) {
+                return "";
+            }
+            final List<String> names = new ArrayList<>();
+            for (int i = 0; i < parameters.getNamedChildCount(); i++) {
+                final TSNode p = parameters.getNamedChild(i);
+                final TSNode name = p.getChildByFieldName("name");
+                names.add(Historage.escape(textOf(name.isNull() ? p : name).replaceAll("\\s+", "")));
+            }
+            return String.join(",", names);
+        }
+    }
+
+    /**
+     * Walks the tree-sitter CST of a Rust file: structs, enums, unions, and traits (classes, with
+     * struct fields and trait methods split out), free functions, {@code impl} blocks (whose methods
+     * attach to the implemented type), modules (naming scopes), and constants and statics (fields).
+     */
+    public class RustModuleGenerator extends ModuleGenerator {
+        public RustModuleGenerator(final String filename, final SourceText text) {
+            super(filename, text, ScopedNaming.INSTANCE);
+        }
+
+        @Override
+        public List<Module> run(final TSNode root) {
+            walk(root, file);
+            return modules;
+        }
+
+        protected void walk(final TSNode node, final Module parent) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                switch (child.getType()) {
+                    case "struct_item", "enum_item", "union_item" -> visitType(child, parent);
+                    case "trait_item" -> visitTrait(child, parent);
+                    case "function_item" -> visitFunction(child, child, parent);
+                    case "impl_item" -> visitImpl(child, parent);
+                    case "mod_item" -> visitModule(child, parent);
+                    case "const_item", "static_item", "type_item" -> visitConst(child, parent);
+                    default -> {
+                        if (!child.isError()) {
+                            walk(child, parent);
+                        }
+                    }
+                }
+            }
+        }
+
+        protected void visitType(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            if (name.isNull()) {
+                return;
+            }
+            final Module klass = module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(node));
+            if (requiresClasses) {
+                modules.add(klass);
+            }
+            final TSNode body = node.getChildByFieldName("body");
+            if (!body.isNull() && requiresFields) {
+                for (int i = 0; i < body.getNamedChildCount(); i++) {
+                    final TSNode f = body.getNamedChild(i);
+                    if (f.getType().equals("field_declaration")) {
+                        modules.add(module(Kind.FIELD, flatten(textOf(f.getChildByFieldName("name"))), klass, contentOf(f)));
+                    }
+                }
+            }
+        }
+
+        protected void visitTrait(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            if (name.isNull()) {
+                return;
+            }
+            final Module klass = module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(node));
+            if (requiresClasses) {
+                modules.add(klass);
+            }
+            final TSNode body = node.getChildByFieldName("body");
+            if (!body.isNull()) {
+                for (int i = 0; i < body.getNamedChildCount(); i++) {
+                    final TSNode m = body.getNamedChild(i);
+                    if (m.getType().equals("function_item") || m.getType().equals("function_signature_item")) {
+                        visitFunction(m, m, klass);
+                    }
+                }
+            }
+        }
+
+        protected void visitImpl(final TSNode node, final Module parent) {
+            final TSNode type = node.getChildByFieldName("type");
+            final Module scope = type.isNull() ? parent
+                    : module(Kind.CLASS, flatten(baseTypeName(type)), parent, null);
+            final TSNode body = node.getChildByFieldName("body");
+            if (!body.isNull()) {
+                for (int i = 0; i < body.getNamedChildCount(); i++) {
+                    final TSNode m = body.getNamedChild(i);
+                    if (m.getType().equals("function_item")) {
+                        visitFunction(m, m, scope);
+                    }
+                }
+            }
+        }
+
+        protected void visitFunction(final TSNode extent, final TSNode def, final Module parent) {
+            if (requiresMethods) {
+                final TSNode name = def.getChildByFieldName("name");
+                modules.add(module(Kind.METHOD, flatten(textOf(name)) + "(" + signature(def.getChildByFieldName("parameters")) + ")", parent, contentOf(extent)));
+            }
+        }
+
+        protected void visitModule(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            final Module scope = name.isNull() ? parent : module(Kind.CLASS, flatten(textOf(name)), parent, null);
+            final TSNode body = node.getChildByFieldName("body");
+            if (!body.isNull()) {
+                walk(body, scope);
+            }
+        }
+
+        protected void visitConst(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            if (requiresFields && !name.isNull()) {
+                modules.add(module(Kind.FIELD, flatten(textOf(name)), parent, contentOf(node)));
+            }
+        }
+
+        /**
+         * The base name of a type, dropping generic arguments, e.g. {@code Foo} for {@code Foo<T>}.
+         */
+        protected String baseTypeName(final TSNode type) {
+            if (type.getType().equals("generic_type")) {
+                final TSNode base = firstChildOfType(type, "type_identifier");
+                return base != null ? textOf(base) : textOf(type);
+            }
+            return textOf(type);
+        }
+
+        protected String signature(final TSNode parameters) {
+            if (parameters == null || parameters.isNull()) {
+                return "";
+            }
+            final List<String> types = new ArrayList<>();
+            for (int i = 0; i < parameters.getNamedChildCount(); i++) {
+                final TSNode p = parameters.getNamedChild(i);
+                if (p.getType().equals("parameter")) {
+                    types.add(Historage.escape(textOf(p.getChildByFieldName("type")).replaceAll("\\s+", "")));
+                } else if (p.getType().equals("self_parameter")) {
+                    types.add("self");
+                }
+            }
+            return String.join(",", types);
+        }
+    }
+
+    /**
+     * Walks the tree-sitter CST of a Kotlin file: classes, interfaces, objects, and enums (classes),
+     * functions, and properties. The Kotlin grammar uses few field names, so names are found by
+     * child type.
+     */
+    public class KotlinModuleGenerator extends ModuleGenerator {
+        public KotlinModuleGenerator(final String filename, final SourceText text) {
+            super(filename, text, ScopedNaming.INSTANCE);
+        }
+
+        @Override
+        public List<Module> run(final TSNode root) {
+            walk(root, file);
+            return modules;
+        }
+
+        protected void walk(final TSNode node, final Module parent) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                switch (child.getType()) {
+                    case "class_declaration", "object_declaration" -> visitClass(child, parent);
+                    case "function_declaration" -> visitFunction(child, parent);
+                    case "property_declaration" -> visitProperty(child, parent);
+                    default -> {
+                        if (!child.isError()) {
+                            walk(child, parent);
+                        }
+                    }
+                }
+            }
+        }
+
+        protected void visitClass(final TSNode node, final Module parent) {
+            final TSNode name = firstChildOfType(node, "type_identifier");
+            if (name == null) {
+                return;
+            }
+            final Module klass = module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(node));
+            if (requiresClasses) {
+                modules.add(klass);
+            }
+            final TSNode body = firstChildOfType(node, "class_body");
+            if (body != null) {
+                walk(body, klass);
+            }
+        }
+
+        protected void visitFunction(final TSNode node, final Module parent) {
+            if (!requiresMethods) {
+                return;
+            }
+            final TSNode name = firstChildOfType(node, "simple_identifier");
+            if (name != null) {
+                modules.add(module(Kind.METHOD, flatten(textOf(name)) + "(" + signature(node) + ")", parent, contentOf(node)));
+            }
+        }
+
+        protected void visitProperty(final TSNode node, final Module parent) {
+            if (!requiresFields) {
+                return;
+            }
+            final TSNode decl = firstChildOfType(node, "variable_declaration");
+            final TSNode name = decl != null ? firstChildOfType(decl, "simple_identifier") : null;
+            if (name != null) {
+                modules.add(module(Kind.FIELD, flatten(textOf(name)), parent, contentOf(node)));
+            }
+        }
+
+        protected String signature(final TSNode node) {
+            final TSNode params = firstChildOfType(node, "function_value_parameters");
+            if (params == null) {
+                return "";
+            }
+            final List<String> types = new ArrayList<>();
+            for (int i = 0; i < params.getNamedChildCount(); i++) {
+                final TSNode p = params.getNamedChild(i);
+                if (p.getType().equals("parameter")) {
+                    final TSNode type = firstChildOfType(p, "user_type");
+                    types.add(Historage.escape(textOf(type != null ? type : p).replaceAll("\\s+", "")));
+                }
+            }
+            return String.join(",", types);
+        }
+    }
+
+    /**
+     * Walks the tree-sitter CST of a Swift file: classes, structs, enums (classes), protocols,
+     * functions, initializers, and properties. The Swift grammar overloads field names, so names are
+     * found by child type.
+     */
+    public class SwiftModuleGenerator extends ModuleGenerator {
+        public SwiftModuleGenerator(final String filename, final SourceText text) {
+            super(filename, text, ScopedNaming.INSTANCE);
+        }
+
+        @Override
+        public List<Module> run(final TSNode root) {
+            walk(root, file);
+            return modules;
+        }
+
+        protected void walk(final TSNode node, final Module parent) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                switch (child.getType()) {
+                    case "class_declaration", "protocol_declaration" -> visitClass(child, parent);
+                    case "function_declaration", "protocol_function_declaration" -> visitFunction(child, parent);
+                    case "init_declaration" -> visitInit(child, parent);
+                    case "property_declaration" -> visitProperty(child, parent);
+                    default -> {
+                        if (!child.isError()) {
+                            walk(child, parent);
+                        }
+                    }
+                }
+            }
+        }
+
+        protected void visitClass(final TSNode node, final Module parent) {
+            final TSNode name = firstChildOfType(node, "type_identifier");
+            if (name == null) {
+                return;
+            }
+            final Module klass = module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(node));
+            if (requiresClasses) {
+                modules.add(klass);
+            }
+            for (final String bodyType : new String[] {"class_body", "enum_class_body", "protocol_body"}) {
+                final TSNode body = firstChildOfType(node, bodyType);
+                if (body != null) {
+                    walk(body, klass);
+                }
+            }
+        }
+
+        protected void visitFunction(final TSNode node, final Module parent) {
+            if (!requiresMethods) {
+                return;
+            }
+            final TSNode name = firstChildOfType(node, "simple_identifier");
+            if (name != null) {
+                modules.add(module(Kind.METHOD, flatten(textOf(name)) + "(" + signature(node) + ")", parent, contentOf(node)));
+            }
+        }
+
+        protected void visitInit(final TSNode node, final Module parent) {
+            if (requiresMethods) {
+                modules.add(module(Kind.METHOD, "init(" + signature(node) + ")", parent, contentOf(node)));
+            }
+        }
+
+        protected void visitProperty(final TSNode node, final Module parent) {
+            if (!requiresFields) {
+                return;
+            }
+            final TSNode pattern = node.getChildByFieldName("name");
+            final TSNode name = pattern.isNull() ? null : pattern.getChildByFieldName("bound_identifier");
+            if (name != null && !name.isNull()) {
+                modules.add(module(Kind.FIELD, flatten(textOf(name)), parent, contentOf(node)));
+            }
+        }
+
+        protected String signature(final TSNode node) {
+            final List<String> names = new ArrayList<>();
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode p = node.getNamedChild(i);
+                if (p.getType().equals("parameter")) {
+                    final TSNode name = firstChildOfType(p, "simple_identifier");
+                    names.add(Historage.escape(textOf(name != null ? name : p).replaceAll("\\s+", "")));
+                }
+            }
+            return String.join(",", names);
         }
     }
 }
