@@ -2,6 +2,9 @@ package jp.ac.titech.c.se.stein.app.blob;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -12,14 +15,15 @@ import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.historage.FinerGitNaming;
 import jp.ac.titech.c.se.stein.historage.Kind;
 import jp.ac.titech.c.se.stein.historage.Module;
+import jp.ac.titech.c.se.stein.historage.NamingStrategy;
 import jp.ac.titech.c.se.stein.historage.PythonNaming;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.PythonSource;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
+import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
 import org.treesitter.TSParser;
-import org.treesitter.TSTree;
 import org.treesitter.TreeSitterJava;
 import org.treesitter.TreeSitterPython;
 import picocli.CommandLine.Command;
@@ -52,33 +56,25 @@ public class HistorageTreeSitter extends HistorageBase {
     protected boolean requiresFields = true;
 
     /**
-     * Tree-sitter parsers are not thread-safe; one per thread and language.
+     * The registered languages, tried in order; the first whose filter accepts a blob handles it.
+     * Adding a language is a matter of registering one more profile here.
      */
-    private static final ThreadLocal<TSParser> PYTHON_PARSER = ThreadLocal.withInitial(() -> {
-        final TSParser parser = new TSParser();
-        parser.setLanguage(new TreeSitterPython());
-        return parser;
-    });
-
-    private static final ThreadLocal<TSParser> JAVA_PARSER = ThreadLocal.withInitial(() -> {
-        final TSParser parser = new TSParser();
-        parser.setLanguage(new TreeSitterJava());
-        return parser;
-    });
+    private final List<LanguageProfile> profiles = List.of(
+            new LanguageProfile(PYTHON, TreeSitterPython::new, PythonSource::decode, PythonModuleGenerator::new),
+            new LanguageProfile(JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaModuleGenerator::new));
 
     @Override
     protected boolean accepts(final BlobEntry entry) {
-        return PYTHON.accept(entry) || JAVA.accept(entry);
+        return profiles.stream().anyMatch(p -> p.accepts(entry));
     }
 
     @Override
     protected List<? extends HotEntry> generateModules(final BlobEntry entry, final Context c) {
-        final List<Module> modules;
-        if (PYTHON.accept(entry)) {
-            modules = new PythonModuleGenerator(entry.getName(), PythonSource.decode(entry.getBlob())).generate();
-        } else {
-            modules = new JavaModuleGenerator(entry.getName(), SourceText.ofNormalized(entry.getBlob())).generate();
-        }
+        final LanguageProfile profile = profiles.stream()
+                .filter(p -> p.accepts(entry))
+                .findFirst()
+                .orElseThrow();
+        final List<Module> modules = profile.generate(entry.getName(), entry.getBlob());
         Module.resolveNameConflicts(modules);
         return modules.stream()
                 .map(m -> HotEntry.of(entry.getMode(), m.getFilename(), m.getBlob()))
@@ -91,34 +87,97 @@ public class HistorageTreeSitter extends HistorageBase {
     }
 
     /**
+     * The per-language wiring for the tree-sitter generator: which files it handles, how to decode
+     * and parse them, and how to build the language-specific {@link ModuleGenerator}.
+     */
+    private class LanguageProfile {
+        private final NameFilter filter;
+
+        private final ThreadLocal<TSParser> parser;
+
+        private final Function<byte[], SourceText> decoder;
+
+        private final BiFunction<String, SourceText, ModuleGenerator> generator;
+
+        LanguageProfile(final NameFilter filter, final Supplier<TSLanguage> language,
+                        final Function<byte[], SourceText> decoder,
+                        final BiFunction<String, SourceText, ModuleGenerator> generator) {
+            this.filter = filter;
+            // tree-sitter parsers are not thread-safe; one per thread and language
+            this.parser = ThreadLocal.withInitial(() -> {
+                final TSParser p = new TSParser();
+                p.setLanguage(language.get());
+                return p;
+            });
+            this.decoder = decoder;
+            this.generator = generator;
+        }
+
+        boolean accepts(final BlobEntry entry) {
+            return filter.accept(entry);
+        }
+
+        List<Module> generate(final String filename, final byte[] blob) {
+            final SourceText text = decoder.apply(blob);
+            final TSNode root = parser.get().parseString(null, text.getContent()).getRootNode();
+            if (root.hasError()) {
+                log.debug("Syntax errors found; extracting the modules that parsed");
+            }
+            return generator.apply(filename, text).run(root);
+        }
+    }
+
+    /**
+     * The shared skeleton of a tree-sitter module generator. A subclass walks its language's CST in
+     * {@link #run} and emits {@link Module} instances via {@link #module}.
+     */
+    public abstract class ModuleGenerator {
+        protected final String filename;
+
+        protected final SourceText text;
+
+        protected final NamingStrategy naming;
+
+        protected final List<Module> modules = new ArrayList<>();
+
+        protected final Module file;
+
+        protected ModuleGenerator(final String filename, final SourceText text, final NamingStrategy naming) {
+            this.filename = filename;
+            this.text = text;
+            this.naming = naming;
+            this.file = Module.ofFile(baseName(filename), naming);
+        }
+
+        /**
+         * Walks the parsed tree from its root and returns the extracted modules.
+         */
+        public abstract List<Module> run(TSNode root);
+
+        protected Module module(final Kind kind, final String name, final Module parent, final String content) {
+            return new Module(kind, name, parent, content, kind.extension(filename), naming);
+        }
+
+        protected String textOf(final TSNode node) {
+            if (node.isNull()) {
+                return "";
+            }
+            return text.getContent().substring(text.toCharIndex(node.getStartByte()), text.toCharIndex(node.getEndByte()));
+        }
+    }
+
+    /**
      * Walks the tree-sitter CST of a Python file and generates {@link Module} instances for
      * classes and functions. Descends into class bodies and statement blocks, but not into
      * function bodies.
      */
-    public class PythonModuleGenerator {
-        private final String filename;
-
-        private final SourceText text;
-
-        private final List<Module> modules = new ArrayList<>();
-
-        private final Module file;
-
+    public class PythonModuleGenerator extends ModuleGenerator {
         public PythonModuleGenerator(final String filename, final SourceText text) {
-            this.filename = filename;
-            this.text = text;
-            this.file = Module.ofFile(baseName(filename), PythonNaming.INSTANCE);
+            super(filename, text, PythonNaming.INSTANCE);
         }
 
-        /**
-         * Generates a list of Historage modules.
-         */
-        public List<Module> generate() {
-            final TSTree tree = PYTHON_PARSER.get().parseString(null, text.getContent());
-            final TSNode root = tree.getRootNode();
-            if (root.hasError()) {
-                log.debug("Syntax errors found; extracting the modules that parsed");
-            }
+        @Override
+        public List<Module> run(final TSNode root) {
             walk(root, file, true);
             return modules;
         }
@@ -162,8 +221,7 @@ public class HistorageTreeSitter extends HistorageBase {
          */
         protected void visitClass(final TSNode extent, final TSNode def, final Module parent) {
             final String name = textOf(def.getChildByFieldName("name"));
-            final Module klass = new Module(Kind.CLASS, name, parent, contentOf(extent),
-                    Kind.CLASS.extension(filename), PythonNaming.INSTANCE);
+            final Module klass = module(Kind.CLASS, name, parent, contentOf(extent));
             if (requiresClasses) {
                 modules.add(klass);
             }
@@ -181,8 +239,7 @@ public class HistorageTreeSitter extends HistorageBase {
             if (requiresMethods) {
                 final String name = textOf(def.getChildByFieldName("name"));
                 final String signature = generateSignature(def.getChildByFieldName("parameters"));
-                modules.add(new Module(Kind.METHOD, name + "(" + signature + ")", parent, contentOf(extent),
-                        Kind.METHOD.extension(filename), PythonNaming.INSTANCE));
+                modules.add(module(Kind.METHOD, name + "(" + signature + ")", parent, contentOf(extent)));
             }
         }
 
@@ -201,8 +258,7 @@ public class HistorageTreeSitter extends HistorageBase {
             }
             final TSNode left = assignment.getChildByFieldName("left");
             if (!left.isNull() && left.getType().equals("identifier")) {
-                modules.add(new Module(Kind.FIELD, textOf(left), parent, contentOf(statement),
-                        Kind.FIELD.extension(filename), PythonNaming.INSTANCE));
+                modules.add(module(Kind.FIELD, textOf(left), parent, contentOf(statement)));
             }
         }
 
@@ -229,13 +285,6 @@ public class HistorageTreeSitter extends HistorageBase {
                 }
             }
             return String.join(",", names);
-        }
-
-        protected String textOf(final TSNode node) {
-            if (node.isNull()) {
-                return "";
-            }
-            return text.getContent().substring(text.toCharIndex(node.getStartByte()), text.toCharIndex(node.getEndByte()));
         }
 
         /**
@@ -276,30 +325,13 @@ public class HistorageTreeSitter extends HistorageBase {
      * constructor bodies, field initializers, and anonymous class bodies are not descended into;
      * initializer blocks are, so local classes there are extracted like HistorageJdt does.
      */
-    public class JavaModuleGenerator {
-        private final String filename;
-
-        private final SourceText text;
-
-        private final List<Module> modules = new ArrayList<>();
-
-        private final Module file;
-
+    public class JavaModuleGenerator extends ModuleGenerator {
         public JavaModuleGenerator(final String filename, final SourceText text) {
-            this.filename = filename;
-            this.text = text;
-            this.file = Module.ofFile(baseName(filename), FinerGitNaming.INSTANCE);
+            super(filename, text, FinerGitNaming.INSTANCE);
         }
 
-        /**
-         * Generates a list of Historage modules.
-         */
-        public List<Module> generate() {
-            final TSTree tree = JAVA_PARSER.get().parseString(null, text.getContent());
-            final TSNode root = tree.getRootNode();
-            if (root.hasError()) {
-                log.debug("Syntax errors found; extracting the modules that parsed");
-            }
+        @Override
+        public List<Module> run(final TSNode root) {
             walk(root, file);
             return modules;
         }
@@ -327,8 +359,7 @@ public class HistorageTreeSitter extends HistorageBase {
 
         protected void visitType(final TSNode node, final Module parent) {
             final String name = textOf(node.getChildByFieldName("name"));
-            final Module klass = new Module(Kind.CLASS, name, parent, contentOf(node),
-                    Kind.CLASS.extension(filename), FinerGitNaming.INSTANCE);
+            final Module klass = module(Kind.CLASS, name, parent, contentOf(node));
             if (requiresClasses) {
                 modules.add(klass);
             }
@@ -340,8 +371,7 @@ public class HistorageTreeSitter extends HistorageBase {
 
         protected void visitMethod(final TSNode node, final Module parent) {
             if (requiresMethods) {
-                modules.add(new Module(Kind.METHOD, generateMethodName(node), parent, contentOf(node),
-                        Kind.METHOD.extension(filename), FinerGitNaming.INSTANCE));
+                modules.add(module(Kind.METHOD, generateMethodName(node), parent, contentOf(node)));
             }
         }
 
@@ -354,8 +384,7 @@ public class HistorageTreeSitter extends HistorageBase {
                 final TSNode child = node.getNamedChild(i);
                 if (child.getType().equals("variable_declarator")) {
                     final String name = textOf(child.getChildByFieldName("name"));
-                    modules.add(new Module(Kind.FIELD, name, parent, content,
-                            Kind.FIELD.extension(filename), FinerGitNaming.INSTANCE));
+                    modules.add(module(Kind.FIELD, name, parent, content));
                 }
             }
         }
@@ -608,13 +637,6 @@ public class HistorageTreeSitter extends HistorageBase {
                 }
             }
             return null;
-        }
-
-        protected String textOf(final TSNode node) {
-            if (node.isNull()) {
-                return "";
-            }
-            return text.getContent().substring(text.toCharIndex(node.getStartByte()), text.toCharIndex(node.getEndByte()));
         }
 
         /**
