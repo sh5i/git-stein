@@ -255,4 +255,86 @@ public class HistorageTreeSitterTest {
                 .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));
         assertEquals(expected, ts);
     }
+
+    // --- C++ ---
+
+    private static final String CPP_SOURCE = """
+            #include <string>
+            namespace app {
+
+            int gCounter = 0;
+
+            class Widget {
+            public:
+                int id;
+                Widget(int id) : id(id) {}
+                ~Widget() {}
+                int getId() const { return id; }
+                bool operator==(const Widget& o) const { return id == o.id; }
+            private:
+                static int count_;
+            };
+
+            int Widget::count_ = 0;
+
+            void freeFunc(const std::string& s) {}
+
+            template<typename T>
+            T identity(T x) { return x; }
+
+            struct Point { int x, y; };
+            enum Color { RED, GREEN };
+            }
+            """;
+
+    @Test
+    public void testCppModuleNames() {
+        final Map<String, String> entries = rewrite("sample.cpp", CPP_SOURCE);
+        assertEquals(Set.of(
+                "sample.cpp",  // original
+                // a namespace is a naming scope only, never emitted as a module
+                "sample!app#gCounter.fcpp",
+                "sample!app.Widget.ccpp",
+                "sample!app.Widget#id.fcpp",
+                "sample!app.Widget#Widget(int).mcpp",  // constructor
+                "sample!app.Widget#~Widget().mcpp",    // destructor
+                "sample!app.Widget#getId().mcpp",
+                // an operator keeps its symbol; the parameter name is dropped, the type kept
+                "sample!app.Widget#operator==(const~Widget&).mcpp",
+                "sample!app.Widget#count_.fcpp",       // in-class static declaration
+                // an out-of-line definition stays at its lexical scope; :: flattens to .
+                "sample!app#Widget.count_.fcpp",
+                "sample!app#freeFunc(const~std;;string&).mcpp",
+                "sample!app#identity(T).mcpp",         // template function
+                "sample!app.Point.ccpp",
+                "sample!app.Point#x.fcpp",
+                "sample!app.Point#y.fcpp",             // both members of "int x, y;"
+                "sample!app.Color.ccpp"), entries.keySet());
+    }
+
+    @Test
+    public void testCppModuleContents() {
+        final Map<String, String> entries = rewrite("sample.cpp", CPP_SOURCE);
+
+        // a member function keeps its indentation
+        assertEquals("    int getId() const { return id; }\n", entries.get("sample!app.Widget#getId().mcpp"));
+
+        // a namespace-scope variable is the whole declaration
+        assertEquals("int gCounter = 0;\n", entries.get("sample!app#gCounter.fcpp"));
+
+        // a class module is the whole declaration
+        assertEquals("struct Point { int x, y; };\n", entries.get("sample!app.Point.ccpp"));
+    }
+
+    @Test
+    public void testCppSyntaxErrorToleration() {
+        // an unparseable line elsewhere does not stop extraction of the valid function
+        final Map<String, String> entries = rewrite("e.cpp", """
+                int @@@ broken;
+
+                int ok() { return 1; }
+                """);
+        assertTrue(entries.containsKey("e.cpp"));
+        assertTrue(entries.containsKey("e!ok().mcpp"), entries.keySet().toString());
+    }
 }

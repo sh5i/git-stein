@@ -12,6 +12,7 @@ import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.historage.CppNaming;
 import jp.ac.titech.c.se.stein.historage.FinerGitNaming;
 import jp.ac.titech.c.se.stein.historage.Kind;
 import jp.ac.titech.c.se.stein.historage.Module;
@@ -24,16 +25,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
 import org.treesitter.TSParser;
+import org.treesitter.TreeSitterCpp;
 import org.treesitter.TreeSitterJava;
 import org.treesitter.TreeSitterPython;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 /**
- * A Historage generator using tree-sitter, currently supporting Python and Java.
+ * A Historage generator using tree-sitter, currently supporting Python, Java, and C++.
  * Splits source files into finer-grained modules (one file per class, function, or field).
  * Java files follow the same extraction semantics and FinerGit-compatible naming as
- * {@link HistorageJdt}; Python files use an analogous naming of its own.
+ * {@link HistorageJdt}; Python and C++ files use an analogous naming of their own.
  *
  * <p>Since tree-sitter parses in an error-tolerant way, modules are extracted even from
  * files that contain syntax errors elsewhere (e.g., historical Python 2 code).</p>
@@ -45,6 +47,9 @@ public class HistorageTreeSitter extends HistorageBase {
     public static final NameFilter PYTHON = new NameFilter(true, "*.py");
 
     public static final NameFilter JAVA = new NameFilter(true, "*.java");
+
+    public static final NameFilter CPP = new NameFilter(true,
+            "*.cpp", "*.cc", "*.cxx", "*.hpp", "*.hh", "*.hxx", "*.h");
 
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
@@ -61,7 +66,8 @@ public class HistorageTreeSitter extends HistorageBase {
      */
     private final List<LanguageProfile> profiles = List.of(
             new LanguageProfile(PYTHON, TreeSitterPython::new, PythonSource::decode, PythonModuleGenerator::new),
-            new LanguageProfile(JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaModuleGenerator::new));
+            new LanguageProfile(JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaModuleGenerator::new),
+            new LanguageProfile(CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppModuleGenerator::new));
 
     @Override
     protected boolean accepts(final BlobEntry entry) {
@@ -730,6 +736,280 @@ public class HistorageTreeSitter extends HistorageBase {
                 return sameLineEnd != -1 ? sameLineEnd : node.getEndByte();
             }
             return end;
+        }
+    }
+
+    /**
+     * Walks the tree-sitter CST of a C++ file and generates {@link Module} instances for classes
+     * (class/struct/union/enum), functions with a body (free, member, and out-of-line
+     * {@code Class::method} definitions), and data members and namespace/file-scope variables.
+     * Namespaces are naming scopes only; function bodies are not descended into. Names use the
+     * {@code ::} scope operator flattened to {@code .} to stay portable across file systems.
+     */
+    public class CppModuleGenerator extends ModuleGenerator {
+        public CppModuleGenerator(final String filename, final SourceText text) {
+            super(filename, text, CppNaming.INSTANCE);
+        }
+
+        @Override
+        public List<Module> run(final TSNode root) {
+            walk(root, file);
+            return modules;
+        }
+
+        protected void walk(final TSNode node, final Module parent) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                switch (child.getType()) {
+                    case "class_specifier", "struct_specifier", "union_specifier" -> visitType(child, child, parent);
+                    case "enum_specifier" -> visitEnum(child, child, parent);
+                    case "function_definition" -> visitFunction(child, child, parent);
+                    case "template_declaration" -> visitTemplate(child, parent);
+                    case "field_declaration" -> visitField(child, parent);
+                    case "declaration" -> visitDeclaration(child, parent);
+                    case "namespace_definition" -> visitNamespace(child, parent);
+                    // descend into linkage_specification (extern "C"), preprocessor blocks, etc.
+                    default -> {
+                        if (!child.isError()) {
+                            walk(child, parent);
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * Visits a namespace: a naming scope we descend into but never emit as a module (it would
+         * span whole files). An anonymous namespace is transparent.
+         */
+        protected void visitNamespace(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            final Module scope = name.isNull() ? parent : module(Kind.CLASS, flatten(textOf(name)), parent, null);
+            final TSNode body = node.getChildByFieldName("body");
+            if (!body.isNull()) {
+                walk(body, scope);
+            }
+        }
+
+        /**
+         * Visits a class/struct/union. {@code extent} covers the whole extracted range (including a
+         * template header); {@code def} is the specifier itself. An anonymous type is transparent.
+         */
+        protected void visitType(final TSNode extent, final TSNode def, final Module parent) {
+            final TSNode name = def.getChildByFieldName("name");
+            final TSNode body = def.getChildByFieldName("body");
+            if (name.isNull()) {
+                if (!body.isNull()) {
+                    walk(body, parent);
+                }
+                return;
+            }
+            final Module klass = module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(extent));
+            if (requiresClasses) {
+                modules.add(klass);
+            }
+            if (!body.isNull()) {
+                walk(body, klass);
+            }
+        }
+
+        protected void visitEnum(final TSNode extent, final TSNode def, final Module parent) {
+            final TSNode name = def.getChildByFieldName("name");
+            if (requiresClasses && !name.isNull()) {
+                modules.add(module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(extent)));
+            }
+        }
+
+        /**
+         * Unwraps a template declaration, visiting the class or function it wraps with the template
+         * header included in the extent.
+         */
+        protected void visitTemplate(final TSNode node, final Module parent) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                switch (child.getType()) {
+                    case "class_specifier", "struct_specifier", "union_specifier" -> {
+                        visitType(node, child, parent);
+                        return;
+                    }
+                    case "enum_specifier" -> {
+                        visitEnum(node, child, parent);
+                        return;
+                    }
+                    case "function_definition" -> {
+                        visitFunction(node, child, parent);
+                        return;
+                    }
+                    default -> { }
+                }
+            }
+        }
+
+        protected void visitFunction(final TSNode extent, final TSNode def, final Module parent) {
+            if (!requiresMethods) {
+                return;
+            }
+            final TSNode fd = functionDeclarator(def.getChildByFieldName("declarator"));
+            if (fd == null) {
+                return;
+            }
+            final TSNode name = fd.getChildByFieldName("declarator");
+            if (name.isNull()) {
+                return;
+            }
+            final String signature = signature(fd.getChildByFieldName("parameters"));
+            modules.add(module(Kind.METHOD, flatten(textOf(name)) + "(" + signature + ")", parent, contentOf(extent)));
+        }
+
+        /**
+         * Visits a class-body field declaration: one field module per declared data member. A
+         * member function prototype (no body) is skipped, since the implemented definition is what
+         * carries the history.
+         */
+        protected void visitField(final TSNode node, final Module parent) {
+            if (!requiresFields || functionDeclarator(node.getChildByFieldName("declarator")) != null) {
+                return;
+            }
+            final String content = contentOf(node);
+            for (final TSNode name : fieldNames(node)) {
+                modules.add(module(Kind.FIELD, flatten(textOf(name)), parent, content));
+            }
+        }
+
+        /**
+         * Visits a namespace/file-scope declaration: one field module per declared variable.
+         * Function prototypes, typedefs, and using-declarations have no init-declarator and are
+         * skipped.
+         */
+        protected void visitDeclaration(final TSNode node, final Module parent) {
+            if (!requiresFields || functionDeclarator(node.getChildByFieldName("declarator")) != null) {
+                return;
+            }
+            final String content = contentOf(node);
+            for (int i = 0; i < node.getChildCount(); i++) {
+                if (!"declarator".equals(node.getFieldNameForChild(i))) {
+                    continue;
+                }
+                final TSNode d = node.getChild(i);
+                final TSNode inner = d.getType().equals("init_declarator") ? d.getChildByFieldName("declarator") : d;
+                final TSNode name = declaratorName(inner);
+                if (name != null) {
+                    modules.add(module(Kind.FIELD, flatten(textOf(name)), parent, content));
+                }
+            }
+        }
+
+        /**
+         * Unwraps pointer and reference declarators (e.g. the {@code *} of a pointer return type)
+         * to find the function declarator, or null if there is none.
+         */
+        protected TSNode functionDeclarator(final TSNode node) {
+            if (node == null || node.isNull()) {
+                return null;
+            }
+            return node.getType().equals("function_declarator") ? node
+                    : functionDeclarator(node.getChildByFieldName("declarator"));
+        }
+
+        /**
+         * Finds the innermost name of a declarator, descending through pointer, reference, and array
+         * declarators.
+         */
+        protected TSNode declaratorName(final TSNode node) {
+            if (node == null || node.isNull()) {
+                return null;
+            }
+            switch (node.getType()) {
+                case "identifier", "field_identifier", "qualified_identifier" -> {
+                    return node;
+                }
+                default -> {
+                    final TSNode d = node.getChildByFieldName("declarator");
+                    if (d != null && !d.isNull()) {
+                        return declaratorName(d);
+                    }
+                    // some declarators (e.g. a reference declarator) hold their inner name unnamed
+                    for (int i = 0; i < node.getNamedChildCount(); i++) {
+                        final TSNode r = declaratorName(node.getNamedChild(i));
+                        if (r != null) {
+                            return r;
+                        }
+                    }
+                    return null;
+                }
+            }
+        }
+
+        /**
+         * Collects the {@code field_identifier} names declared by a data-member field declaration,
+         * descending through pointer and array declarators to catch each declared name.
+         */
+        protected List<TSNode> fieldNames(final TSNode node) {
+            final List<TSNode> result = new ArrayList<>();
+            collectFieldNames(node, result);
+            return result;
+        }
+
+        protected void collectFieldNames(final TSNode node, final List<TSNode> out) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                if (child.getType().equals("field_identifier")) {
+                    out.add(child);
+                } else if (child.getType().endsWith("declarator")) {
+                    collectFieldNames(child, out);
+                }
+            }
+        }
+
+        /**
+         * Renders a parameter as its type, dropping the parameter name and any default value.
+         */
+        protected String signature(final TSNode parameters) {
+            if (parameters.isNull()) {
+                return "";
+            }
+            final List<String> types = new ArrayList<>();
+            for (int i = 0; i < parameters.getNamedChildCount(); i++) {
+                final TSNode p = parameters.getNamedChild(i);
+                switch (p.getType()) {
+                    case "parameter_declaration", "optional_parameter_declaration" -> types.add(parameterType(p));
+                    case "variadic_parameter_declaration" -> types.add("...");
+                    default -> {
+                        if (textOf(p).equals("...")) {
+                            types.add("...");
+                        }
+                    }
+                }
+            }
+            return String.join(",", types);
+        }
+
+        protected String parameterType(final TSNode p) {
+            final TSNode name = declaratorName(p.getChildByFieldName("declarator"));
+            final String content = text.getContent();
+            String type;
+            if (name != null && !name.isNull()) {
+                type = content.substring(text.toCharIndex(p.getStartByte()), text.toCharIndex(name.getStartByte()))
+                        + content.substring(text.toCharIndex(name.getEndByte()), text.toCharIndex(p.getEndByte()));
+            } else {
+                type = textOf(p);
+            }
+            final int eq = type.indexOf('=');
+            return Historage.escape(eq >= 0 ? type.substring(0, eq) : type);
+        }
+
+        /**
+         * Flattens a possibly qualified name into a file-system-safe leaf, turning the C++ scope
+         * operator {@code ::} into {@code .} and escaping the remaining reserved characters.
+         */
+        protected String flatten(final String name) {
+            return Historage.escape(name.replace("::", "."));
+        }
+
+        protected String contentOf(final TSNode node) {
+            final int beginLine = node.getStartPoint().getRow() + 1;
+            final int endLine = node.getEndPoint().getRow() + 1;
+            return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
         }
     }
 }
