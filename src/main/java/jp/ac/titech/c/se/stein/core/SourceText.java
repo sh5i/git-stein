@@ -69,7 +69,7 @@ public class SourceText {
      * to {@code \n}.
      */
     public static SourceText ofNormalized(final byte[] raw, final Charset charset) {
-        return new SourceText(raw, normalizeBreaks(new String(raw, charset)));
+        return new SourceText(raw, normalizeBreaks(stripBom(new String(raw, charset))));
     }
 
     /**
@@ -79,12 +79,21 @@ public class SourceText {
         final String charset = guessCharset(blob);
         if (charset != null) {
             try {
-                return new String(blob, charset);
+                return stripBom(new String(blob, charset));
             } catch (final UnsupportedEncodingException e) {
                 log.error(e.getMessage(), e);
             }
         }
-        return new String(blob, StandardCharsets.UTF_8);
+        return stripBom(new String(blob, StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Strips a leading byte-order mark. A BOM is metadata rather than source content, and keeping
+     * it would misalign UTF-8 byte offsets: tree-sitter skips a leading BOM while the decoded
+     * string keeps it, so byte offsets from the parser would be shifted against the content.
+     */
+    private static String stripBom(final String s) {
+        return !s.isEmpty() && s.charAt(0) == '\uFEFF' ? s.substring(1) : s;
     }
 
     /**

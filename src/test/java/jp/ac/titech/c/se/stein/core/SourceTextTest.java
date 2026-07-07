@@ -44,6 +44,15 @@ public class SourceTextTest {
     }
 
     @Test
+    public void testStripsBom() {
+        // a leading UTF-8 BOM is stripped, so it does not shift byte offsets against the content
+        // (tree-sitter skips a leading BOM while the decoded string would otherwise keep it)
+        final SourceText bom = SourceText.ofNormalized("\uFEFFhello\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals("hello\n", bom.getContent());
+        assertEquals(1, bom.toCharIndex(1));  // pure ASCII after stripping: identity offsets
+    }
+
+    @Test
     public void testGetFragmentOfLines() {
         assertEquals("hello\n", text.getFragmentOfLines(1, 1).getExactContent());
         assertEquals("  world\n", text.getFragmentOfLines(2, 2).getExactContent());
