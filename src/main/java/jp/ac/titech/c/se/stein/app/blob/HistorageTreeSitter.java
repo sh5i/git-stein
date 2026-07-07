@@ -27,12 +27,13 @@ import org.treesitter.TSParser;
 import org.treesitter.TreeSitterCSharp;
 import org.treesitter.TreeSitterCpp;
 import org.treesitter.TreeSitterJava;
+import org.treesitter.TreeSitterJavascript;
 import org.treesitter.TreeSitterPython;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 /**
- * A Historage generator using tree-sitter, currently supporting Python, Java, C++, and C#.
+ * A Historage generator using tree-sitter, currently supporting Python, Java, C++, C#, and JavaScript.
  * Splits source files into finer-grained modules (one file per class, function, or field).
  * Java files follow the same extraction semantics and FinerGit-compatible naming as
  * {@link HistorageJdt}; the other languages use an analogous scoped naming of their own.
@@ -53,6 +54,8 @@ public class HistorageTreeSitter extends HistorageBase {
 
     public static final NameFilter CSHARP = new NameFilter(true, "*.cs");
 
+    public static final NameFilter JAVASCRIPT = new NameFilter(true, "*.js", "*.mjs", "*.cjs", "*.jsx");
+
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
 
@@ -70,7 +73,8 @@ public class HistorageTreeSitter extends HistorageBase {
             new LanguageProfile(PYTHON, TreeSitterPython::new, PythonSource::decode, PythonModuleGenerator::new),
             new LanguageProfile(JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaModuleGenerator::new),
             new LanguageProfile(CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppModuleGenerator::new),
-            new LanguageProfile(CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpModuleGenerator::new));
+            new LanguageProfile(CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpModuleGenerator::new),
+            new LanguageProfile(JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized, JsModuleGenerator::new));
 
     @Override
     protected boolean accepts(final BlobEntry entry) {
@@ -1192,6 +1196,166 @@ public class HistorageTreeSitter extends HistorageBase {
                 }
             }
             return null;
+        }
+
+        protected String contentOf(final TSNode node) {
+            final int beginLine = node.getStartPoint().getRow() + 1;
+            final int endLine = node.getEndPoint().getRow() + 1;
+            return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
+        }
+    }
+
+    /**
+     * Walks the tree-sitter CST of a JavaScript file and generates {@link Module} instances for
+     * classes, functions (function declarations, class methods, and arrow or function expressions
+     * bound to a variable), and fields (class fields and non-function top-level bindings). Function
+     * bodies are not descended into, and object-literal methods are not extracted. Since JavaScript
+     * is untyped, a signature lists parameter names.
+     */
+    public class JsModuleGenerator extends ModuleGenerator {
+        public JsModuleGenerator(final String filename, final SourceText text) {
+            super(filename, text, ScopedNaming.INSTANCE);
+        }
+
+        @Override
+        public List<Module> run(final TSNode root) {
+            walk(root, file);
+            return modules;
+        }
+
+        protected void walk(final TSNode node, final Module parent) {
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                switch (child.getType()) {
+                    case "class_declaration" -> visitClass(child, child, parent);
+                    case "function_declaration", "generator_function_declaration" -> visitMethod(child, child, parent);
+                    case "lexical_declaration", "variable_declaration" -> visitDeclaration(child, child, parent);
+                    case "export_statement" -> visitExport(child, parent);
+                    default -> {
+                        if (!child.isError()) {
+                            walk(child, parent);
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * Unwraps an export statement, visiting the declaration it exports with the {@code export}
+         * keyword included in the extent. An anonymous default export or a re-export has nothing
+         * named to extract.
+         */
+        protected void visitExport(final TSNode node, final Module parent) {
+            final TSNode decl = node.getChildByFieldName("declaration");
+            if (decl.isNull()) {
+                return;
+            }
+            switch (decl.getType()) {
+                case "class_declaration" -> visitClass(node, decl, parent);
+                case "function_declaration", "generator_function_declaration" -> visitMethod(node, decl, parent);
+                case "lexical_declaration", "variable_declaration" -> visitDeclaration(node, decl, parent);
+                default -> { }
+            }
+        }
+
+        protected void visitClass(final TSNode extent, final TSNode def, final Module parent) {
+            final TSNode name = def.getChildByFieldName("name");
+            if (name.isNull()) {
+                return;
+            }
+            final Module klass = module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(extent));
+            if (requiresClasses) {
+                modules.add(klass);
+            }
+            final TSNode body = def.getChildByFieldName("body");
+            if (body.isNull()) {
+                return;
+            }
+            for (int i = 0; i < body.getNamedChildCount(); i++) {
+                final TSNode member = body.getNamedChild(i);
+                switch (member.getType()) {
+                    case "method_definition" -> visitMethod(member, member, klass);
+                    case "field_definition" -> visitField(member, klass);
+                    default -> { }
+                }
+            }
+        }
+
+        protected void visitMethod(final TSNode extent, final TSNode def, final Module parent) {
+            if (!requiresMethods) {
+                return;
+            }
+            final TSNode name = def.getChildByFieldName("name");
+            if (!name.isNull()) {
+                modules.add(module(Kind.METHOD, flatten(textOf(name)) + "(" + signature(def) + ")", parent, contentOf(extent)));
+            }
+        }
+
+        protected void visitField(final TSNode node, final Module parent) {
+            if (!requiresFields) {
+                return;
+            }
+            final TSNode property = node.getChildByFieldName("property");
+            if (!property.isNull()) {
+                modules.add(module(Kind.FIELD, flatten(textOf(property)), parent, contentOf(node)));
+            }
+        }
+
+        /**
+         * A variable binding whose value is a function becomes a method module; any other binding
+         * becomes a field module. Destructuring bindings (whose name is a pattern) are skipped.
+         */
+        protected void visitDeclaration(final TSNode extent, final TSNode def, final Module parent) {
+            final String content = contentOf(extent);
+            for (int i = 0; i < def.getNamedChildCount(); i++) {
+                final TSNode declarator = def.getNamedChild(i);
+                if (!declarator.getType().equals("variable_declarator")) {
+                    continue;
+                }
+                final TSNode name = declarator.getChildByFieldName("name");
+                if (name.isNull() || !name.getType().equals("identifier")) {
+                    continue;
+                }
+                final TSNode value = declarator.getChildByFieldName("value");
+                if (!value.isNull() && isFunction(value)) {
+                    if (requiresMethods) {
+                        modules.add(module(Kind.METHOD, flatten(textOf(name)) + "(" + signature(value) + ")", parent, content));
+                    }
+                } else if (requiresFields) {
+                    modules.add(module(Kind.FIELD, flatten(textOf(name)), parent, content));
+                }
+            }
+        }
+
+        protected boolean isFunction(final TSNode value) {
+            return switch (value.getType()) {
+                case "arrow_function", "function_expression", "generator_function" -> true;
+                default -> false;
+            };
+        }
+
+        /**
+         * Renders a function's parameter names, dropping default values; a single unparenthesized
+         * arrow parameter is held under a {@code parameter} field instead of {@code parameters}.
+         */
+        protected String signature(final TSNode fn) {
+            final TSNode parameters = fn.getChildByFieldName("parameters");
+            if (!parameters.isNull()) {
+                final List<String> names = new ArrayList<>();
+                for (int i = 0; i < parameters.getNamedChildCount(); i++) {
+                    names.add(paramName(parameters.getNamedChild(i)));
+                }
+                return String.join(",", names);
+            }
+            final TSNode single = fn.getChildByFieldName("parameter");
+            return single.isNull() ? "" : paramName(single);
+        }
+
+        protected String paramName(final TSNode p) {
+            if (p.getType().equals("assignment_pattern")) {
+                return paramName(p.getChildByFieldName("left"));
+            }
+            return Historage.escape(textOf(p).replaceAll("\\s+", ""));
         }
 
         protected String contentOf(final TSNode node) {

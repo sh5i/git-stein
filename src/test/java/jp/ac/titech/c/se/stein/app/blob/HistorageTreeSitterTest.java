@@ -431,4 +431,84 @@ public class HistorageTreeSitterTest {
                 "B!N.C.ccs",
                 "B!N.C#M().mcs"), entries.keySet());
     }
+
+    // --- JavaScript ---
+
+    private static final String JS_SOURCE = """
+            import x from 'y';
+            const PI = 3.14;
+            let counter = 0;
+            function greet(name, greeting = 'hi') { return greeting; }
+            const add = (a, b) => a + b;
+            const one = x => x;
+            const f = function(z) {};
+            const obj = { m() {} };
+            class Widget extends Base {
+              static count = 0;
+              #secret = 1;
+              id = 0;
+              constructor(id) { this.id = id; }
+              getId() { return this.id; }
+              get name() { return 'w'; }
+              set name(v) {}
+              static create() {}
+              *gen() {}
+              async fetch(...args) {}
+            }
+            export function exported() {}
+            export const helper = (q) => q;
+            export default class Def {}
+            """;
+
+    @Test
+    public void testJsModuleNames() {
+        final Map<String, String> entries = rewrite("app.js", JS_SOURCE);
+        assertEquals(Set.of(
+                "app.js",  // original
+                // non-function top-level bindings are fields; a function-valued one is a method
+                "app!PI.fjs",
+                "app!counter.fjs",
+                "app!greet(name,greeting).mjs",     // default value dropped
+                "app!add(a,b).mjs",                 // arrow bound to a variable
+                "app!one(x).mjs",                   // single unparenthesized arrow parameter
+                "app!f(z).mjs",                     // function expression bound to a variable
+                "app!obj.fjs",                      // an object literal is a field; its methods are not split out
+                "app!Widget.cjs",
+                "app!Widget#count.fjs",             // static field
+                "app!Widget##secret.fjs",           // private field keeps its # sigil
+                "app!Widget#id.fjs",
+                "app!Widget#constructor(id).mjs",
+                "app!Widget#getId().mjs",
+                "app!Widget#name().mjs",            // getter and setter differ by signature
+                "app!Widget#name(v).mjs",
+                "app!Widget#create().mjs",          // static method
+                "app!Widget#gen().mjs",             // generator method
+                "app!Widget#fetch(...args).mjs",    // async method with a rest parameter
+                "app!exported().mjs",
+                "app!helper(q).mjs",                // exported arrow binding
+                "app!Def.cjs"), entries.keySet());
+    }
+
+    @Test
+    public void testJsModuleContents() {
+        final Map<String, String> entries = rewrite("app.js", JS_SOURCE);
+
+        // an arrow bound to a variable is the whole binding statement
+        assertEquals("const add = (a, b) => a + b;\n", entries.get("app!add(a,b).mjs"));
+
+        // a plain binding is a field
+        assertEquals("const PI = 3.14;\n", entries.get("app!PI.fjs"));
+    }
+
+    @Test
+    public void testJsSyntaxErrorToleration() {
+        // an unparseable line does not stop extraction of the valid function
+        final Map<String, String> entries = rewrite("e.js", """
+                const @@@ = ;
+
+                function ok() { return 1; }
+                """);
+        assertTrue(entries.containsKey("e.js"));
+        assertTrue(entries.containsKey("e!ok().mjs"), entries.keySet().toString());
+    }
 }
