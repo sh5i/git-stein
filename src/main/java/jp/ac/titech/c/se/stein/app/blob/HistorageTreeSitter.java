@@ -29,11 +29,13 @@ import org.treesitter.TreeSitterCpp;
 import org.treesitter.TreeSitterJava;
 import org.treesitter.TreeSitterJavascript;
 import org.treesitter.TreeSitterPython;
+import org.treesitter.TreeSitterTypescript;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 /**
- * A Historage generator using tree-sitter, currently supporting Python, Java, C++, C#, and JavaScript.
+ * A Historage generator using tree-sitter, currently supporting Python, Java, C++, C#, JavaScript,
+ * and TypeScript.
  * Splits source files into finer-grained modules (one file per class, function, or field).
  * Java files follow the same extraction semantics and FinerGit-compatible naming as
  * {@link HistorageJdt}; the other languages use an analogous scoped naming of their own.
@@ -56,6 +58,8 @@ public class HistorageTreeSitter extends HistorageBase {
 
     public static final NameFilter JAVASCRIPT = new NameFilter(true, "*.js", "*.mjs", "*.cjs", "*.jsx");
 
+    public static final NameFilter TYPESCRIPT = new NameFilter(true, "*.ts", "*.mts", "*.cts");
+
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
 
@@ -74,7 +78,8 @@ public class HistorageTreeSitter extends HistorageBase {
             new LanguageProfile(JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaModuleGenerator::new),
             new LanguageProfile(CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppModuleGenerator::new),
             new LanguageProfile(CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpModuleGenerator::new),
-            new LanguageProfile(JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized, JsModuleGenerator::new));
+            new LanguageProfile(JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized, JsModuleGenerator::new),
+            new LanguageProfile(TYPESCRIPT, TreeSitterTypescript::new, SourceText::ofNormalized, TsModuleGenerator::new));
 
     @Override
     protected boolean accepts(final BlobEntry entry) {
@@ -1226,18 +1231,29 @@ public class HistorageTreeSitter extends HistorageBase {
         protected void walk(final TSNode node, final Module parent) {
             for (int i = 0; i < node.getNamedChildCount(); i++) {
                 final TSNode child = node.getNamedChild(i);
-                switch (child.getType()) {
-                    case "class_declaration" -> visitClass(child, child, parent);
-                    case "function_declaration", "generator_function_declaration" -> visitMethod(child, child, parent);
-                    case "lexical_declaration", "variable_declaration" -> visitDeclaration(child, child, parent);
-                    case "export_statement" -> visitExport(child, parent);
-                    default -> {
-                        if (!child.isError()) {
-                            walk(child, parent);
-                        }
-                    }
+                if (child.getType().equals("export_statement")) {
+                    visitExport(child, parent);
+                } else if (!dispatch(child, child, parent) && !child.isError()) {
+                    walk(child, parent);
                 }
             }
+        }
+
+        /**
+         * Dispatches a declaration to its visitor, using {@code extent} as the content range (which
+         * differs from {@code def} when unwrapping an export). Returns whether it was handled;
+         * subclasses override to add language constructs and delegate the rest to {@code super}.
+         */
+        protected boolean dispatch(final TSNode extent, final TSNode def, final Module parent) {
+            switch (def.getType()) {
+                case "class_declaration" -> visitClass(extent, def, parent);
+                case "function_declaration", "generator_function_declaration" -> visitMethod(extent, def, parent);
+                case "lexical_declaration", "variable_declaration" -> visitDeclaration(extent, def, parent);
+                default -> {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /**
@@ -1247,14 +1263,8 @@ public class HistorageTreeSitter extends HistorageBase {
          */
         protected void visitExport(final TSNode node, final Module parent) {
             final TSNode decl = node.getChildByFieldName("declaration");
-            if (decl.isNull()) {
-                return;
-            }
-            switch (decl.getType()) {
-                case "class_declaration" -> visitClass(node, decl, parent);
-                case "function_declaration", "generator_function_declaration" -> visitMethod(node, decl, parent);
-                case "lexical_declaration", "variable_declaration" -> visitDeclaration(node, decl, parent);
-                default -> { }
+            if (!decl.isNull()) {
+                dispatch(node, decl, parent);
             }
         }
 
@@ -1275,7 +1285,7 @@ public class HistorageTreeSitter extends HistorageBase {
                 final TSNode member = body.getNamedChild(i);
                 switch (member.getType()) {
                     case "method_definition" -> visitMethod(member, member, klass);
-                    case "field_definition" -> visitField(member, klass);
+                    case "field_definition", "public_field_definition" -> visitField(member, klass);
                     default -> { }
                 }
             }
@@ -1295,9 +1305,13 @@ public class HistorageTreeSitter extends HistorageBase {
             if (!requiresFields) {
                 return;
             }
-            final TSNode property = node.getChildByFieldName("property");
-            if (!property.isNull()) {
-                modules.add(module(Kind.FIELD, flatten(textOf(property)), parent, contentOf(node)));
+            // a JavaScript field_definition names it "property"; a TypeScript field/signature "name"
+            TSNode name = node.getChildByFieldName("property");
+            if (name.isNull()) {
+                name = node.getChildByFieldName("name");
+            }
+            if (!name.isNull()) {
+                modules.add(module(Kind.FIELD, flatten(textOf(name)), parent, contentOf(node)));
             }
         }
 
@@ -1362,6 +1376,98 @@ public class HistorageTreeSitter extends HistorageBase {
             final int beginLine = node.getStartPoint().getRow() + 1;
             final int endLine = node.getEndPoint().getRow() + 1;
             return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
+        }
+    }
+
+    /**
+     * Walks the tree-sitter CST of a TypeScript file. TypeScript is a superset of JavaScript, so
+     * this reuses {@link JsModuleGenerator} and adds the TypeScript-only constructs: namespaces
+     * (naming scopes), interfaces and enums (classes), abstract classes, type aliases (fields), and
+     * the {@code required}/{@code optional} parameter wrappers. Parameter types are dropped, leaving
+     * parameter names in the signature.
+     */
+    public class TsModuleGenerator extends JsModuleGenerator {
+        public TsModuleGenerator(final String filename, final SourceText text) {
+            super(filename, text);
+        }
+
+        @Override
+        protected boolean dispatch(final TSNode extent, final TSNode def, final Module parent) {
+            switch (def.getType()) {
+                case "abstract_class_declaration" -> visitClass(extent, def, parent);
+                case "interface_declaration" -> visitInterface(extent, def, parent);
+                case "enum_declaration" -> visitType(extent, def, parent);
+                case "type_alias_declaration" -> visitTypeAlias(extent, def, parent);
+                case "internal_module", "module" -> visitNamespace(def, parent);
+                default -> {
+                    return super.dispatch(extent, def, parent);
+                }
+            }
+            return true;
+        }
+
+        /**
+         * An interface is a class module whose members are its property signatures (fields) and
+         * method signatures (methods).
+         */
+        protected void visitInterface(final TSNode extent, final TSNode def, final Module parent) {
+            final TSNode name = def.getChildByFieldName("name");
+            if (name.isNull()) {
+                return;
+            }
+            final Module iface = module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(extent));
+            if (requiresClasses) {
+                modules.add(iface);
+            }
+            final TSNode body = def.getChildByFieldName("body");
+            if (body.isNull()) {
+                return;
+            }
+            for (int i = 0; i < body.getNamedChildCount(); i++) {
+                final TSNode member = body.getNamedChild(i);
+                switch (member.getType()) {
+                    case "method_signature" -> visitMethod(member, member, iface);
+                    case "property_signature" -> visitField(member, iface);
+                    default -> { }
+                }
+            }
+        }
+
+        /**
+         * An enum or other named type declaration becomes a class module without descending.
+         */
+        protected void visitType(final TSNode extent, final TSNode def, final Module parent) {
+            final TSNode name = def.getChildByFieldName("name");
+            if (requiresClasses && !name.isNull()) {
+                modules.add(module(Kind.CLASS, flatten(textOf(name)), parent, contentOf(extent)));
+            }
+        }
+
+        protected void visitTypeAlias(final TSNode extent, final TSNode def, final Module parent) {
+            final TSNode name = def.getChildByFieldName("name");
+            if (requiresFields && !name.isNull()) {
+                modules.add(module(Kind.FIELD, flatten(textOf(name)), parent, contentOf(extent)));
+            }
+        }
+
+        /**
+         * A namespace ({@code internal_module}) is a naming scope only, never emitted as a module.
+         */
+        protected void visitNamespace(final TSNode node, final Module parent) {
+            final TSNode name = node.getChildByFieldName("name");
+            final Module scope = name.isNull() ? parent : module(Kind.CLASS, flatten(textOf(name)), parent, null);
+            final TSNode body = node.getChildByFieldName("body");
+            if (!body.isNull()) {
+                walk(body, scope);
+            }
+        }
+
+        @Override
+        protected String paramName(final TSNode p) {
+            return switch (p.getType()) {
+                case "required_parameter", "optional_parameter" -> paramName(p.getChildByFieldName("pattern"));
+                default -> super.paramName(p);
+            };
         }
     }
 }

@@ -511,4 +511,63 @@ public class HistorageTreeSitterTest {
         assertTrue(entries.containsKey("e.js"));
         assertTrue(entries.containsKey("e!ok().mjs"), entries.keySet().toString());
     }
+
+    // --- TypeScript ---
+
+    private static final String TS_SOURCE = """
+            namespace App {
+              export const PI: number = 3.14;
+              export function greet(name: string, n = 1): string { return name; }
+              const add = (a: number, b: number): number => a + b;
+              interface IThing { id: number; do(x: number): void; }
+              type Alias = string | number;
+              enum Color { Red, Green }
+              abstract class Widget<T> extends Base implements IThing {
+                private id: number = 0;
+                readonly name: string;
+                constructor(id: number) { super(); }
+                getId(): number { return this.id; }
+                do(x: number): void {}
+                static create(): Widget<any> { return null; }
+                method(a?: string, ...rest: any[]): void {}
+              }
+            }
+            export class Top {}
+            """;
+
+    @Test
+    public void testTsModuleNames() {
+        final Map<String, String> entries = rewrite("App.ts", TS_SOURCE);
+        assertEquals(Set.of(
+                "App.ts",  // original
+                // the namespace is a naming scope; parameter types are dropped, leaving names
+                "App!App#PI.fts",
+                "App!App#greet(name,n).mts",       // default value dropped
+                "App!App#add(a,b).mts",            // arrow bound to a variable
+                "App!App#Alias.fts",               // a type alias is a field
+                "App!App.Color.cts",               // enum
+                "App!App.IThing.cts",              // interface
+                "App!App.IThing#id.fts",           // property signature
+                "App!App.IThing#do(x).mts",        // method signature
+                "App!App.Widget.cts",              // abstract class
+                "App!App.Widget#id.fts",
+                "App!App.Widget#name.fts",         // a readonly field
+                "App!App.Widget#constructor(id).mts",
+                "App!App.Widget#getId().mts",
+                "App!App.Widget#do(x).mts",
+                "App!App.Widget#create().mts",     // static method
+                "App!App.Widget#method(a,...rest).mts",  // optional and rest parameters
+                "App!Top.cts"), entries.keySet());
+    }
+
+    @Test
+    public void testTsModuleContents() {
+        final Map<String, String> entries = rewrite("App.ts", TS_SOURCE);
+
+        // an enum keeps its (namespace-indented) declaration
+        assertEquals("  enum Color { Red, Green }\n", entries.get("App!App.Color.cts"));
+
+        // a member keeps its indentation
+        assertEquals("    getId(): number { return this.id; }\n", entries.get("App!App.Widget#getId().mts"));
+    }
 }
