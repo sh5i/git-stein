@@ -6,12 +6,10 @@ import java.util.stream.Collectors;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
-import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.HashUtils;
 import lombok.AllArgsConstructor;
@@ -36,13 +34,10 @@ import picocli.CommandLine.Option;
 @Slf4j
 @ToString
 @Command(name = "@historage-jdt", description = "Generate finer-grained Java modules via JDT")
-public class HistorageJdt implements BlobTranslator {
+public class HistorageJdt extends HistorageBase {
     public static final NameFilter JAVA = new NameFilter(true, "*.java");
 
     public static final Gson GSON = new Gson();
-
-    @Option(names = "--no-original", negatable = true, description = "Exclude original files")
-    protected boolean requiresOriginals = true;
 
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
@@ -87,24 +82,16 @@ public class HistorageJdt implements BlobTranslator {
     protected boolean parsable = false;
 
     @Override
-    public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
-        if (!JAVA.accept(entry)) {
-            return entry;
-        }
-        final AnyHotEntry.Set result = AnyHotEntry.set();
-        if (requiresOriginals) {
-            result.add(entry);
-        }
+    protected boolean accepts(final BlobEntry entry) {
+        return JAVA.accept(entry);
+    }
+
+    @Override
+    protected List<? extends HotEntry> generateModules(final BlobEntry entry, final Context c) {
         final SourceText text = SourceText.ofNormalized(entry.getBlob());
-        final Collection<Module> modules = new ModuleGenerator(entry.getName(), text).generate();
-        if (!modules.isEmpty()) {
-            for (final Module m : modules) {
-                log.debug("Generate submodule: {} from {} {}", m.getFilename(), entry, c);
-                result.add(HotEntry.of(entry.getMode(), m.getFilename(), m.getBlob()));
-            }
-            log.debug("Rewrite entry: {} -> {} entries {}", entry, result.size(), c);
-        }
-        return result;
+        return new ModuleGenerator(entry.getName(), text).generate().stream()
+                .map(m -> HotEntry.of(entry.getMode(), m.getFilename(), m.getBlob()))
+                .toList();
     }
 
     /**

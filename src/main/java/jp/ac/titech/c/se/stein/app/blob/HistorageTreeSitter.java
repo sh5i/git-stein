@@ -10,10 +10,8 @@ import java.util.regex.Pattern;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
-import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
-import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.HashUtils;
 import jp.ac.titech.c.se.stein.util.PythonSource;
@@ -40,13 +38,10 @@ import picocli.CommandLine.Option;
 @Slf4j
 @ToString
 @Command(name = "@historage-ts", description = "Generate finer-grained modules via tree-sitter")
-public class HistorageTreeSitter implements BlobTranslator {
+public class HistorageTreeSitter extends HistorageBase {
     public static final NameFilter PYTHON = new NameFilter(true, "*.py");
 
     public static final NameFilter JAVA = new NameFilter(true, "*.java");
-
-    @Option(names = "--no-original", negatable = true, description = "Exclude original files")
-    protected boolean requiresOriginals = true;
 
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
@@ -82,30 +77,22 @@ public class HistorageTreeSitter implements BlobTranslator {
     });
 
     @Override
-    public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
+    protected boolean accepts(final BlobEntry entry) {
+        return PYTHON.accept(entry) || JAVA.accept(entry);
+    }
+
+    @Override
+    protected List<? extends HotEntry> generateModules(final BlobEntry entry, final Context c) {
         final List<Module> modules;
         if (PYTHON.accept(entry)) {
-            final SourceText text = PythonSource.decode(entry.getBlob());
-            modules = new PythonModuleGenerator(baseName(entry.getName()), text).generate();
-        } else if (JAVA.accept(entry)) {
-            final SourceText text = SourceText.ofNormalized(entry.getBlob());
-            modules = new JavaModuleGenerator(baseName(entry.getName()), text).generate();
+            modules = new PythonModuleGenerator(baseName(entry.getName()), PythonSource.decode(entry.getBlob())).generate();
         } else {
-            return entry;
+            modules = new JavaModuleGenerator(baseName(entry.getName()), SourceText.ofNormalized(entry.getBlob())).generate();
         }
-        final AnyHotEntry.Set result = AnyHotEntry.set();
-        if (requiresOriginals) {
-            result.add(entry);
-        }
-        if (!modules.isEmpty()) {
-            resolveNameConflicts(modules);
-            for (final Module m : modules) {
-                log.debug("Generate submodule: {} from {} {}", m.getFilename(), entry, c);
-                result.add(HotEntry.of(entry.getMode(), m.getFilename(), m.getBlob()));
-            }
-            log.debug("Rewrite entry: {} -> {} entries {}", entry, result.size(), c);
-        }
-        return result;
+        resolveNameConflicts(modules);
+        return modules.stream()
+                .map(m -> HotEntry.of(entry.getMode(), m.getFilename(), m.getBlob()))
+                .toList();
     }
 
     protected static String baseName(final String filename) {

@@ -3,10 +3,8 @@ package jp.ac.titech.c.se.stein.app.blob;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import jp.ac.titech.c.se.stein.core.*;
-import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
-import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.HashUtils;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
@@ -36,12 +34,9 @@ import java.util.stream.Stream;
 @Slf4j
 @ToString
 @Command(name = "@historage", description = "Generate finer-grained modules via ctags")
-public class Historage implements BlobTranslator {
+public class Historage extends HistorageBase {
     @Option(names = "--ctags", description = "ctags command used")
     protected String ctags = "ctags";
-
-    @Option(names = "--no-original", negatable = true, description = "exclude original files")
-    protected boolean requiresOriginals = true;
 
     @Option(names = "--no-original-ext", negatable = true, description = "disuse original file extension")
     protected boolean requiresOriginalExtension = true;
@@ -60,28 +55,19 @@ public class Historage implements BlobTranslator {
     protected Set<String> moduleKinds;
 
     @Override
-    public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
-        if (!filter.accept(entry)) {
-            return entry;
-        }
-        final AnyHotEntry.Set result = AnyHotEntry.set();
-        if (requiresOriginals) {
-            result.add(entry);
-        }
-        final SourceText text = SourceText.ofNormalized(entry.getBlob());
+    protected boolean accepts(final BlobEntry entry) {
+        return filter.accept(entry);
+    }
+
+    @Override
+    protected List<? extends HotEntry> generateModules(final BlobEntry entry, final Context c) {
         try {
-            final Collection<? extends HotEntry> entries = new CtagsRunner(entry, text, c).generate();
-            if (!entries.isEmpty()) {
-                for (final HotEntry e : entries) {
-                    log.debug("Generate submodule: {} from {} {}", e.getName(), entry, c);
-                    result.add(e);
-                }
-                log.debug("Rewrite entry: {} -> {} entries {}", entry, result.size(), c);
-            }
+            final SourceText text = SourceText.ofNormalized(entry.getBlob());
+            return new CtagsRunner(entry, text, c).generate();
         } catch (final IOException e) {
             log.error(e.getMessage(), e);
+            return List.of();
         }
-        return result;
     }
 
     @RequiredArgsConstructor
