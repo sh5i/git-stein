@@ -40,6 +40,26 @@ public class HashUtilsTest {
     }
 
     @Test
+    public void testAbbreviateToBytes() {
+        // short enough: returned unchanged
+        assertEquals("hello", HashUtils.abbreviateToBytes("hello", 255));
+        assertEquals("hello", HashUtils.abbreviateToBytes("hello", 5));
+
+        // too long: truncated to fit exactly, with a ~digest suffix keeping it distinguishable
+        final String s = "a".repeat(300);
+        final String out = HashUtils.abbreviateToBytes(s, 20);
+        assertEquals(20, out.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals("a".repeat(13) + "~" + HashUtils.digest(s, 6), out);
+        assertNotEquals(HashUtils.abbreviateToBytes("b".repeat(300), 20), out);
+
+        // never splits a multi-byte character (é is 2 bytes in UTF-8)
+        final String accents = "é".repeat(20);  // 40 bytes
+        final String cut = HashUtils.abbreviateToBytes(accents, 10);
+        assertTrue(cut.getBytes(StandardCharsets.UTF_8).length <= 10, cut);
+        assertFalse(cut.contains("�"));
+    }
+
+    @Test
     public void testIdForTree() {
         final Entry hello = Entry.of(BLOB_MODE, "hello.txt", ObjectId.fromString(HELLO_BLOB_ID));
         final Entry world = Entry.of(BLOB_MODE, "world.txt", ObjectId.fromString(WORLD_BLOB_ID));

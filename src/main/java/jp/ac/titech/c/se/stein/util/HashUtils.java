@@ -51,6 +51,38 @@ public class HashUtils {
     }
 
     /**
+     * Returns {@code s} unchanged if its UTF-8 encoding is at most {@code maxBytes} bytes;
+     * otherwise truncates it and appends {@code ~<digest>} so that distinct long strings keep
+     * distinct results. Used to keep generated file names within file-system length limits.
+     */
+    public static String abbreviateToBytes(final String s, final int maxBytes) {
+        if (s.getBytes(StandardCharsets.UTF_8).length <= maxBytes) {
+            return s;
+        }
+        final String suffix = "~" + digest(s, 6);
+        return truncateToBytes(s, maxBytes - suffix.getBytes(StandardCharsets.UTF_8).length) + suffix;
+    }
+
+    /**
+     * Truncates {@code s} to the longest prefix whose UTF-8 encoding is at most {@code maxBytes}
+     * bytes, never splitting a character.
+     */
+    private static String truncateToBytes(final String s, final int maxBytes) {
+        int end = 0;
+        int bytes = 0;
+        while (end < s.length()) {
+            final int next = s.offsetByCodePoints(end, 1);
+            final int cost = s.substring(end, next).getBytes(StandardCharsets.UTF_8).length;
+            if (bytes + cost > maxBytes) {
+                break;
+            }
+            bytes += cost;
+            end = next;
+        }
+        return s.substring(0, end);
+    }
+
+    /**
      * Computes the Git blob object ID for the given data.
      * Unlike {@link #digest}, this includes the Git object header ({@code "blob <size>\0"}).
      */

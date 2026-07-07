@@ -60,12 +60,15 @@ public class HistorageJdtTest {
                 .map(Module::getFilename).collect(Collectors.toSet());
 
         assertEquals(Set.of(
-                // classes
+                // classes (records included)
                 "Hello.cjava",
                 "Hello.Color.cjava",
                 "Hello.Greeter.cjava",
                 "Hello.Shape.cjava",
                 "Hello.Formatter.cjava",
+                "Hello.Pair.cjava",
+                "Hello.Circle.cjava",
+                "Hello.Rect.cjava",
                 // fields
                 "Hello#SEPARATOR.fjava",
                 "Hello#VERSION.fjava",
@@ -95,9 +98,10 @@ public class HistorageJdtTest {
                 "Hello.Color#toHex().mjava",
                 "Hello.Formatter#format(String).mjava",
                 "Hello.Shape#area().mjava",
-                // records
-                "Hello#joined().mjava",
-                "Hello#area().mjava"
+                // record members belong to their record, not the enclosing class
+                "Hello.Pair#joined().mjava",
+                "Hello.Circle#area().mjava",
+                "Hello.Rect#area().mjava"
         ), filenames);
     }
 

@@ -122,12 +122,18 @@ public class HistorageJdt implements BlobTranslator {
 
         protected final int endLine;
 
+        /**
+         * The maximum length of a single file name on common file systems.
+         */
+        private static final int MAX_FILENAME_BYTES = 255;
+
         public String getBasename() {
             return name;
         }
 
         public String getFilename() {
-            return getBasename() + extension;
+            final int budget = MAX_FILENAME_BYTES - extension.getBytes(StandardCharsets.UTF_8).length;
+            return HashUtils.abbreviateToBytes(getBasename(), budget) + extension;
         }
 
         public byte[] getBlob() {
@@ -302,9 +308,10 @@ public class HistorageJdt implements BlobTranslator {
         protected ASTParser createParser() {
             final ASTParser parser = ASTParser.newParser(AST.JLS25);
             final Map<String, String> options = DefaultCodeFormatterConstants.getEclipseDefaultSettings();
-            options.put(JavaCore.COMPILER_COMPLIANCE, JavaCore.VERSION_17);
-            options.put(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, JavaCore.VERSION_17);
-            options.put(JavaCore.COMPILER_SOURCE, JavaCore.VERSION_17);
+            // the latest source level, so that files using newer syntax are not skipped entirely
+            options.put(JavaCore.COMPILER_COMPLIANCE, JavaCore.latestSupportedJavaVersion());
+            options.put(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, JavaCore.latestSupportedJavaVersion());
+            options.put(JavaCore.COMPILER_SOURCE, JavaCore.latestSupportedJavaVersion());
             options.put(JavaCore.COMPILER_DOC_COMMENT_SUPPORT, JavaCore.ENABLED);
             parser.setCompilerOptions(options);
             parser.setEnvironment(null, null, null, true);
@@ -475,6 +482,11 @@ public class HistorageJdt implements BlobTranslator {
         }
 
         @Override
+        public boolean visit(final RecordDeclaration node) {
+            return visitType(node);
+        }
+
+        @Override
         public void endVisit(final TypeDeclaration node) {
             endVisitType(node);
         }
@@ -486,6 +498,11 @@ public class HistorageJdt implements BlobTranslator {
 
         @Override
         public void endVisit(final AnnotationTypeDeclaration node) {
+            endVisitType(node);
+        }
+
+        @Override
+        public void endVisit(final RecordDeclaration node) {
             endVisitType(node);
         }
 
