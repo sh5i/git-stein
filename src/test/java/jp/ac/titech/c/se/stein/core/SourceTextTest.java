@@ -29,6 +29,21 @@ public class SourceTextTest {
     }
 
     @Test
+    public void testToCharIndex() {
+        // pure ASCII: identity
+        assertEquals(2, text.toCharIndex(2));
+
+        // "aαb😀c": α = 2 bytes/1 char, 😀 = 4 bytes/2 chars (a surrogate pair)
+        final SourceText multi = SourceText.ofNormalized("aαb😀c".getBytes(StandardCharsets.UTF_8));
+        assertEquals(0, multi.toCharIndex(0));  // a
+        assertEquals(1, multi.toCharIndex(1));  // α
+        assertEquals(2, multi.toCharIndex(3));  // b
+        assertEquals(3, multi.toCharIndex(4));  // 😀
+        assertEquals(5, multi.toCharIndex(8));  // c
+        assertEquals(6, multi.toCharIndex(9));  // end
+    }
+
+    @Test
     public void testGetFragmentOfLines() {
         assertEquals("hello\n", text.getFragmentOfLines(1, 1).getExactContent());
         assertEquals("  world\n", text.getFragmentOfLines(2, 2).getExactContent());

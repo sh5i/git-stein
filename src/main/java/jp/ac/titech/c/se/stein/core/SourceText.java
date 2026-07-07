@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.mozilla.universalchardet.UniversalDetector;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,6 +43,14 @@ public class SourceText {
     protected int[] lineOffsets;
 
     /**
+     * Lazily computed map from UTF-8 byte offsets of {@link #content} to char indices,
+     * or {@code null} after preparation if the content is pure ASCII (offsets coincide).
+     */
+    protected int[] utf8Offsets;
+
+    protected boolean utf8OffsetsPrepared;
+
+    /**
      * Creates a {@link SourceText} from raw bytes, decoding with charset detection.
      */
     public static SourceText of(final byte[] raw) {
@@ -53,6 +62,14 @@ public class SourceText {
      */
     public static SourceText ofNormalized(final byte[] raw) {
         return new SourceText(raw, normalizeBreaks(load(raw)));
+    }
+
+    /**
+     * Creates a {@link SourceText} from raw bytes with the given charset, normalizing line breaks
+     * to {@code \n}.
+     */
+    public static SourceText ofNormalized(final byte[] raw, final Charset charset) {
+        return new SourceText(raw, normalizeBreaks(new String(raw, charset)));
     }
 
     /**
@@ -95,6 +112,44 @@ public class SourceText {
             final Matcher matcher = LINE_BREAK.matcher(content);
             this.lineOffsets = IntStream.concat(IntStream.of(0), matcher.results().mapToInt(m -> m.start() + 1)).toArray();
         }
+    }
+
+    /**
+     * Maps a byte offset in the UTF-8 encoding of the content to a char index, for tools that
+     * address the content by UTF-8 byte offsets (e.g., tree-sitter).
+     */
+    public int toCharIndex(final int utf8Offset) {
+        prepareUtf8Offsets();
+        return utf8Offsets != null ? utf8Offsets[utf8Offset] : utf8Offset;
+    }
+
+    /**
+     * Lazily computes the UTF-8 offset map if not yet prepared.
+     */
+    protected void prepareUtf8Offsets() {
+        if (utf8OffsetsPrepared) {
+            return;
+        }
+        utf8OffsetsPrepared = true;
+        final byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length == content.length()) {
+            return; // pure ASCII: identity
+        }
+        final int[] map = new int[bytes.length + 1];
+        int charIndex = 0;
+        int byteOffset = 0;
+        while (byteOffset < bytes.length) {
+            final int b = bytes[byteOffset] & 0xFF;
+            final int byteLength = b < 0x80 ? 1 : b < 0xE0 ? 2 : b < 0xF0 ? 3 : 4;
+            final int charLength = byteLength == 4 ? 2 : 1; // beyond BMP: a surrogate pair
+            for (int i = 0; i < byteLength; i++) {
+                map[byteOffset + i] = charIndex;
+            }
+            byteOffset += byteLength;
+            charIndex += charLength;
+        }
+        map[bytes.length] = charIndex;
+        this.utf8Offsets = map;
     }
 
     /**
