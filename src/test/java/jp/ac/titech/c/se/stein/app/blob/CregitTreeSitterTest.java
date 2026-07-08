@@ -7,6 +7,7 @@ import jp.ac.titech.c.se.stein.entry.HotEntry;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CregitTreeSitterTest {
@@ -74,6 +75,19 @@ public class CregitTreeSitterTest {
         assertTrue(out.contains("\n1:1|CLASS|class\n"), out);
         assertTrue(out.contains("1:7|CLASS_DECLARATION_NAME|A\n"), out);
         assertTrue(out.endsWith("-:-|end_class\n-:-|end_unit\n"), out);
+    }
+
+    @Test
+    public void testStructurelessLanguageTokenizes() {
+        // HTML has no class/method/field, but cregit still tokenizes the whole file, with no begin_
+        // markers — this is where HTML (and other structureless languages) support lives
+        final String html = convert("page.html", "<div id=\"a\">hi</div>\n");
+        assertTrue(html.startsWith("begin_unit|language:HTML;cregit-version:0.0.1\n"), html);
+        assertTrue(html.contains("TAG_NAME|div\n"), html);
+        assertTrue(html.contains("TEXT|hi\n"), html);
+        assertFalse(html.contains("begin_class"), html);
+        assertFalse(html.contains("begin_method"), html);
+        assertTrue(html.endsWith("end_unit\n"), html);
     }
 
     @Test

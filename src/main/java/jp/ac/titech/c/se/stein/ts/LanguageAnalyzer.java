@@ -68,11 +68,34 @@ public abstract class LanguageAnalyzer {
     }
 
     /**
+     * Adds an element that spans two adjacent nodes {@code [start .. end]}, for grammars that split a
+     * declaration into separate sibling nodes (e.g. Dart's method signature and body).
+     */
+    protected Element element(final ElementKind kind, final String name, final Element parent,
+                              final TSNode start, final TSNode end) {
+        final Element e = new Element(kind, name, start, end);
+        parent.addChild(e);
+        return e;
+    }
+
+    /**
      * Renders an element's content: a FinerGit token sequence when {@link RenderOptions#tokenizes},
      * otherwise its raw source.
      */
     public String render(final Element e, final RenderOptions options) {
-        return options.tokenizes() ? tokenize(e.node, options) : rawContentOf(e.node);
+        if (e.endNode == null) {
+            return options.tokenizes() ? tokenize(e.node, options) : rawContentOf(e.node);
+        }
+        if (options.tokenizes()) {
+            final RenderOptions noFrame = new RenderOptions(true, options.includesType(), false);
+            final StringBuilder sb = new StringBuilder();
+            emitLeaves(e.node, sb, noFrame);
+            emitLeaves(e.endNode, sb, noFrame);
+            return sb.toString();
+        }
+        final int begin = e.node.getStartPoint().getRow() + 1;
+        final int end = e.endNode.getEndPoint().getRow() + 1;
+        return text.getFragmentOfLines(begin, end).getWiderContent();
     }
 
     /**
@@ -123,7 +146,7 @@ public abstract class LanguageAnalyzer {
         for (final Element c : e.getChildren()) {
             if (c.node != null) {
                 final int start = c.node.getStartByte();
-                final int end = c.node.getEndByte();
+                final int end = (c.endNode != null ? c.endNode : c.node).getEndByte();
                 if (seen.add((long) start << 32 | (end & 0xffffffffL))) {
                     regions.add(new int[] {start, end, c.getKind().ordinal()});
                 }

@@ -45,6 +45,13 @@ dependencies {
     implementation 'io.github.bonede:tree-sitter-rust:0.23.1'
     implementation 'io.github.bonede:tree-sitter-swift:0.5.0'
     implementation 'io.github.bonede:tree-sitter-ruby:0.23.1'
+    implementation 'io.github.bonede:tree-sitter-php:0.23.11'
+    implementation 'io.github.bonede:tree-sitter-dart:master-a'
+    implementation 'io.github.bonede:tree-sitter-objc:main-a'
+    implementation 'io.github.bonede:tree-sitter-r:main-a'
+    implementation 'io.github.bonede:tree-sitter-bash:0.23.3'
+    implementation 'io.github.bonede:tree-sitter-sql:gh-pages-a'
+    implementation 'io.github.bonede:tree-sitter-html:0.23.2'
 
     implementation 'org.slf4j:slf4j-api:2.0.17'
     implementation 'ch.qos.logback:logback-classic:1.5.32'

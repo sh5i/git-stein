@@ -733,4 +733,117 @@ public class HistorageTreeSitterTest {
                 "s!Widget#init(id).mswift",  // an initializer is named init
                 "s!Widget#getId().mswift"), entries.keySet());
     }
+
+    // --- PHP ---
+
+    @Test
+    public void testPhpModuleNames() {
+        final Map<String, String> entries = rewrite("s.php", """
+                <?php
+                namespace N;
+                class A { public $x; function m($a) { return $a; } }
+                function f() {}
+                """);
+        assertEquals(Set.of(
+                "s.php",
+                // the namespace is a naming scope; the class and free function nest under it
+                "s!N.A.cphp",
+                "s!N.A#$x.fphp",
+                "s!N.A#m($a).mphp",
+                "s!N#f().mphp"), entries.keySet());
+    }
+
+    // --- Dart ---
+
+    @Test
+    public void testDartModuleNames() {
+        final Map<String, String> entries = rewrite("s.dart", """
+                class A { int x = 0; int m(int a) { return a; } void n() {} }
+                void f(String s) {}
+                int g = 3;
+                """);
+        assertEquals(Set.of(
+                "s.dart",
+                "s!A.cdart",
+                "s!A#x.fdart",
+                "s!A#m(a).mdart",   // the split signature and body are spanned into one method
+                "s!A#n().mdart",
+                "s!f(s).mdart",
+                "s!g.fdart"), entries.keySet());
+    }
+
+    // --- Objective-C ---
+
+    @Test
+    public void testObjcModuleNames() {
+        final Map<String, String> entries = rewrite("s.m", """
+                @implementation A
+                - (int)doThing:(int)a { return a; }
+                - (void)reset { }
+                @end
+                """);
+        assertEquals(Set.of(
+                "s.m",
+                "s!A.cm",
+                "s!A#doThing;.mm",  // keyword selector doThing:, its colon escaped to ;
+                "s!A#reset.mm"), entries.keySet());  // unary selector
+    }
+
+    // --- R ---
+
+    @Test
+    public void testRModuleNames() {
+        final Map<String, String> entries = rewrite("s.r", """
+                f <- function(a, b) { a + b }
+                g = function() 1
+                x <- 5
+                """);
+        assertEquals(Set.of(
+                "s.r",
+                "s!f(a,b).mr",      // a name bound to a function is a method
+                "s!g().mr",
+                "s!x.fr"), entries.keySet());  // any other binding is a field
+    }
+
+    // --- Shell ---
+
+    @Test
+    public void testShellModuleNames() {
+        final Map<String, String> entries = rewrite("s.sh", """
+                function foo() { echo 1; }
+                bar() { ls; }
+                BAZ=5
+                """);
+        assertEquals(Set.of(
+                "s.sh",
+                "s!foo().msh",
+                "s!bar().msh",
+                "s!BAZ.fsh"), entries.keySet());  // top-level assignment is a field
+    }
+
+    // --- SQL ---
+
+    @Test
+    public void testSqlModuleNames() {
+        final Map<String, String> entries = rewrite("s.sql", """
+                CREATE TABLE t (id INT);
+                CREATE FUNCTION f(a INT) RETURNS INT AS $$ SELECT a $$;
+                """);
+        assertEquals(Set.of(
+                "s.sql",
+                "s!t.csql",         // a table is a class
+                "s!f().msql"), entries.keySet());  // a function is a method
+    }
+
+    // --- HTML ---
+
+    @Test
+    public void testHtmlHasNoModules() {
+        // HTML is markup with no class/method/field; nothing is split out. HTML support lives in
+        // whole-file tokenization (@cregit-ts) instead.
+        final Map<String, String> entries = rewrite("s.html", """
+                <html><body><div>hi</div></body></html>
+                """);
+        assertEquals(Set.of("s.html"), entries.keySet());
+    }
 }

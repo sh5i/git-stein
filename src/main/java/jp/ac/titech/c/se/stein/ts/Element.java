@@ -26,13 +26,25 @@ public class Element {
 
     final TSNode node;
 
+    /**
+     * When set, this element spans two adjacent nodes {@code [node .. endNode]} rather than one; used
+     * for grammars that split a declaration into separate sibling nodes (e.g. Dart's method signature
+     * and body).
+     */
+    final TSNode endNode;
+
     @Getter
     private final List<Element> children = new ArrayList<>();
 
     Element(final ElementKind kind, final String name, final TSNode node) {
+        this(kind, name, node, null);
+    }
+
+    Element(final ElementKind kind, final String name, final TSNode node, final TSNode endNode) {
         this.kind = kind;
         this.name = name;
         this.node = node;
+        this.endNode = endNode;
     }
 
     void addChild(final Element child) {

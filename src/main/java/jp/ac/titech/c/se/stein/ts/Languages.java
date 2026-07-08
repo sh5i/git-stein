@@ -7,16 +7,23 @@ import java.util.function.Supplier;
 import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
 import org.treesitter.TSParser;
+import org.treesitter.TreeSitterBash;
 import org.treesitter.TreeSitterC;
 import org.treesitter.TreeSitterCSharp;
 import org.treesitter.TreeSitterCpp;
+import org.treesitter.TreeSitterDart;
 import org.treesitter.TreeSitterGo;
+import org.treesitter.TreeSitterHtml;
 import org.treesitter.TreeSitterJava;
 import org.treesitter.TreeSitterJavascript;
 import org.treesitter.TreeSitterKotlin;
+import org.treesitter.TreeSitterObjc;
+import org.treesitter.TreeSitterPhp;
 import org.treesitter.TreeSitterPython;
+import org.treesitter.TreeSitterR;
 import org.treesitter.TreeSitterRuby;
 import org.treesitter.TreeSitterRust;
+import org.treesitter.TreeSitterSql;
 import org.treesitter.TreeSitterSwift;
 import org.treesitter.TreeSitterTypescript;
 
@@ -57,6 +64,20 @@ public final class Languages {
 
     public static final NameFilter TYPESCRIPT = new NameFilter(true, "*.ts", "*.mts", "*.cts");
 
+    public static final NameFilter PHP = new NameFilter(true, "*.php", "*.phtml");
+
+    public static final NameFilter DART = new NameFilter(true, "*.dart");
+
+    public static final NameFilter OBJC = new NameFilter(true, "*.m", "*.mm");
+
+    public static final NameFilter R = new NameFilter(true, "*.r");
+
+    public static final NameFilter SHELL = new NameFilter(true, "*.sh", "*.bash", "*.zsh");
+
+    public static final NameFilter SQL = new NameFilter(true, "*.sql");
+
+    public static final NameFilter HTML = new NameFilter(true, "*.html", "*.htm");
+
     /**
      * The registered languages, tried in order; the first whose filter accepts a blob handles it.
      */
@@ -73,7 +94,14 @@ public final class Languages {
             new Entry("Kotlin", KOTLIN, TreeSitterKotlin::new, SourceText::ofNormalized, KotlinAnalyzer::new),
             new Entry("Rust", RUST, TreeSitterRust::new, SourceText::ofNormalized, RustAnalyzer::new),
             new Entry("Swift", SWIFT, TreeSitterSwift::new, SourceText::ofNormalized, SwiftAnalyzer::new),
-            new Entry("Ruby", RUBY, TreeSitterRuby::new, SourceText::ofNormalized, RubyAnalyzer::new));
+            new Entry("Ruby", RUBY, TreeSitterRuby::new, SourceText::ofNormalized, RubyAnalyzer::new),
+            new Entry("PHP", PHP, TreeSitterPhp::new, SourceText::ofNormalized, PhpAnalyzer::new),
+            new Entry("Dart", DART, TreeSitterDart::new, SourceText::ofNormalized, DartAnalyzer::new),
+            new Entry("Objective-C", OBJC, TreeSitterObjc::new, SourceText::ofNormalized, ObjcAnalyzer::new),
+            new Entry("R", R, TreeSitterR::new, SourceText::ofNormalized, RAnalyzer::new),
+            new Entry("Shell", SHELL, TreeSitterBash::new, SourceText::ofNormalized, BashAnalyzer::new),
+            new Entry("SQL", SQL, TreeSitterSql::new, SourceText::ofNormalized, SqlAnalyzer::new),
+            new Entry("HTML", HTML, TreeSitterHtml::new, SourceText::ofNormalized, HtmlAnalyzer::new));
 
     private Languages() {
     }
