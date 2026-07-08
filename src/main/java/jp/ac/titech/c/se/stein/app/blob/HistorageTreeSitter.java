@@ -410,11 +410,50 @@ public class HistorageTreeSitter extends HistorageBase {
         }
 
         /**
-         * The type of a non-structural token: by default its tree-sitter node type. Language
-         * subclasses override this to refine identifier roles (declared vs invoked name, etc.).
+         * The type of a non-structural token, elevated from the non-terminal that contains it (the
+         * same principle as the structural tokens). An identifier that names a declaration or a
+         * callee is elevated to its grammatical position {@code <parent-non-terminal>_<field>} (e.g.
+         * a {@code name} field of a method declaration, or the {@code function} of a call); every
+         * other identifier is a plain variable name, kept uniform so that moving it does not break
+         * tracking. A type reference becomes a type name; a keyword, operator, or literal keeps its
+         * node type. This is fully grammar-derived, so it needs no per-language rules.
          */
         protected String tokenType(final TSNode leaf) {
-            return leaf.getType().toUpperCase(java.util.Locale.ROOT);
+            final String type = leaf.getType();
+            if (type.equals("type_identifier")) {
+                return "TYPE_NAME";
+            }
+            if (isNameLeaf(type)) {
+                final TSNode parent = leaf.getParent();
+                final String field = fieldName(parent, leaf);
+                if (field.equals("name") || field.equals("function")) {
+                    return parent.getType().toUpperCase(java.util.Locale.ROOT) + "_" + field.toUpperCase(java.util.Locale.ROOT);
+                }
+                return "VARIABLE_NAME";
+            }
+            return type.toUpperCase(java.util.Locale.ROOT);
+        }
+
+        protected boolean isNameLeaf(final String type) {
+            return switch (type) {
+                case "identifier", "field_identifier", "property_identifier", "shorthand_property_identifier",
+                     "simple_identifier", "constant" -> true;
+                default -> false;
+            };
+        }
+
+        /**
+         * The field name the given child fills in its parent, or the empty string if none.
+         */
+        protected String fieldName(final TSNode parent, final TSNode child) {
+            for (int i = 0; i < parent.getChildCount(); i++) {
+                final TSNode c = parent.getChild(i);
+                if (c.getStartByte() == child.getStartByte() && c.getEndByte() == child.getEndByte()) {
+                    final String field = parent.getFieldNameForChild(i);
+                    return field != null ? field : "";
+                }
+            }
+            return "";
         }
 
         protected boolean sameNode(final TSNode a, final TSNode b) {
@@ -585,39 +624,6 @@ public class HistorageTreeSitter extends HistorageBase {
     public static class JavaModuleGenerator extends ModuleGenerator {
         public JavaModuleGenerator(final String filename, final SourceText text, final Options options) {
             super(filename, text, FinerGitNaming.INSTANCE, options);
-        }
-
-        @Override
-        protected String tokenType(final TSNode leaf) {
-            return switch (leaf.getType()) {
-                case "identifier" -> identifierRole(leaf);
-                case "type_identifier" ->
-                        leaf.getParent().getType().equals("type_parameter") ? "TYPE_PARAMETER_NAME" : "TYPE_NAME";
-                default -> super.tokenType(leaf);
-            };
-        }
-
-        /**
-         * Following FinerGit: the name declaring a type, method, or constructor, or invoking a
-         * method, is typed distinctly so it does not match a variable of the same text; every other
-         * identifier is a plain variable name, kept uniform so that moving one does not break
-         * tracking.
-         */
-        protected String identifierRole(final TSNode leaf) {
-            final TSNode parent = leaf.getParent();
-            final TSNode name = parent.getChildByFieldName("name");
-            if (!name.isNull() && sameNode(name, leaf)) {
-                return switch (parent.getType()) {
-                    case "method_declaration", "constructor_declaration", "compact_constructor_declaration" ->
-                            "DECLARED_METHOD_NAME";
-                    case "method_invocation" -> "INVOKED_METHOD_NAME";
-                    case "class_declaration", "interface_declaration", "enum_declaration",
-                         "annotation_type_declaration" -> "CLASS_NAME";
-                    case "record_declaration" -> "RECORD_NAME";
-                    default -> "VARIABLE_NAME";
-                };
-            }
-            return "VARIABLE_NAME";
         }
 
         @Override

@@ -50,7 +50,7 @@ public class FinerTest {
         assertEquals("""
                 public PUBLIC
                 int INT
-                getLength DECLARED_METHOD_NAME
+                getLength METHOD_DECLARATION_NAME
                 if IF
                 ( IF_STATEMENT_LPAREN
                 length VARIABLE_NAME
@@ -90,18 +90,20 @@ public class FinerTest {
     }
 
     @Test
-    public void testIdentifierRolesFollowFinerGit() {
-        // a declared method name, an invoked method name, and a variable of the same text get
-        // distinct roles; type references become type names
+    public void testTokenTypesFromGrammaticalPosition() {
+        // each occurrence of the same text gets its role from the non-terminal that contains it:
+        // the method's declared name, the method it invokes, its parameter, and a variable use are
+        // all distinct; type references become type names
         final String method = rewrite("C.java", """
                 class C {
                     List total(List total) { return total.total(); }
                 }
                 """).get("C#total(List).mjava");
-        assertTrue(method.contains("total DECLARED_METHOD_NAME\n"), method);  // the declaration
-        assertTrue(method.contains("total INVOKED_METHOD_NAME\n"), method);   // the call total.total()
-        assertTrue(method.contains("total VARIABLE_NAME\n"), method);         // the parameter and its use
-        assertTrue(method.contains("List TYPE_NAME\n"), method);              // a type reference
+        assertTrue(method.contains("total METHOD_DECLARATION_NAME\n"), method);  // the declaration
+        assertTrue(method.contains("total METHOD_INVOCATION_NAME\n"), method);   // the call total.total()
+        assertTrue(method.contains("total FORMAL_PARAMETER_NAME\n"), method);    // the parameter
+        assertTrue(method.contains("total VARIABLE_NAME\n"), method);            // the receiver use
+        assertTrue(method.contains("List TYPE_NAME\n"), method);                 // a type reference
     }
 
     @Test
@@ -109,7 +111,7 @@ public class FinerTest {
         assertEquals("""
                 private PRIVATE
                 int INT
-                length VARIABLE_NAME
+                length VARIABLE_DECLARATOR_NAME
                 ; FIELD_DECLARATION_SEMICOLON
                 """, rewrite("Person.java", SOURCE).get("Person#length.fjava"));
     }
@@ -128,27 +130,30 @@ public class FinerTest {
 
     @Test
     public void testMultiLanguageTokenization() {
-        // @finer tokenizes every tree-sitter language; structural tokens are context-typed
-        // generically (JavaScript here), while identifiers stay generic outside Java
+        // @finer tokenizes every tree-sitter language; structural tokens are context-typed and
+        // identifiers are refined generically from the grammar's field labels (declared/invoked/
+        // variable), as in JavaScript here
         final String js = rewrite("s.js", """
                 function add(a, b) {
-                    if (a === 0) return b;
+                    if (a === 0) return help(b);
                     return a + b;
                 }
                 """).get("s!add(a,b).mjs");
-        assertTrue(js.contains("function FUNCTION\n"), js);
-        assertTrue(js.contains("if IF\n"), js);
-        assertTrue(js.contains("( IF_STATEMENT_LPAREN\n"), js);     // structural typing works generically
-        assertTrue(js.contains("a IDENTIFIER\n"), js);              // generic identifier (no Java role)
-        assertFalse(js.contains("( FORMAL_PARAMETERS_LPAREN"), js); // the method frame is omitted
+        assertTrue(js.contains("add FUNCTION_DECLARATION_NAME\n"), js);  // the function's name
+        assertTrue(js.contains("help CALL_EXPRESSION_FUNCTION\n"), js);  // a call
+        assertTrue(js.contains("a VARIABLE_NAME\n"), js);                // a variable use
+        assertTrue(js.contains("( IF_STATEMENT_LPAREN\n"), js);          // structural typing works generically
+        assertFalse(js.contains("( FORMAL_PARAMETERS_LPAREN"), js);      // the method frame is omitted
 
-        // Python: no braces, colon-delimited; still one token per line with context-typed structure
+        // Python: no braces, colon-delimited; the same containment-derived typing applies, using
+        // Python's own non-terminal names
         final String py = rewrite("s.py", """
                 def add(a, b):
-                    return a + b
+                    return help(a) + b
                 """).get("s!add(a,b).mpy");
-        assertTrue(py.contains("def DEF\n"), py);
-        assertTrue(py.contains("return RETURN\n"), py);
+        assertTrue(py.contains("add FUNCTION_DEFINITION_NAME\n"), py);
+        assertTrue(py.contains("help CALL_FUNCTION\n"), py);
+        assertTrue(py.contains("b VARIABLE_NAME\n"), py);
     }
 
     @Test
