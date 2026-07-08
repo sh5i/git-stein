@@ -66,13 +66,41 @@ public abstract class QueryAnalyzer extends LanguageAnalyzer {
         return kind;
     }
 
-    private TSQuery query() {
-        return QUERY_CACHE.computeIfAbsent(getClass().getName(), k -> new TSQuery(grammar(), queryString()));
+    /**
+     * Whether a detected element should be kept. A query captures by node type, but a language may need
+     * to reject a match on a structural condition a query cannot express (e.g. a C++ field declarator
+     * that unwraps to a function prototype rather than a data member). A rejected match is treated as a
+     * dropped scope, so anything nested inside it is dropped too — the visitor does not descend into a
+     * skipped declaration. The default keeps every match.
+     */
+    protected boolean accept(final ElementKind kind, final TSNode node, final Captures captures) {
+        return true;
     }
 
-    private static boolean hasErrorAncestor(final TSNode node) {
+    /**
+     * The node whose text becomes an element's content, given its detected node. The default is the
+     * node itself; a subclass widens it to an enclosing wrapper the visitor treated as the element's
+     * extent (e.g. JavaScript's {@code export_statement}, so an exported declaration's content includes
+     * the {@code export} keyword and any leading decorators). Only the content is affected; nesting and
+     * ordering still use the detected node.
+     */
+    protected TSNode contentNode(final TSNode node) {
+        return node;
+    }
+
+    private TSQuery query() {
+        // key on the query text too: one analyzer class may compile different queries for related
+        // grammars (e.g. the C++ analyzer serves both the C and C++ grammars)
+        return QUERY_CACHE.computeIfAbsent(getClass().getName() + "\0" + queryString(),
+                k -> new TSQuery(grammar(), queryString()));
+    }
+
+    private boolean hasErrorAncestor(final TSNode node) {
         for (TSNode p = node.getParent(); p != null && !p.isNull(); p = p.getParent()) {
-            if (p.isError()) {
+            // the visitors iterate the children of whatever node they are handed, so a whole-file parse
+            // error (an ERROR root) does not stop them; only an ERROR node reached deeper, which they
+            // skip rather than descend, hides its subtree. Exclude the parse root to match that.
+            if (p.isError() && !sameNode(p, treeRoot)) {
                 return true;
             }
         }
@@ -175,9 +203,10 @@ public abstract class QueryAnalyzer extends LanguageAnalyzer {
             final ElementKind kind = refineKind(d.kind, d.node, d.captures);
             final Frame parent = stack.peek();
             // only a class or scope has members: anything nested under a method or field (a class local
-            // to a method body, or the fields of an inline struct member) is dropped
-            final boolean dropped = parent != null && (parent.dropped
-                    || parent.kind == ElementKind.METHOD || parent.kind == ElementKind.FIELD);
+            // to a method body, or the fields of an inline struct member) is dropped; a match the
+            // subclass rejects is dropped too, and it drops its descendants like any dropped scope
+            final boolean dropped = !accept(kind, d.node, d.captures) || (parent != null && (parent.dropped
+                    || parent.kind == ElementKind.METHOD || parent.kind == ElementKind.FIELD));
             Element element = null;
             if (!dropped) {
                 final Element parentElement = parent == null ? root : parent.element;
@@ -187,7 +216,7 @@ public abstract class QueryAnalyzer extends LanguageAnalyzer {
                 } else if (d.endNode != null) {
                     element = element(kind, label, parentElement, d.node, d.endNode);
                 } else {
-                    element = element(kind, label, parentElement, d.node);
+                    element = element(kind, label, parentElement, contentNode(d.node));
                 }
             }
             stack.push(new Frame(d, kind, element, dropped));

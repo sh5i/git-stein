@@ -10,7 +10,7 @@ import org.treesitter.TreeSitterGo;
 import jp.ac.titech.c.se.stein.core.SourceText;
 
 /**
- * A query-based reimplementation of {@link GoAnalyzer}: detection is the declarative {@link #QUERY},
+ * A query-based reimplementation of the imperative Go visitor: detection is the declarative {@link #QUERY},
  * and only naming (receiver-prefixed method names, type-list signatures) stays imperative.
  */
 public class GoQueryAnalyzer extends QueryAnalyzer {

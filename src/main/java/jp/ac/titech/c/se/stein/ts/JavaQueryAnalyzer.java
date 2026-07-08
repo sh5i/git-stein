@@ -45,6 +45,25 @@ public class JavaQueryAnalyzer extends QueryAnalyzer {
         return QUERY;
     }
 
+    /**
+     * Rejects anything inside a {@code class_body} that belongs to an anonymous class or an enum
+     * constant rather than a type declaration: the visitor never descends into such a body (it treats
+     * it like an anonymous class), so e.g. the {@code shine()} of {@code enum Color { GREEN { void
+     * shine() {} } }} is not a member of {@code Color}.
+     */
+    @Override
+    protected boolean accept(final ElementKind kind, final TSNode node, final Captures captures) {
+        for (TSNode p = node.getParent(); p != null && !p.isNull(); p = p.getParent()) {
+            if (p.getType().equals("class_body")) {
+                final String owner = p.getParent().getType();
+                if (owner.equals("enum_constant") || owner.equals("object_creation_expression")) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     @Override
     protected String name(final ElementKind kind, final TSNode node, final Captures captures) {
         return kind == ElementKind.METHOD ? renderer.generateMethodName(node) : textOf(captures.get("name"));
