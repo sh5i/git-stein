@@ -5,9 +5,9 @@ import org.treesitter.TSNode;
 import jp.ac.titech.c.se.stein.core.SourceText;
 
 /**
- * Analyzes an SQL file: {@code CREATE TABLE} becomes a class and {@code CREATE FUNCTION}/
- * {@code CREATE PROCEDURE} a method. SQL has no deeper object structure to split, so the rest is left
- * to whole-file tokenization.
+ * Analyzes an SQL file: {@code CREATE TABLE} and {@code CREATE VIEW} become classes and
+ * {@code CREATE FUNCTION}/{@code CREATE PROCEDURE} methods. SQL has no deeper object structure to
+ * split, so the rest is left to whole-file tokenization.
  */
 public class SqlAnalyzer extends LanguageAnalyzer {
     public SqlAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
@@ -23,7 +23,7 @@ public class SqlAnalyzer extends LanguageAnalyzer {
         for (int i = 0; i < node.getNamedChildCount(); i++) {
             final TSNode child = node.getNamedChild(i);
             switch (child.getType()) {
-                case "create_table" -> visit(child, parent, ElementKind.CLASS, "");
+                case "create_table", "create_view" -> visit(child, parent, ElementKind.CLASS, "");
                 case "create_function", "create_procedure" -> visit(child, parent, ElementKind.METHOD, "()");
                 default -> {
                     if (!child.isError()) {

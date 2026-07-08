@@ -27,6 +27,7 @@ public class DartAnalyzer extends LanguageAnalyzer {
             final TSNode child = node.getNamedChild(i);
             switch (child.getType()) {
                 case "class_definition", "mixin_declaration", "extension_declaration" -> visitClass(child, parent);
+                case "enum_declaration" -> visitEnum(child, parent);
                 case "method_signature", "function_signature" -> visitFunction(child, parent);
                 case "initialized_identifier_list" -> visitFields(child, parent, child);
                 default -> {
@@ -58,18 +59,38 @@ public class DartAnalyzer extends LanguageAnalyzer {
         }
     }
 
+    protected void visitEnum(final TSNode node, final Element parent) {
+        final TSNode name = node.getChildByFieldName("name");
+        if (name.isNull()) {
+            return;
+        }
+        final Element klass = element(ElementKind.CLASS, flatten(textOf(name)), parent, node);
+        final TSNode body = node.getChildByFieldName("body");
+        if (body.isNull()) {
+            return;
+        }
+        for (int i = 0; i < body.getNamedChildCount(); i++) {
+            final TSNode constant = body.getNamedChild(i);
+            if (constant.getType().equals("enum_constant")) {
+                final TSNode constantName = constant.getChildByFieldName("name");
+                if (!constantName.isNull()) {
+                    element(ElementKind.FIELD, flatten(textOf(constantName)), klass, constant);
+                }
+            }
+        }
+    }
+
     /**
-     * Visits a function or method signature; when the following sibling is its body, the element spans
-     * both.
+     * Visits a function or method (including a getter, setter, or factory constructor); when the
+     * following sibling is its body, the element spans both.
      */
     protected void visitFunction(final TSNode node, final Element parent) {
-        final TSNode sig = node.getType().equals("function_signature") ? node
-                : firstChildOfType(node, "function_signature");
+        final TSNode sig = node.getType().equals("method_signature") ? firstSignature(node) : node;
         if (sig == null) {
             return;
         }
-        final TSNode name = sig.getChildByFieldName("name");
-        if (name.isNull()) {
+        final TSNode name = signatureName(sig);
+        if (name == null || name.isNull()) {
             return;
         }
         final String label = flatten(textOf(name)) + "(" + signature(sig) + ")";
@@ -81,6 +102,39 @@ public class DartAnalyzer extends LanguageAnalyzer {
         }
     }
 
+    /**
+     * The signature node inside a method signature: a function, getter, setter, or factory constructor.
+     */
+    protected TSNode firstSignature(final TSNode methodSignature) {
+        for (int i = 0; i < methodSignature.getNamedChildCount(); i++) {
+            final TSNode child = methodSignature.getNamedChild(i);
+            if (child.getType().endsWith("_signature")) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The declared name of a signature. A factory constructor names the factory (its last identifier);
+     * every other signature carries a {@code name} field.
+     */
+    protected TSNode signatureName(final TSNode sig) {
+        final TSNode name = sig.getChildByFieldName("name");
+        return name.isNull() ? lastChildOfType(sig, "identifier") : name;
+    }
+
+    protected TSNode lastChildOfType(final TSNode node, final String type) {
+        TSNode found = null;
+        for (int i = 0; i < node.getNamedChildCount(); i++) {
+            final TSNode child = node.getNamedChild(i);
+            if (child.getType().equals(type)) {
+                found = child;
+            }
+        }
+        return found;
+    }
+
     protected void visitDeclaration(final TSNode node, final Element parent) {
         final TSNode ids = firstChildOfType(node, "initialized_identifier_list");
         if (ids != null) {
@@ -89,9 +143,9 @@ public class DartAnalyzer extends LanguageAnalyzer {
         }
         final TSNode constructor = firstChildOfType(node, "constructor_signature");
         if (constructor != null) {
-            final TSNode name = firstChildOfType(constructor, "identifier");
+            final TSNode name = lastChildOfType(constructor, "identifier");
             if (name != null) {
-                element(ElementKind.METHOD, flatten(textOf(name)) + "()", parent, node);
+                element(ElementKind.METHOD, flatten(textOf(name)) + "(" + signature(constructor) + ")", parent, node);
             }
         }
     }

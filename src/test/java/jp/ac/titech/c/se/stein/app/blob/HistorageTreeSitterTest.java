@@ -741,16 +741,26 @@ public class HistorageTreeSitterTest {
         final Map<String, String> entries = rewrite("s.php", """
                 <?php
                 namespace N;
-                class A { public $x; function m($a) { return $a; } }
+                class A {
+                    public const VERSION = 1;
+                    public $x;
+                    function m($a) { return $a; }
+                }
+                enum Suit { case Hearts; case Spades; }
                 function f() {}
                 """);
         assertEquals(Set.of(
                 "s.php",
-                // the namespace is a naming scope; the class and free function nest under it
+                // the namespace is a naming scope (its backslashes become dots); members nest under it
                 "s!N.A.cphp",
+                "s!N.A#VERSION.fphp",   // a class constant is a field
                 "s!N.A#$x.fphp",
                 "s!N.A#m($a).mphp",
+                "s!N.Suit.cphp",        // an enum is a class
+                "s!N.Suit#Hearts.fphp", // its cases are fields
+                "s!N.Suit#Spades.fphp",
                 "s!N#f().mphp"), entries.keySet());
+        assertEquals("    function m($a) { return $a; }\n", entries.get("s!N.A#m($a).mphp"));
     }
 
     // --- Dart ---
@@ -758,18 +768,32 @@ public class HistorageTreeSitterTest {
     @Test
     public void testDartModuleNames() {
         final Map<String, String> entries = rewrite("s.dart", """
-                class A { int x = 0; int m(int a) { return a; } void n() {} }
+                enum Color { red, green }
+                class A {
+                  int x = 0;
+                  int get doubled => x * 2;
+                  A.named(int y);
+                  factory A.zero() => A();
+                  int m(int a) { return a; }
+                }
                 void f(String s) {}
                 int g = 3;
                 """);
         assertEquals(Set.of(
                 "s.dart",
+                "s!Color.cdart",        // an enum is a class
+                "s!Color#red.fdart",    // its constants are fields
+                "s!Color#green.fdart",
                 "s!A.cdart",
                 "s!A#x.fdart",
-                "s!A#m(a).mdart",   // the split signature and body are spanned into one method
-                "s!A#n().mdart",
+                "s!A#doubled().mdart",  // a getter is a method
+                "s!A#named(y).mdart",   // a named constructor
+                "s!A#zero().mdart",     // a factory constructor
+                "s!A#m(a).mdart",
                 "s!f(s).mdart",
                 "s!g.fdart"), entries.keySet());
+        // the signature and body, split into sibling nodes by the grammar, are rendered as one method
+        assertEquals("  int m(int a) { return a; }\n", entries.get("s!A#m(a).mdart"));
     }
 
     // --- Objective-C ---
@@ -809,10 +833,13 @@ public class HistorageTreeSitterTest {
 
     @Test
     public void testShellModuleNames() {
+        // wrapped in a brace group, as scripts like nvm.sh do; the analyzer descends into it
         final Map<String, String> entries = rewrite("s.sh", """
-                function foo() { echo 1; }
-                bar() { ls; }
-                BAZ=5
+                {
+                    function foo() { echo 1; }
+                    bar() { ls; }
+                    BAZ=5
+                }
                 """);
         assertEquals(Set.of(
                 "s.sh",
@@ -827,11 +854,13 @@ public class HistorageTreeSitterTest {
     public void testSqlModuleNames() {
         final Map<String, String> entries = rewrite("s.sql", """
                 CREATE TABLE t (id INT);
+                CREATE VIEW v AS SELECT id FROM t;
                 CREATE FUNCTION f(a INT) RETURNS INT AS $$ SELECT a $$;
                 """);
         assertEquals(Set.of(
                 "s.sql",
                 "s!t.csql",         // a table is a class
+                "s!v.csql",         // a view is a class
                 "s!f().msql"), entries.keySet());  // a function is a method
     }
 
