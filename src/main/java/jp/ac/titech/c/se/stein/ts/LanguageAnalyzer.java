@@ -1,0 +1,274 @@
+package jp.ac.titech.c.se.stein.ts;
+
+import java.util.Locale;
+
+import org.treesitter.TSNode;
+
+import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.util.Names;
+
+/**
+ * The shared skeleton of a per-language tree-sitter analyzer. A subclass walks its language's CST in
+ * {@link #run} and emits {@link Element} instances via {@link #element}; this base turns an element
+ * into text ({@link #render}), either as raw source or as a FinerGit-style token sequence. The token
+ * sequence is derived from the grammar alone (structural tokens are typed by the non-terminal that
+ * contains them, identifiers by the field they fill), so it needs no per-language rules.
+ */
+public abstract class LanguageAnalyzer {
+    protected final String filename;
+
+    protected final SourceText text;
+
+    protected final TSNode treeRoot;
+
+    protected final Element root;
+
+    // the declaration currently being tokenized and its frame nodes, for Heuristic 2
+    private TSNode frameRoot;
+
+    private TSNode frameParameters;
+
+    private TSNode frameBody;
+
+    protected LanguageAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
+        this.filename = filename;
+        this.text = text;
+        this.treeRoot = treeRoot;
+        this.root = new Element(ElementKind.FILE, baseName(filename), treeRoot);
+    }
+
+    /**
+     * Extracts the element tree: a {@link ElementKind#FILE} root holding the file's declarations.
+     */
+    public Element extract() {
+        run();
+        return root;
+    }
+
+    /**
+     * Walks {@link #treeRoot} and populates {@link #root} with the extracted elements.
+     */
+    protected abstract void run();
+
+    /**
+     * Adds an element of the given kind and name under the parent, and returns it (so a caller can
+     * nest members under it). A null {@code content} node marks a naming scope that is never rendered.
+     */
+    protected Element element(final ElementKind kind, final String name, final Element parent, final TSNode content) {
+        final Element e = new Element(kind, name, content);
+        parent.addChild(e);
+        return e;
+    }
+
+    /**
+     * Renders an element's content: a FinerGit token sequence when {@link RenderOptions#tokenizes},
+     * otherwise its raw source.
+     */
+    public String render(final Element e, final RenderOptions options) {
+        return options.tokenizes() ? tokenize(e.node, options) : rawContentOf(e.node);
+    }
+
+    protected String textOf(final TSNode node) {
+        if (node.isNull()) {
+            return "";
+        }
+        return text.getContent().substring(text.toCharIndex(node.getStartByte()), text.toCharIndex(node.getEndByte()));
+    }
+
+    /**
+     * Escapes a source name into a file-system-safe component (white space and reserved characters).
+     */
+    protected String escape(final String name) {
+        return Names.escape(name);
+    }
+
+    /**
+     * Flattens a possibly qualified name into a file-system-safe leaf, turning the {@code ::} scope
+     * operator into {@code .} and escaping the remaining reserved characters.
+     */
+    protected String flatten(final String name) {
+        return Names.escape(name.replace("::", "."));
+    }
+
+    /**
+     * The first named child of the given type, or null if there is none.
+     */
+    protected TSNode firstChildOfType(final TSNode node, final String type) {
+        for (int i = 0; i < node.getNamedChildCount(); i++) {
+            final TSNode child = node.getNamedChild(i);
+            if (child.getType().equals(type)) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The raw source of an element: the full source lines spanning the node. Subclasses override
+     * this with language-specific extraction (e.g. attaching comments).
+     */
+    protected String rawContentOf(final TSNode node) {
+        final int beginLine = node.getStartPoint().getRow() + 1;
+        final int endLine = node.getEndPoint().getRow() + 1;
+        return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
+    }
+
+    // --- FinerGit token sequence ---
+
+    /**
+     * The FinerGit token sequence of a declaration: each leaf token on its own line, annotated with
+     * its type when {@link RenderOptions#includesType} is set (Heuristic 1). Comments are skipped, and
+     * a method's frame tokens are dropped when {@link RenderOptions#omitsFrame} is set (Heuristic 2).
+     */
+    protected String tokenize(final TSNode node, final RenderOptions options) {
+        frameRoot = node;
+        frameParameters = node.getChildByFieldName("parameters");
+        frameBody = node.getChildByFieldName("body");
+        final StringBuilder sb = new StringBuilder();
+        emitLeaves(node, sb, options);
+        return sb.toString();
+    }
+
+    private void emitLeaves(final TSNode node, final StringBuilder sb, final RenderOptions options) {
+        if (node.getChildCount() > 0) {
+            for (int i = 0; i < node.getChildCount(); i++) {
+                emitLeaves(node.getChild(i), sb, options);
+            }
+            return;
+        }
+        if (node.isExtra() || node.isMissing()) {
+            return; // a comment or an inserted-error token is not part of the token sequence
+        }
+        if (options.omitsFrame() && isFrameToken(node)) {
+            return;
+        }
+        final String token = textOf(node).replaceAll("[\\r\\n]+", " ");
+        if (token.isEmpty()) {
+            return;
+        }
+        sb.append(token);
+        if (options.includesType()) {
+            sb.append(" ").append(category(node));
+        }
+        sb.append("\n");
+    }
+
+    /**
+     * Whether the leaf is one of a method's omnipresent frame tokens (Heuristic 2): the parentheses
+     * of its parameter list, the braces of its body, or a bodyless method's terminating semicolon.
+     */
+    protected boolean isFrameToken(final TSNode leaf) {
+        final TSNode parent = leaf.getParent();
+        return switch (leaf.getType()) {
+            case "(", ")" -> !frameParameters.isNull() && sameNode(parent, frameParameters);
+            case "{", "}" -> !frameBody.isNull() && sameNode(parent, frameBody);
+            case ";" -> isFunctionNode(frameRoot) && sameNode(parent, frameRoot);
+            default -> false;
+        };
+    }
+
+    /**
+     * Whether the node declares a function/method (so its terminating semicolon, if any, is a frame
+     * token). The generic answer is no; language subclasses override it.
+     */
+    protected boolean isFunctionNode(final TSNode node) {
+        return false;
+    }
+
+    /**
+     * The FinerGit token type. Brackets, parentheses, and semicolons are refined with their syntactic
+     * context (Heuristic 1): a wrapper node ({@code block}, {@code statement_block},
+     * {@code compound_statement}, {@code parenthesized_expression}) yields to the enclosing statement,
+     * so a method body brace and an {@code if} block brace get distinct types. Every other token
+     * defers to {@link #tokenType}.
+     */
+    protected String category(final TSNode leaf) {
+        final String symbol = switch (leaf.getType()) {
+            case "(" -> "LPAREN";
+            case ")" -> "RPAREN";
+            case "{" -> "LBRACE";
+            case "}" -> "RBRACE";
+            case ";" -> "SEMICOLON";
+            case "," -> "COMMA";
+            case "[" -> "LBRACKET";
+            case "]" -> "RBRACKET";
+            default -> null;
+        };
+        if (symbol == null) {
+            return tokenType(leaf);
+        }
+        final TSNode parent = leaf.getParent();
+        final String context = isWrapper(parent.getType()) ? parent.getParent().getType() : parent.getType();
+        return context.toUpperCase(Locale.ROOT) + "_" + symbol;
+    }
+
+    /**
+     * Whether the node is a generic wrapper whose role comes from its parent (e.g. the block a method
+     * body and an {@code if} body share). Language subclasses may extend the set.
+     */
+    protected boolean isWrapper(final String type) {
+        return switch (type) {
+            case "block", "statement_block", "compound_statement", "parenthesized_expression" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * The type of a non-structural token, elevated from the non-terminal that contains it (the same
+     * principle as the structural tokens). An identifier that names a declaration or a callee is
+     * elevated to its grammatical position {@code <parent-non-terminal>_<field>} (e.g. a {@code name}
+     * field of a method declaration, or the {@code function} of a call); every other identifier is a
+     * plain variable name, kept uniform so that moving it does not break tracking. A type reference
+     * becomes a type name; a keyword, operator, or literal keeps its node type. This is fully
+     * grammar-derived, so it needs no per-language rules.
+     */
+    protected String tokenType(final TSNode leaf) {
+        final String type = leaf.getType();
+        if (type.equals("type_identifier")) {
+            return "TYPE_NAME";
+        }
+        if (isNameLeaf(type)) {
+            final TSNode parent = leaf.getParent();
+            final String field = fieldName(parent, leaf);
+            if (field.equals("name") || field.equals("function")) {
+                return parent.getType().toUpperCase(Locale.ROOT) + "_" + field.toUpperCase(Locale.ROOT);
+            }
+            return "VARIABLE_NAME";
+        }
+        return type.toUpperCase(Locale.ROOT);
+    }
+
+    protected boolean isNameLeaf(final String type) {
+        return switch (type) {
+            case "identifier", "field_identifier", "property_identifier", "shorthand_property_identifier",
+                 "simple_identifier", "constant" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * The field name the given child fills in its parent, or the empty string if none.
+     */
+    protected String fieldName(final TSNode parent, final TSNode child) {
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            final TSNode c = parent.getChild(i);
+            if (c.getStartByte() == child.getStartByte() && c.getEndByte() == child.getEndByte()) {
+                final String field = parent.getFieldNameForChild(i);
+                return field != null ? field : "";
+            }
+        }
+        return "";
+    }
+
+    protected boolean sameNode(final TSNode a, final TSNode b) {
+        return a.getStartByte() == b.getStartByte() && a.getEndByte() == b.getEndByte();
+    }
+
+    /**
+     * The source file name without its extension, used as the name of the file root.
+     */
+    protected static String baseName(final String filename) {
+        final int index = filename.lastIndexOf('.');
+        return index > 0 ? filename.substring(0, index) : filename;
+    }
+}

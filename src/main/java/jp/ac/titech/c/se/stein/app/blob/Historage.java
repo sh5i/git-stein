@@ -7,6 +7,7 @@ import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.HashUtils;
+import jp.ac.titech.c.se.stein.util.Names;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import jp.ac.titech.c.se.stein.util.TemporaryFile;
 import lombok.Getter;
@@ -183,10 +184,10 @@ public class Historage extends HistorageBase {
         public String generateFileName(final boolean digestSignature) {
             final StringBuilder sb = new StringBuilder();
             if (scope != null) {
-                sb.append(escape(scope)).append("$");
+                sb.append(Names.escape(scope)).append("$");
             }
             if (name != null) {
-                sb.append(escape(name));
+                sb.append(Names.escape(name));
             }
             if (signature != null) {
                 sb.append("(").append(generateSignature(signature, digestSignature)).append(")");
@@ -194,7 +195,7 @@ public class Historage extends HistorageBase {
             if (index >= 2) {
                 sb.append("@").append(index);
             }
-            sb.append(".").append(escape(kind));
+            sb.append(".").append(Names.escape(kind));
             return sb.toString();
         }
 
@@ -207,7 +208,7 @@ public class Historage extends HistorageBase {
             if (digestSignature) {
                 sig = "~" + HashUtils.digest(sig, 6);
             } else {
-                sig = escape(sig);
+                sig = Names.escape(sig);
             }
             return sig;
         }
@@ -227,21 +228,4 @@ public class Historage extends HistorageBase {
         }
     }
 
-    public static String escape(String s) {
-        return escapeReservedCharacters(s.trim().replaceAll("\\s+", "~"));
-    }
-
-    public static String escapeReservedCharacters(String s) {
-        // https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
-        return s.replace('<', '[')
-                .replace('>', ']')
-                .replace(':', ';')
-                .replace('"', '\'')
-                .replace('/', '%')
-                .replace('\\', '%')
-                .replace('|', '!')
-                .replace('?', '#')
-                .replace('*', '+')
-                .replaceAll("[\\x00-\\x1F]", "");
-    }
 }

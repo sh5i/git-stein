@@ -46,41 +46,6 @@ public class HistorageTest {
     // --- Static tests (no ctags required) ---
 
     @Test
-    public void testEscape() {
-        // whitespace → ~, trim
-        assertEquals("int~int", Historage.escape("int int"));
-        assertEquals("int", Historage.escape("  int  "));
-        assertEquals("", Historage.escape("   "));
-
-        // < > → [ ]
-        assertEquals("Map[String,~List[int]]", Historage.escape("Map<String, List<int>>"));
-
-        // ? → #
-        assertEquals("List[#~extends~T]", Historage.escape("List<? extends T>"));
-
-        // : → ;
-        assertEquals("Map.Entry[K;V]", Historage.escape("Map.Entry<K:V>"));
-
-        // " → '
-        assertEquals("'hello'", Historage.escape("\"hello\""));
-
-        // / → %, \ → %
-        assertEquals("a%b%c", Historage.escape("a/b\\c"));
-
-        // | → !
-        assertEquals("a!b", Historage.escape("a|b"));
-
-        // * → +
-        assertEquals("T+", Historage.escape("T*"));
-
-        // control characters removed
-        assertEquals("ab", Historage.escape("a\u0001b"));
-
-        // combined: realistic signature
-        assertEquals("void~foo(int,~String)", Historage.escape("void foo(int, String)"));
-    }
-
-    @Test
     public void testGenerateFileName() {
         // basic: name + kind
         assertEquals("greet.method",
