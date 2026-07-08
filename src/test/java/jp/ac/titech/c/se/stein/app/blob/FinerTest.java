@@ -127,6 +127,31 @@ public class FinerTest {
     }
 
     @Test
+    public void testMultiLanguageTokenization() {
+        // @finer tokenizes every tree-sitter language; structural tokens are context-typed
+        // generically (JavaScript here), while identifiers stay generic outside Java
+        final String js = rewrite("s.js", """
+                function add(a, b) {
+                    if (a === 0) return b;
+                    return a + b;
+                }
+                """).get("s!add(a,b).mjs");
+        assertTrue(js.contains("function FUNCTION\n"), js);
+        assertTrue(js.contains("if IF\n"), js);
+        assertTrue(js.contains("( IF_STATEMENT_LPAREN\n"), js);     // structural typing works generically
+        assertTrue(js.contains("a IDENTIFIER\n"), js);              // generic identifier (no Java role)
+        assertFalse(js.contains("( FORMAL_PARAMETERS_LPAREN"), js); // the method frame is omitted
+
+        // Python: no braces, colon-delimited; still one token per line with context-typed structure
+        final String py = rewrite("s.py", """
+                def add(a, b):
+                    return a + b
+                """).get("s!add(a,b).mpy");
+        assertTrue(py.contains("def DEF\n"), py);
+        assertTrue(py.contains("return RETURN\n"), py);
+    }
+
+    @Test
     public void testCommentsAreSkipped() {
         final String method = rewrite("C.java", """
                 class C {

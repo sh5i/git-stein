@@ -92,20 +92,39 @@ public class HistorageTreeSitter extends HistorageBase {
      * Adding a language is a matter of registering one more profile here.
      */
     private final List<LanguageProfile> profiles = List.of(
-            new LanguageProfile(PYTHON, TreeSitterPython::new, PythonSource::decode, PythonModuleGenerator::new),
+            new LanguageProfile(PYTHON, TreeSitterPython::new, PythonSource::decode,
+                    (fn, txt) -> new PythonModuleGenerator(fn, txt, options())),
             new LanguageProfile(JAVA, TreeSitterJava::new, SourceText::ofNormalized,
-                    (fn, txt) -> new JavaModuleGenerator(fn, txt, requiresClasses, requiresMethods, requiresFields)),
-            new LanguageProfile(CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppModuleGenerator::new),
-            new LanguageProfile(CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpModuleGenerator::new),
-            new LanguageProfile(JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized, JsModuleGenerator::new),
-            new LanguageProfile(TYPESCRIPT, TreeSitterTypescript::new, SourceText::ofNormalized, TsModuleGenerator::new),
+                    (fn, txt) -> new JavaModuleGenerator(fn, txt, options())),
+            new LanguageProfile(CPP, TreeSitterCpp::new, SourceText::ofNormalized,
+                    (fn, txt) -> new CppModuleGenerator(fn, txt, options())),
+            new LanguageProfile(CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized,
+                    (fn, txt) -> new CSharpModuleGenerator(fn, txt, options())),
+            new LanguageProfile(JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized,
+                    (fn, txt) -> new JsModuleGenerator(fn, txt, options())),
+            new LanguageProfile(TYPESCRIPT, TreeSitterTypescript::new, SourceText::ofNormalized,
+                    (fn, txt) -> new TsModuleGenerator(fn, txt, options())),
             // C is a subset of C++, so it reuses the C++ generator with the C grammar
-            new LanguageProfile(C, TreeSitterC::new, SourceText::ofNormalized, CppModuleGenerator::new),
-            new LanguageProfile(GO, TreeSitterGo::new, SourceText::ofNormalized, GoModuleGenerator::new),
-            new LanguageProfile(KOTLIN, TreeSitterKotlin::new, SourceText::ofNormalized, KotlinModuleGenerator::new),
-            new LanguageProfile(RUST, TreeSitterRust::new, SourceText::ofNormalized, RustModuleGenerator::new),
-            new LanguageProfile(SWIFT, TreeSitterSwift::new, SourceText::ofNormalized, SwiftModuleGenerator::new),
-            new LanguageProfile(RUBY, TreeSitterRuby::new, SourceText::ofNormalized, RubyModuleGenerator::new));
+            new LanguageProfile(C, TreeSitterC::new, SourceText::ofNormalized,
+                    (fn, txt) -> new CppModuleGenerator(fn, txt, options())),
+            new LanguageProfile(GO, TreeSitterGo::new, SourceText::ofNormalized,
+                    (fn, txt) -> new GoModuleGenerator(fn, txt, options())),
+            new LanguageProfile(KOTLIN, TreeSitterKotlin::new, SourceText::ofNormalized,
+                    (fn, txt) -> new KotlinModuleGenerator(fn, txt, options())),
+            new LanguageProfile(RUST, TreeSitterRust::new, SourceText::ofNormalized,
+                    (fn, txt) -> new RustModuleGenerator(fn, txt, options())),
+            new LanguageProfile(SWIFT, TreeSitterSwift::new, SourceText::ofNormalized,
+                    (fn, txt) -> new SwiftModuleGenerator(fn, txt, options())),
+            new LanguageProfile(RUBY, TreeSitterRuby::new, SourceText::ofNormalized,
+                    (fn, txt) -> new RubyModuleGenerator(fn, txt, options())));
+
+    /**
+     * The generation options. A subclass (e.g. {@code @finer}) overrides this to switch on the
+     * FinerGit token-sequence mode.
+     */
+    protected Options options() {
+        return Options.historage(requiresClasses, requiresMethods, requiresFields);
+    }
 
     @Override
     protected boolean accepts(final BlobEntry entry) {
@@ -175,6 +194,25 @@ public class HistorageTreeSitter extends HistorageBase {
      * The shared skeleton of a tree-sitter module generator. A subclass walks its language's CST in
      * {@link #run} and emits {@link Module} instances via {@link #module}.
      */
+    /**
+     * The generation options shared by all generators. Besides which module kinds to extract, they
+     * carry the FinerGit mode used by {@code @finer}: whether to render module content as a token
+     * sequence rather than the raw source, whether to annotate each token with its type (Heuristic
+     * 1), and whether to omit a method's frame tokens (Heuristic 2).
+     */
+    public record Options(boolean requiresClasses, boolean requiresMethods, boolean requiresFields,
+                          boolean tokenizes, boolean includesTokenType, boolean omitsFrame) {
+        public static Options historage(final boolean requiresClasses, final boolean requiresMethods,
+                                        final boolean requiresFields) {
+            return new Options(requiresClasses, requiresMethods, requiresFields, false, true, true);
+        }
+
+        public static Options finer(final boolean requiresMethods, final boolean requiresFields,
+                                    final boolean includesTokenType, final boolean omitsFrame) {
+            return new Options(false, requiresMethods, requiresFields, true, includesTokenType, omitsFrame);
+        }
+    }
+
     public abstract static class ModuleGenerator {
         protected final String filename;
 
@@ -182,14 +220,35 @@ public class HistorageTreeSitter extends HistorageBase {
 
         protected final NamingStrategy naming;
 
+        protected final Options options;
+
+        // mirrored from options so that subclasses can read them as plain fields
+        protected final boolean requiresClasses;
+
+        protected final boolean requiresMethods;
+
+        protected final boolean requiresFields;
+
         protected final List<Module> modules = new ArrayList<>();
 
         protected final Module file;
 
-        protected ModuleGenerator(final String filename, final SourceText text, final NamingStrategy naming) {
+        // the declaration currently being tokenized and its frame nodes, for Heuristic 2
+        private TSNode frameRoot;
+
+        private TSNode frameParameters;
+
+        private TSNode frameBody;
+
+        protected ModuleGenerator(final String filename, final SourceText text, final NamingStrategy naming,
+                                  final Options options) {
             this.filename = filename;
             this.text = text;
             this.naming = naming;
+            this.options = options;
+            this.requiresClasses = options.requiresClasses();
+            this.requiresMethods = options.requiresMethods();
+            this.requiresFields = options.requiresFields();
             this.file = Module.ofFile(baseName(filename), naming);
         }
 
@@ -231,12 +290,135 @@ public class HistorageTreeSitter extends HistorageBase {
         }
 
         /**
-         * The full source lines spanning the given node.
+         * The content of a module: its FinerGit token sequence in {@code @finer} mode, otherwise its
+         * raw source ({@link #rawContentOf}).
          */
         protected String contentOf(final TSNode node) {
+            return options.tokenizes() ? tokenize(node) : rawContentOf(node);
+        }
+
+        /**
+         * The raw source of a module: the full source lines spanning the node. Subclasses override
+         * this with language-specific extraction (e.g. attaching comments).
+         */
+        protected String rawContentOf(final TSNode node) {
             final int beginLine = node.getStartPoint().getRow() + 1;
             final int endLine = node.getEndPoint().getRow() + 1;
             return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
+        }
+
+        // --- FinerGit token sequence (@finer mode) ---
+
+        /**
+         * The FinerGit token sequence of a declaration: each leaf token on its own line, annotated
+         * with its type when {@link Options#includesTokenType} is set (Heuristic 1). Comments are
+         * skipped, and a method's frame tokens are dropped when {@link Options#omitsFrame} is set
+         * (Heuristic 2).
+         */
+        protected String tokenize(final TSNode node) {
+            frameRoot = node;
+            frameParameters = node.getChildByFieldName("parameters");
+            frameBody = node.getChildByFieldName("body");
+            final StringBuilder sb = new StringBuilder();
+            emitLeaves(node, sb);
+            return sb.toString();
+        }
+
+        private void emitLeaves(final TSNode node, final StringBuilder sb) {
+            if (node.getChildCount() > 0) {
+                for (int i = 0; i < node.getChildCount(); i++) {
+                    emitLeaves(node.getChild(i), sb);
+                }
+                return;
+            }
+            if (node.isExtra() || node.isMissing()) {
+                return; // a comment or an inserted-error token is not part of the token sequence
+            }
+            if (options.omitsFrame() && isFrameToken(node)) {
+                return;
+            }
+            final String token = textOf(node).replaceAll("[\\r\\n]+", " ");
+            if (token.isEmpty()) {
+                return;
+            }
+            sb.append(token);
+            if (options.includesTokenType()) {
+                sb.append(" ").append(category(node));
+            }
+            sb.append("\n");
+        }
+
+        /**
+         * Whether the leaf is one of a method's omnipresent frame tokens (Heuristic 2): the
+         * parentheses of its parameter list, the braces of its body, or a bodyless method's
+         * terminating semicolon.
+         */
+        protected boolean isFrameToken(final TSNode leaf) {
+            final TSNode parent = leaf.getParent();
+            return switch (leaf.getType()) {
+                case "(", ")" -> !frameParameters.isNull() && sameNode(parent, frameParameters);
+                case "{", "}" -> !frameBody.isNull() && sameNode(parent, frameBody);
+                case ";" -> isFunctionNode(frameRoot) && sameNode(parent, frameRoot);
+                default -> false;
+            };
+        }
+
+        /**
+         * Whether the node declares a function/method (so its terminating semicolon, if any, is a
+         * frame token). The generic answer is no; language subclasses override it.
+         */
+        protected boolean isFunctionNode(final TSNode node) {
+            return false;
+        }
+
+        /**
+         * The FinerGit token type. Brackets, parentheses, and semicolons are refined with their
+         * syntactic context (Heuristic 1): a wrapper node ({@code block}, {@code statement_block},
+         * {@code compound_statement}, {@code parenthesized_expression}) yields to the enclosing
+         * statement, so a method body brace and an {@code if} block brace get distinct types. Every
+         * other token defers to {@link #tokenType}.
+         */
+        protected String category(final TSNode leaf) {
+            final String symbol = switch (leaf.getType()) {
+                case "(" -> "LPAREN";
+                case ")" -> "RPAREN";
+                case "{" -> "LBRACE";
+                case "}" -> "RBRACE";
+                case ";" -> "SEMICOLON";
+                case "," -> "COMMA";
+                case "[" -> "LBRACKET";
+                case "]" -> "RBRACKET";
+                default -> null;
+            };
+            if (symbol == null) {
+                return tokenType(leaf);
+            }
+            final TSNode parent = leaf.getParent();
+            final String context = isWrapper(parent.getType()) ? parent.getParent().getType() : parent.getType();
+            return context.toUpperCase(java.util.Locale.ROOT) + "_" + symbol;
+        }
+
+        /**
+         * Whether the node is a generic wrapper whose role comes from its parent (e.g. the block a
+         * method body and an {@code if} body share). Language subclasses may extend the set.
+         */
+        protected boolean isWrapper(final String type) {
+            return switch (type) {
+                case "block", "statement_block", "compound_statement", "parenthesized_expression" -> true;
+                default -> false;
+            };
+        }
+
+        /**
+         * The type of a non-structural token: by default its tree-sitter node type. Language
+         * subclasses override this to refine identifier roles (declared vs invoked name, etc.).
+         */
+        protected String tokenType(final TSNode leaf) {
+            return leaf.getType().toUpperCase(java.util.Locale.ROOT);
+        }
+
+        protected boolean sameNode(final TSNode a, final TSNode b) {
+            return a.getStartByte() == b.getStartByte() && a.getEndByte() == b.getEndByte();
         }
     }
 
@@ -245,9 +427,9 @@ public class HistorageTreeSitter extends HistorageBase {
      * classes and functions. Descends into class bodies and statement blocks, but not into
      * function bodies.
      */
-    public class PythonModuleGenerator extends ModuleGenerator {
-        public PythonModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text, ScopedNaming.INSTANCE);
+    public static class PythonModuleGenerator extends ModuleGenerator {
+        public PythonModuleGenerator(final String filename, final SourceText text, final Options options) {
+            super(filename, text, ScopedNaming.INSTANCE, options);
         }
 
         @Override
@@ -366,7 +548,8 @@ public class HistorageTreeSitter extends HistorageBase {
          * meaningful (non-comment) descendant, since tree-sitter blocks also hold the comments
          * trailing after the last statement.
          */
-        protected String contentOf(final TSNode node) {
+        @Override
+        protected String rawContentOf(final TSNode node) {
             final int beginLine = node.getStartPoint().getRow() + 1;
             final int endLine = lastMeaningfulDescendant(node).getEndPoint().getRow() + 1;
             return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
@@ -400,18 +583,49 @@ public class HistorageTreeSitter extends HistorageBase {
      * initializer blocks are, so local classes there are extracted like HistorageJdt does.
      */
     public static class JavaModuleGenerator extends ModuleGenerator {
-        protected final boolean requiresClasses;
+        public JavaModuleGenerator(final String filename, final SourceText text, final Options options) {
+            super(filename, text, FinerGitNaming.INSTANCE, options);
+        }
 
-        protected final boolean requiresMethods;
+        @Override
+        protected String tokenType(final TSNode leaf) {
+            return switch (leaf.getType()) {
+                case "identifier" -> identifierRole(leaf);
+                case "type_identifier" ->
+                        leaf.getParent().getType().equals("type_parameter") ? "TYPE_PARAMETER_NAME" : "TYPE_NAME";
+                default -> super.tokenType(leaf);
+            };
+        }
 
-        protected final boolean requiresFields;
+        /**
+         * Following FinerGit: the name declaring a type, method, or constructor, or invoking a
+         * method, is typed distinctly so it does not match a variable of the same text; every other
+         * identifier is a plain variable name, kept uniform so that moving one does not break
+         * tracking.
+         */
+        protected String identifierRole(final TSNode leaf) {
+            final TSNode parent = leaf.getParent();
+            final TSNode name = parent.getChildByFieldName("name");
+            if (!name.isNull() && sameNode(name, leaf)) {
+                return switch (parent.getType()) {
+                    case "method_declaration", "constructor_declaration", "compact_constructor_declaration" ->
+                            "DECLARED_METHOD_NAME";
+                    case "method_invocation" -> "INVOKED_METHOD_NAME";
+                    case "class_declaration", "interface_declaration", "enum_declaration",
+                         "annotation_type_declaration" -> "CLASS_NAME";
+                    case "record_declaration" -> "RECORD_NAME";
+                    default -> "VARIABLE_NAME";
+                };
+            }
+            return "VARIABLE_NAME";
+        }
 
-        public JavaModuleGenerator(final String filename, final SourceText text, final boolean requiresClasses,
-                                   final boolean requiresMethods, final boolean requiresFields) {
-            super(filename, text, FinerGitNaming.INSTANCE);
-            this.requiresClasses = requiresClasses;
-            this.requiresMethods = requiresMethods;
-            this.requiresFields = requiresFields;
+        @Override
+        protected boolean isFunctionNode(final TSNode node) {
+            return switch (node.getType()) {
+                case "method_declaration", "constructor_declaration", "compact_constructor_declaration" -> true;
+                default -> false;
+            };
         }
 
         @Override
@@ -730,7 +944,8 @@ public class HistorageTreeSitter extends HistorageBase {
          * comments that trail the previous sibling on its own line) and the trailing comments on
          * the same line as the declaration end.
          */
-        protected String contentOf(final TSNode node) {
+        @Override
+        protected String rawContentOf(final TSNode node) {
             final int begin = text.toCharIndex(attachedStart(node));
             final int end = text.toCharIndex(attachedEnd(node));
             return text.getFragment(begin, end).getWiderContent();
@@ -825,9 +1040,9 @@ public class HistorageTreeSitter extends HistorageBase {
      * Namespaces are naming scopes only; function bodies are not descended into. Names use the
      * {@code ::} scope operator flattened to {@code .} to stay portable across file systems.
      */
-    public class CppModuleGenerator extends ModuleGenerator {
-        public CppModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text, ScopedNaming.INSTANCE);
+    public static class CppModuleGenerator extends ModuleGenerator {
+        public CppModuleGenerator(final String filename, final SourceText text, final Options options) {
+            super(filename, text, ScopedNaming.INSTANCE, options);
         }
 
         @Override
@@ -1077,7 +1292,8 @@ public class HistorageTreeSitter extends HistorageBase {
             return Historage.escape(eq >= 0 ? type.substring(0, eq) : type);
         }
 
-        protected String contentOf(final TSNode node) {
+        @Override
+        protected String rawContentOf(final TSNode node) {
             final int beginLine = node.getStartPoint().getRow() + 1;
             final int endLine = node.getEndPoint().getRow() + 1;
             return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
@@ -1091,9 +1307,9 @@ public class HistorageTreeSitter extends HistorageBase {
      * only; method bodies are not descended into. Property and event declarations are treated as
      * fields. Names use the scoped naming, escaped to stay portable across file systems.
      */
-    public class CSharpModuleGenerator extends ModuleGenerator {
-        public CSharpModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text, ScopedNaming.INSTANCE);
+    public static class CSharpModuleGenerator extends ModuleGenerator {
+        public CSharpModuleGenerator(final String filename, final SourceText text, final Options options) {
+            super(filename, text, ScopedNaming.INSTANCE, options);
         }
 
         @Override
@@ -1262,7 +1478,8 @@ public class HistorageTreeSitter extends HistorageBase {
             return null;
         }
 
-        protected String contentOf(final TSNode node) {
+        @Override
+        protected String rawContentOf(final TSNode node) {
             final int beginLine = node.getStartPoint().getRow() + 1;
             final int endLine = node.getEndPoint().getRow() + 1;
             return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
@@ -1276,9 +1493,9 @@ public class HistorageTreeSitter extends HistorageBase {
      * bodies are not descended into, and object-literal methods are not extracted. Since JavaScript
      * is untyped, a signature lists parameter names.
      */
-    public class JsModuleGenerator extends ModuleGenerator {
-        public JsModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text, ScopedNaming.INSTANCE);
+    public static class JsModuleGenerator extends ModuleGenerator {
+        public JsModuleGenerator(final String filename, final SourceText text, final Options options) {
+            super(filename, text, ScopedNaming.INSTANCE, options);
         }
 
         @Override
@@ -1431,7 +1648,8 @@ public class HistorageTreeSitter extends HistorageBase {
             return Historage.escape(textOf(p).replaceAll("\\s+", ""));
         }
 
-        protected String contentOf(final TSNode node) {
+        @Override
+        protected String rawContentOf(final TSNode node) {
             final int beginLine = node.getStartPoint().getRow() + 1;
             final int endLine = node.getEndPoint().getRow() + 1;
             return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
@@ -1445,9 +1663,9 @@ public class HistorageTreeSitter extends HistorageBase {
      * the {@code required}/{@code optional} parameter wrappers. Parameter types are dropped, leaving
      * parameter names in the signature.
      */
-    public class TsModuleGenerator extends JsModuleGenerator {
-        public TsModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text);
+    public static class TsModuleGenerator extends JsModuleGenerator {
+        public TsModuleGenerator(final String filename, final SourceText text, final Options options) {
+            super(filename, text, options);
         }
 
         @Override
@@ -1535,9 +1753,9 @@ public class HistorageTreeSitter extends HistorageBase {
      * their fields and interface methods split out; other type specs are fields), free functions,
      * methods (named {@code Receiver.name}), and package-level constants and variables.
      */
-    public class GoModuleGenerator extends ModuleGenerator {
-        public GoModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text, ScopedNaming.INSTANCE);
+    public static class GoModuleGenerator extends ModuleGenerator {
+        public GoModuleGenerator(final String filename, final SourceText text, final Options options) {
+            super(filename, text, ScopedNaming.INSTANCE, options);
         }
 
         @Override
@@ -1677,9 +1895,9 @@ public class HistorageTreeSitter extends HistorageBase {
      * Walks the tree-sitter CST of a Ruby file: classes, modules (naming scopes), methods (instance
      * and singleton {@code def self.x}), and top-level constant assignments (fields).
      */
-    public class RubyModuleGenerator extends ModuleGenerator {
-        public RubyModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text, ScopedNaming.INSTANCE);
+    public static class RubyModuleGenerator extends ModuleGenerator {
+        public RubyModuleGenerator(final String filename, final SourceText text, final Options options) {
+            super(filename, text, ScopedNaming.INSTANCE, options);
         }
 
         @Override
@@ -1762,9 +1980,9 @@ public class HistorageTreeSitter extends HistorageBase {
      * struct fields and trait methods split out), free functions, {@code impl} blocks (whose methods
      * attach to the implemented type), modules (naming scopes), and constants and statics (fields).
      */
-    public class RustModuleGenerator extends ModuleGenerator {
-        public RustModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text, ScopedNaming.INSTANCE);
+    public static class RustModuleGenerator extends ModuleGenerator {
+        public RustModuleGenerator(final String filename, final SourceText text, final Options options) {
+            super(filename, text, ScopedNaming.INSTANCE, options);
         }
 
         @Override
@@ -1903,9 +2121,9 @@ public class HistorageTreeSitter extends HistorageBase {
      * functions, and properties. The Kotlin grammar uses few field names, so names are found by
      * child type.
      */
-    public class KotlinModuleGenerator extends ModuleGenerator {
-        public KotlinModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text, ScopedNaming.INSTANCE);
+    public static class KotlinModuleGenerator extends ModuleGenerator {
+        public KotlinModuleGenerator(final String filename, final SourceText text, final Options options) {
+            super(filename, text, ScopedNaming.INSTANCE, options);
         }
 
         @Override
@@ -1988,9 +2206,9 @@ public class HistorageTreeSitter extends HistorageBase {
      * functions, initializers, and properties. The Swift grammar overloads field names, so names are
      * found by child type.
      */
-    public class SwiftModuleGenerator extends ModuleGenerator {
-        public SwiftModuleGenerator(final String filename, final SourceText text) {
-            super(filename, text, ScopedNaming.INSTANCE);
+    public static class SwiftModuleGenerator extends ModuleGenerator {
+        public SwiftModuleGenerator(final String filename, final SourceText text, final Options options) {
+            super(filename, text, ScopedNaming.INSTANCE, options);
         }
 
         @Override
