@@ -1,59 +1,64 @@
 package jp.ac.titech.c.se.stein.ts;
 
+import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TreeSitterObjc;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
 
 /**
- * Analyzes an Objective-C file: {@code @interface} and {@code @implementation} blocks (classes) with
- * their methods (named by their selector, e.g. {@code doThing:with:}), properties, and instance
- * variables. C functions are left to whole-file tokenization.
+ * A query-based analyzer for Objective-C: detection is the declarative {@link #QUERY}
+ * ({@code @interface}/{@code @implementation} blocks and their direct method and data members), and a
+ * method is named by its selector. Members are matched only as direct children of a class node, so
+ * declarations elsewhere (e.g. a {@code @protocol}'s methods) are left out.
  */
-public class ObjcAnalyzer extends LanguageAnalyzer {
+public class ObjcAnalyzer extends QueryAnalyzer {
+    private static final String QUERY = """
+            (class_interface name: (identifier) @name) @class
+            (class_implementation name: (identifier) @name) @class
+            (category_interface name: (identifier) @name) @class
+            (category_implementation name: (identifier) @name) @class
+
+            (class_interface (method_declaration) @method)
+            (class_interface (method_definition) @method)
+            (class_interface (property_declaration declarator: (_)) @field)
+            (class_interface (field_declaration declarator: (_)) @field)
+
+            (category_interface (method_declaration) @method)
+            (category_interface (property_declaration declarator: (_)) @field)
+            (category_interface (field_declaration declarator: (_)) @field)
+
+            (class_implementation (method_definition) @method)
+            (class_implementation (field_declaration declarator: (_)) @field)
+
+            (category_implementation (method_definition) @method)
+            """;
+
     public ObjcAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 
     @Override
-    protected void run() {
-        walk(treeRoot, root);
+    protected TSLanguage grammar() {
+        return new TreeSitterObjc();
     }
 
-    protected void walk(final TSNode node, final Element parent) {
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            switch (child.getType()) {
-                case "class_interface", "class_implementation",
-                     "category_interface", "category_implementation" -> visitClass(child, parent);
-                default -> {
-                    if (!child.isError()) {
-                        walk(child, parent);
-                    }
-                }
-            }
-        }
+    @Override
+    protected String queryString() {
+        return QUERY;
     }
 
-    protected void visitClass(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        if (name.isNull()) {
-            return;
+    @Override
+    protected String name(final ElementKind kind, final TSNode node, final Captures captures) {
+        if (kind == ElementKind.METHOD) {
+            return flatten(selectorName(node));
         }
-        final Element klass = element(ElementKind.CLASS, flatten(textOf(name)), parent, node);
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode member = node.getNamedChild(i);
-            switch (member.getType()) {
-                case "method_declaration", "method_definition" ->
-                        element(ElementKind.METHOD, flatten(selectorName(member)), klass, member);
-                case "property_declaration", "field_declaration" -> {
-                    final TSNode declarator = member.getChildByFieldName("declarator");
-                    if (!declarator.isNull()) {
-                        element(ElementKind.FIELD, flatten(textOf(declarator)), klass, member);
-                    }
-                }
-                default -> { }
-            }
+        if (kind == ElementKind.FIELD) {
+            // one field per declaration named by its first declarator, as the visitor does; a
+            // declaration with several declarators (e.g. size_t w, h) still yields a single field
+            return flatten(textOf(node.getChildByFieldName("declarator")));
         }
+        return flatten(textOf(captures.get("name")));
     }
 
     /**

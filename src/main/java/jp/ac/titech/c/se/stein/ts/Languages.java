@@ -82,26 +82,26 @@ public final class Languages {
      * The registered languages, tried in order; the first whose filter accepts a blob handles it.
      */
     private static final List<Entry> ENTRIES = List.of(
-            new Entry("Python", PYTHON, TreeSitterPython::new, PythonSource::decode, PythonQueryAnalyzer::new),
-            new Entry("Java", JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaQueryAnalyzer::new),
-            new Entry("C++", CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppQueryAnalyzer::new),
-            new Entry("C#", CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpQueryAnalyzer::new),
-            new Entry("JavaScript", JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized, JsQueryAnalyzer::new),
-            new Entry("TypeScript", TYPESCRIPT, TreeSitterTypescript::new, SourceText::ofNormalized, TsQueryAnalyzer::new),
+            new Entry("Python", PYTHON, TreeSitterPython::new, PythonSource::decode, PythonAnalyzer::new),
+            new Entry("Java", JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaAnalyzer::new),
+            new Entry("C++", CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppAnalyzer::new),
+            new Entry("C#", CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpAnalyzer::new),
+            new Entry("JavaScript", JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized, JsAnalyzer::new),
+            new Entry("TypeScript", TYPESCRIPT, TreeSitterTypescript::new, SourceText::ofNormalized, TsAnalyzer::new),
             // C is a subset of C++, so it reuses the C++ analyzer with the C grammar
-            new Entry("C", C, TreeSitterC::new, SourceText::ofNormalized, CppQueryAnalyzer::new),
-            new Entry("Go", GO, TreeSitterGo::new, SourceText::ofNormalized, GoQueryAnalyzer::new),
-            new Entry("Kotlin", KOTLIN, TreeSitterKotlin::new, SourceText::ofNormalized, KotlinQueryAnalyzer::new),
-            new Entry("Rust", RUST, TreeSitterRust::new, SourceText::ofNormalized, RustQueryAnalyzer::new),
-            new Entry("Swift", SWIFT, TreeSitterSwift::new, SourceText::ofNormalized, SwiftQueryAnalyzer::new),
-            new Entry("Ruby", RUBY, TreeSitterRuby::new, SourceText::ofNormalized, RubyQueryAnalyzer::new),
-            new Entry("PHP", PHP, TreeSitterPhp::new, SourceText::ofNormalized, PhpQueryAnalyzer::new),
-            new Entry("Dart", DART, TreeSitterDart::new, SourceText::ofNormalized, DartQueryAnalyzer::new),
-            new Entry("Objective-C", OBJC, TreeSitterObjc::new, SourceText::ofNormalized, ObjcQueryAnalyzer::new),
-            new Entry("R", R, TreeSitterR::new, SourceText::ofNormalized, RQueryAnalyzer::new),
-            new Entry("Shell", SHELL, TreeSitterBash::new, SourceText::ofNormalized, BashQueryAnalyzer::new),
-            new Entry("SQL", SQL, TreeSitterSql::new, SourceText::ofNormalized, SqlQueryAnalyzer::new),
-            new Entry("HTML", HTML, TreeSitterHtml::new, SourceText::ofNormalized, HtmlQueryAnalyzer::new));
+            new Entry("C", C, TreeSitterC::new, SourceText::ofNormalized, CppAnalyzer::new),
+            new Entry("Go", GO, TreeSitterGo::new, SourceText::ofNormalized, GoAnalyzer::new),
+            new Entry("Kotlin", KOTLIN, TreeSitterKotlin::new, SourceText::ofNormalized, KotlinAnalyzer::new),
+            new Entry("Rust", RUST, TreeSitterRust::new, SourceText::ofNormalized, RustAnalyzer::new),
+            new Entry("Swift", SWIFT, TreeSitterSwift::new, SourceText::ofNormalized, SwiftAnalyzer::new),
+            new Entry("Ruby", RUBY, TreeSitterRuby::new, SourceText::ofNormalized, RubyAnalyzer::new),
+            new Entry("PHP", PHP, TreeSitterPhp::new, SourceText::ofNormalized, PhpAnalyzer::new),
+            new Entry("Dart", DART, TreeSitterDart::new, SourceText::ofNormalized, DartAnalyzer::new),
+            new Entry("Objective-C", OBJC, TreeSitterObjc::new, SourceText::ofNormalized, ObjcAnalyzer::new),
+            new Entry("R", R, TreeSitterR::new, SourceText::ofNormalized, RAnalyzer::new),
+            new Entry("Shell", SHELL, TreeSitterBash::new, SourceText::ofNormalized, BashAnalyzer::new),
+            new Entry("SQL", SQL, TreeSitterSql::new, SourceText::ofNormalized, SqlAnalyzer::new),
+            new Entry("HTML", HTML, TreeSitterHtml::new, SourceText::ofNormalized, HtmlAnalyzer::new));
 
     private Languages() {
     }

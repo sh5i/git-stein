@@ -11,8 +11,8 @@ import jp.ac.titech.c.se.stein.core.SourceText;
  * structure, so the query is empty and no elements are extracted; the analyzer exists so that whole-file
  * tokenization ({@code @cregit-ts}) covers HTML too.
  */
-public class HtmlQueryAnalyzer extends QueryAnalyzer {
-    public HtmlQueryAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
+public class HtmlAnalyzer extends QueryAnalyzer {
+    public HtmlAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 

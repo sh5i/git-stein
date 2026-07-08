@@ -15,14 +15,14 @@ import jp.ac.titech.c.se.stein.core.SourceText;
  * a method ({@link #refineKind}); every other binding is a field. Naming (parameter-name signatures)
  * stays imperative.
  */
-public class RQueryAnalyzer extends QueryAnalyzer {
+public class RAnalyzer extends QueryAnalyzer {
     private static final String QUERY = """
             (left_assignment name: (_) @name) @field
             (equals_assignment name: (_) @name) @field
             (super_assignment name: (_) @name) @field
             """;
 
-    public RQueryAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
+    public RAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 

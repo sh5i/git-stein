@@ -3,103 +3,113 @@ package jp.ac.titech.c.se.stein.ts;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TreeSitterDart;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
 
 /**
- * Analyzes a Dart file: classes (with methods, constructors, and fields), free functions, and
- * top-level variables. The Dart grammar splits a function into a signature node and a separate body
- * node, so a method spans the two.
+ * A query-based analyzer for Dart: detection is the declarative {@link #QUERY}, and the signature and
+ * name rendering (getter/setter/factory/constructor selection) is done imperatively. The Dart grammar
+ * splits a function into a signature node and a separate body node, so a method spans the two via the
+ * adjacent {@code @body} capture.
+ *
+ * <p>The detection mirrors the visitor's structural walk precisely. Class and extension members are
+ * matched only under the {@code body} of a <em>named</em> {@code class_definition}/
+ * {@code extension_declaration} (a {@code mixin_declaration} and an unnamed extension have no
+ * {@code name} field, so the visitor skips them), and an abstract member, a {@code static} field, a
+ * {@code const} constructor, and an operator (none of which the visitor extracts) are excluded by
+ * matching only the name-bearing signature shapes. The visitor also descends every non-member function
+ * body (they are separate sibling nodes, so its {@code walk} recurses into them) and flattens the
+ * named local functions it finds to the file root; those are captured via {@code lambda_expression}.
+ * The reverse — a local function inside a class member's body, which the visitor does not reach —
+ * would nest under the enclosing class by containment, so {@link #postProcess} prunes it.</p>
  */
-public class DartAnalyzer extends LanguageAnalyzer {
+public class DartAnalyzer extends QueryAnalyzer {
+    private static final String QUERY = """
+            (class_definition name: (identifier) @name) @class
+            (enum_declaration name: (identifier) @name) @class
+            (extension_declaration name: (identifier) @name) @class
+
+            (enum_declaration body: (enum_body (enum_constant name: (identifier) @name) @field))
+
+            (program (initialized_identifier_list (initialized_identifier . (identifier) @name)) @field)
+            (program (function_signature) @method . (function_body)? @body)
+            (program (method_signature [(function_signature) (getter_signature) (setter_signature) (factory_constructor_signature) (constructor_signature)]) @method . (function_body)? @body)
+
+            (class_definition body: (class_body (method_signature [(function_signature) (getter_signature) (setter_signature) (factory_constructor_signature) (constructor_signature)]) @method . (function_body)? @body))
+            (class_definition body: (class_body (declaration (initialized_identifier_list (initialized_identifier . (identifier) @name))) @field))
+            (class_definition body: (class_body (declaration (constructor_signature)) @method))
+
+            (extension_declaration name: (identifier) body: (extension_body (method_signature [(function_signature) (getter_signature) (setter_signature) (factory_constructor_signature) (constructor_signature)]) @method . (function_body)? @body))
+            (extension_declaration name: (identifier) body: (extension_body (declaration (initialized_identifier_list (initialized_identifier . (identifier) @name))) @field))
+            (extension_declaration name: (identifier) body: (extension_body (declaration (constructor_signature)) @method))
+
+            (lambda_expression parameters: (function_signature) @method body: (function_body) @body)
+            """;
+
     public DartAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 
     @Override
-    protected void run() {
-        walk(treeRoot, root);
+    protected TSLanguage grammar() {
+        return new TreeSitterDart();
     }
 
-    protected void walk(final TSNode node, final Element parent) {
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            switch (child.getType()) {
-                case "class_definition", "mixin_declaration", "extension_declaration" -> visitClass(child, parent);
-                case "enum_declaration" -> visitEnum(child, parent);
-                case "method_signature", "function_signature" -> visitFunction(child, parent);
-                case "initialized_identifier_list" -> visitFields(child, parent, child);
-                default -> {
-                    if (!child.isError()) {
-                        walk(child, parent);
-                    }
-                }
-            }
-        }
+    @Override
+    protected String queryString() {
+        return QUERY;
     }
 
-    protected void visitClass(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        if (name.isNull()) {
-            return;
+    @Override
+    protected String name(final ElementKind kind, final TSNode node, final Captures captures) {
+        if (kind != ElementKind.METHOD) {
+            return flatten(textOf(captures.get("name")));
         }
-        final Element klass = element(ElementKind.CLASS, flatten(textOf(name)), parent, node);
-        final TSNode body = node.getChildByFieldName("body");
-        if (body.isNull()) {
-            return;
+        if (node.getType().equals("declaration")) {
+            final TSNode constructor = firstChildOfType(node, "constructor_signature");
+            final TSNode name = lastChildOfType(constructor, "identifier");
+            return flatten(textOf(name)) + "(" + signature(constructor) + ")";
         }
-        for (int i = 0; i < body.getNamedChildCount(); i++) {
-            final TSNode member = body.getNamedChild(i);
-            switch (member.getType()) {
-                case "method_signature" -> visitFunction(member, klass);
-                case "declaration" -> visitDeclaration(member, klass);
-                default -> { }
-            }
-        }
-    }
-
-    protected void visitEnum(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        if (name.isNull()) {
-            return;
-        }
-        final Element klass = element(ElementKind.CLASS, flatten(textOf(name)), parent, node);
-        final TSNode body = node.getChildByFieldName("body");
-        if (body.isNull()) {
-            return;
-        }
-        for (int i = 0; i < body.getNamedChildCount(); i++) {
-            final TSNode constant = body.getNamedChild(i);
-            if (constant.getType().equals("enum_constant")) {
-                final TSNode constantName = constant.getChildByFieldName("name");
-                if (!constantName.isNull()) {
-                    element(ElementKind.FIELD, flatten(textOf(constantName)), klass, constant);
-                }
-            }
-        }
+        final TSNode sig = node.getType().equals("method_signature") ? firstSignature(node) : node;
+        final TSNode name = signatureName(sig);
+        return flatten(textOf(name)) + "(" + signature(sig) + ")";
     }
 
     /**
-     * Visits a function or method (including a getter, setter, or factory constructor); when the
-     * following sibling is its body, the element spans both.
+     * The visitor extracts a named local function only from a top-level function's body; it never
+     * recurses the body of a class, mixin, extension, or enum member (a mixin and an unnamed extension
+     * it skips wholesale). A local function captured inside any of those is therefore spurious: it is a
+     * {@code function_signature} whose node has such an enclosing type — a top-level function, by
+     * contrast, has none — so prune it wherever it landed (under its class, or, for a mixin or unnamed
+     * extension that is not itself an element, floated to the file root).
      */
-    protected void visitFunction(final TSNode node, final Element parent) {
-        final TSNode sig = node.getType().equals("method_signature") ? firstSignature(node) : node;
-        if (sig == null) {
-            return;
+    @Override
+    protected void postProcess() {
+        prune(root);
+    }
+
+    private void prune(final Element element) {
+        element.getChildren().removeIf(c -> c.node != null
+                && c.node.getType().equals("function_signature") && hasEnclosingType(c.node));
+        for (final Element child : element.getChildren()) {
+            prune(child);
         }
-        final TSNode name = signatureName(sig);
-        if (name == null || name.isNull()) {
-            return;
+    }
+
+    private boolean hasEnclosingType(final TSNode node) {
+        for (TSNode p = node.getParent(); p != null && !p.isNull(); p = p.getParent()) {
+            switch (p.getType()) {
+                case "class_definition", "mixin_declaration", "extension_declaration", "enum_declaration" -> {
+                    return true;
+                }
+                default -> {
+                }
+            }
         }
-        final String label = flatten(textOf(name)) + "(" + signature(sig) + ")";
-        final TSNode next = node.getNextNamedSibling();
-        if (!next.isNull() && next.getType().equals("function_body")) {
-            element(ElementKind.METHOD, label, parent, node, next);
-        } else {
-            element(ElementKind.METHOD, label, parent, node);
-        }
+        return false;
     }
 
     /**
@@ -133,33 +143,6 @@ public class DartAnalyzer extends LanguageAnalyzer {
             }
         }
         return found;
-    }
-
-    protected void visitDeclaration(final TSNode node, final Element parent) {
-        final TSNode ids = firstChildOfType(node, "initialized_identifier_list");
-        if (ids != null) {
-            visitFields(ids, parent, node);
-            return;
-        }
-        final TSNode constructor = firstChildOfType(node, "constructor_signature");
-        if (constructor != null) {
-            final TSNode name = lastChildOfType(constructor, "identifier");
-            if (name != null) {
-                element(ElementKind.METHOD, flatten(textOf(name)) + "(" + signature(constructor) + ")", parent, node);
-            }
-        }
-    }
-
-    protected void visitFields(final TSNode list, final Element parent, final TSNode content) {
-        for (int i = 0; i < list.getNamedChildCount(); i++) {
-            final TSNode child = list.getNamedChild(i);
-            if (child.getType().equals("initialized_identifier")) {
-                final TSNode name = firstChildOfType(child, "identifier");
-                if (name != null) {
-                    element(ElementKind.FIELD, flatten(textOf(name)), parent, content);
-                }
-            }
-        }
     }
 
     protected String signature(final TSNode functionSignature) {

@@ -22,7 +22,7 @@ import jp.ac.titech.c.se.stein.core.SourceText;
  * visitor would not have emitted. A field element is always a leaf (the engine drops members under a
  * field), so removing one leaves no orphans.</p>
  */
-public class RubyQueryAnalyzer extends QueryAnalyzer {
+public class RubyAnalyzer extends QueryAnalyzer {
     private static final String QUERY = """
             (class name: (_) @name) @class
             (module name: (_) @name) @scope
@@ -31,7 +31,7 @@ public class RubyQueryAnalyzer extends QueryAnalyzer {
             (assignment left: (_) @name) @field
             """;
 
-    public RubyQueryAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
+    public RubyAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 

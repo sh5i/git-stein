@@ -17,7 +17,7 @@ import jp.ac.titech.c.se.stein.core.SourceText;
  * {@code user_type}) and everything inside it are skipped; {@link #postProcess} drops the members a
  * query would otherwise orphan from such an un-entered type.
  */
-public class SwiftQueryAnalyzer extends QueryAnalyzer {
+public class SwiftAnalyzer extends QueryAnalyzer {
     private static final String QUERY = """
             (class_declaration name: (type_identifier) @name) @class
             (protocol_declaration name: (type_identifier) @name) @class
@@ -27,7 +27,7 @@ public class SwiftQueryAnalyzer extends QueryAnalyzer {
             (property_declaration name: (pattern bound_identifier: (simple_identifier) @name)) @field
             """;
 
-    public SwiftQueryAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
+    public SwiftAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 

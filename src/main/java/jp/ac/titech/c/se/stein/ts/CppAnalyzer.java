@@ -3,157 +3,116 @@ package jp.ac.titech.c.se.stein.ts;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TreeSitterC;
+import org.treesitter.TreeSitterCpp;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
 
 /**
- * Analyzes a C or C++ file: classes (class/struct/union/enum), functions with a body (free, member,
- * and out-of-line {@code Class::method} definitions), and data members and namespace/file-scope
- * variables. Namespaces are naming scopes only; function bodies are not descended into. Names use the
- * {@code ::} scope operator flattened to {@code .} to stay portable across file systems.
+ * A query-based analyzer for C and C++: detection is the declarative {@link #CPP_QUERY} (or
+ * {@link #C_QUERY} for a {@code .c} file, whose grammar has neither classes, namespaces, nor
+ * templates), while naming unwraps declarators, renders a parameter-type signature, and content
+ * extracts comment-free source lines.
+ *
+ * <p>Three rules a query cannot express are handled by {@link #accept}: a member-function prototype (a
+ * field declarator that unwraps to a function) and a variable/prototype whose declarator names nothing
+ * are dropped, and a type specifier used as the {@code type} of a declaration or a class-body field —
+ * which the visitor never descends into — is dropped, so its members do not leak out (a bare nested
+ * {@code struct N { ... };} inside a class parses as a member field with no declarator, and is not
+ * extracted, whereas the same struct at namespace or file scope, or under a {@code typedef}, is).
+ * Function bodies are not descended: a local class nests under its enclosing method and the engine
+ * drops it. A template header, which the visitor folds into the extent, is restored by widening the
+ * rendered content of a specifier or function directly wrapped in a {@code template_declaration}.</p>
  */
-public class CppAnalyzer extends LanguageAnalyzer {
+public class CppAnalyzer extends QueryAnalyzer {
+    private static final String CPP_QUERY = """
+            (namespace_definition name: (_) @name) @scope
+            (class_specifier name: (_) @name) @class
+            (struct_specifier name: (_) @name) @class
+            (union_specifier name: (_) @name) @class
+            (enum_specifier name: (_) @name) @class
+            (function_definition) @method
+            (field_declaration declarator: (_) @name) @field
+            (declaration declarator: (_) @name) @field
+            """;
+
+    private static final String C_QUERY = """
+            (struct_specifier name: (_) @name) @class
+            (union_specifier name: (_) @name) @class
+            (enum_specifier name: (_) @name) @class
+            (function_definition) @method
+            (field_declaration declarator: (_) @name) @field
+            (declaration declarator: (_) @name) @field
+            """;
+
+    private final boolean isC;
+
     public CppAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
+        this.isC = filename.endsWith(".c");
     }
 
     @Override
-    protected void run() {
-        walk(treeRoot, root);
+    protected TSLanguage grammar() {
+        return isC ? new TreeSitterC() : new TreeSitterCpp();
     }
 
-    protected void walk(final TSNode node, final Element parent) {
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            switch (child.getType()) {
-                case "class_specifier", "struct_specifier", "union_specifier" -> visitType(child, child, parent);
-                case "enum_specifier" -> visitEnum(child, child, parent);
-                case "function_definition" -> visitFunction(child, child, parent);
-                case "template_declaration" -> visitTemplate(child, parent);
-                case "field_declaration" -> visitField(child, parent);
-                case "declaration" -> visitDeclaration(child, parent);
-                case "namespace_definition" -> visitNamespace(child, parent);
-                // descend into linkage_specification (extern "C"), preprocessor blocks, etc.
-                default -> {
-                    if (!child.isError()) {
-                        walk(child, parent);
-                    }
+    @Override
+    protected String queryString() {
+        return isC ? C_QUERY : CPP_QUERY;
+    }
+
+    @Override
+    protected String name(final ElementKind kind, final TSNode node, final Captures captures) {
+        if (kind == ElementKind.METHOD) {
+            final TSNode fd = functionDeclarator(node.getChildByFieldName("declarator"));
+            final TSNode name = fd.getChildByFieldName("declarator");
+            return flatten(textOf(name)) + "(" + signature(fd.getChildByFieldName("parameters")) + ")";
+        }
+        if (kind == ElementKind.FIELD) {
+            return flatten(textOf(fieldNameNode(node, captures.get("name"))));
+        }
+        return flatten(textOf(captures.get("name")));
+    }
+
+    @Override
+    protected boolean accept(final ElementKind kind, final TSNode node, final Captures captures) {
+        if (templateGated(node)) {
+            return false; // inside a template_declaration on a path the visitor's visitTemplate ignores
+        }
+        if (inTypeSpecifier(node)) {
+            return false; // inside a specifier used as a declaration/field type, which the visitor never enters
+        }
+        if (hasAncestorType(node, "enum_specifier")) {
+            return false; // an enum body is not walked, so an elaborated type reference in a value is not extracted
+        }
+        switch (kind) {
+            case METHOD -> {
+                final TSNode fd = functionDeclarator(node.getChildByFieldName("declarator"));
+                return fd != null && !fd.getChildByFieldName("declarator").isNull();
+            }
+            case FIELD -> {
+                // the visitor skips the whole declaration when its first declarator is a function
+                // (a prototype); otherwise it names each declared member
+                if (functionDeclarator(node.getChildByFieldName("declarator")) != null) {
+                    return false;
                 }
+                return fieldNameNode(node, captures.get("name")) != null;
+            }
+            default -> {
+                return true;
             }
         }
     }
 
-    /**
-     * Visits a namespace: a naming scope we descend into but never emit as an element (it would span
-     * whole files). An anonymous namespace is transparent.
-     */
-    protected void visitNamespace(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        final Element scope = name.isNull() ? parent : element(ElementKind.CLASS, flatten(textOf(name)), parent, null);
-        final TSNode body = node.getChildByFieldName("body");
-        if (!body.isNull()) {
-            walk(body, scope);
-        }
-    }
-
-    /**
-     * Visits a class/struct/union. {@code extent} covers the whole extracted range (including a
-     * template header); {@code def} is the specifier itself. An anonymous type is transparent.
-     */
-    protected void visitType(final TSNode extent, final TSNode def, final Element parent) {
-        final TSNode name = def.getChildByFieldName("name");
-        final TSNode body = def.getChildByFieldName("body");
-        if (name.isNull()) {
-            if (!body.isNull()) {
-                walk(body, parent);
-            }
-            return;
-        }
-        final Element klass = element(ElementKind.CLASS, flatten(textOf(name)), parent, extent);
-        if (!body.isNull()) {
-            walk(body, klass);
-        }
-    }
-
-    protected void visitEnum(final TSNode extent, final TSNode def, final Element parent) {
-        final TSNode name = def.getChildByFieldName("name");
-        if (!name.isNull()) {
-            element(ElementKind.CLASS, flatten(textOf(name)), parent, extent);
-        }
-    }
-
-    /**
-     * Unwraps a template declaration, visiting the class or function it wraps with the template
-     * header included in the extent.
-     */
-    protected void visitTemplate(final TSNode node, final Element parent) {
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            switch (child.getType()) {
-                case "class_specifier", "struct_specifier", "union_specifier" -> {
-                    visitType(node, child, parent);
-                    return;
-                }
-                case "enum_specifier" -> {
-                    visitEnum(node, child, parent);
-                    return;
-                }
-                case "function_definition" -> {
-                    visitFunction(node, child, parent);
-                    return;
-                }
-                default -> { }
-            }
-        }
-    }
-
-    protected void visitFunction(final TSNode extent, final TSNode def, final Element parent) {
-        final TSNode fd = functionDeclarator(def.getChildByFieldName("declarator"));
-        if (fd == null) {
-            return;
-        }
-        final TSNode name = fd.getChildByFieldName("declarator");
-        if (name.isNull()) {
-            return;
-        }
-        final String signature = signature(fd.getChildByFieldName("parameters"));
-        element(ElementKind.METHOD, flatten(textOf(name)) + "(" + signature + ")", parent, extent);
-    }
-
-    /**
-     * Visits a class-body field declaration: one field element per declared data member. A member
-     * function prototype (no body) is skipped, since the implemented definition is what carries the
-     * history.
-     */
-    protected void visitField(final TSNode node, final Element parent) {
-        if (functionDeclarator(node.getChildByFieldName("declarator")) != null) {
-            return;
-        }
-        for (final TSNode name : fieldNames(node)) {
-            element(ElementKind.FIELD, flatten(textOf(name)), parent, node);
-        }
-    }
-
-    /**
-     * Visits a namespace/file-scope declaration: one field element per declared variable. Function
-     * prototypes, typedefs, and using-declarations have no init-declarator and are skipped.
-     */
-    protected void visitDeclaration(final TSNode node, final Element parent) {
-        if (functionDeclarator(node.getChildByFieldName("declarator")) != null) {
-            return;
-        }
-        for (int i = 0; i < node.getChildCount(); i++) {
-            if (!"declarator".equals(node.getFieldNameForChild(i))) {
-                continue;
-            }
-            final TSNode d = node.getChild(i);
-            final TSNode inner = d.getType().equals("init_declarator") ? d.getChildByFieldName("declarator") : d;
-            final TSNode name = declaratorName(inner);
-            if (name != null) {
-                element(ElementKind.FIELD, flatten(textOf(name)), parent, node);
-            }
-        }
+    @Override
+    protected String rawContentOf(final TSNode node) {
+        final TSNode extent = extentOf(node);
+        final int beginLine = extent.getStartPoint().getRow() + 1;
+        final int endLine = extent.getEndPoint().getRow() + 1;
+        return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
     }
 
     /**
@@ -195,16 +154,6 @@ public class CppAnalyzer extends LanguageAnalyzer {
                 return null;
             }
         }
-    }
-
-    /**
-     * Collects the {@code field_identifier} names declared by a data-member field declaration,
-     * descending through pointer and array declarators to catch each declared name.
-     */
-    protected List<TSNode> fieldNames(final TSNode node) {
-        final List<TSNode> result = new ArrayList<>();
-        collectFieldNames(node, result);
-        return result;
     }
 
     protected void collectFieldNames(final TSNode node, final List<TSNode> out) {
@@ -255,10 +204,104 @@ public class CppAnalyzer extends LanguageAnalyzer {
         return escape(eq >= 0 ? type.substring(0, eq) : type);
     }
 
-    @Override
-    protected String rawContentOf(final TSNode node) {
-        final int beginLine = node.getStartPoint().getRow() + 1;
-        final int endLine = node.getEndPoint().getRow() + 1;
-        return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
+    /**
+     * Whether a node is hidden by an enclosing {@code template_declaration}. The visitor's
+     * {@code visitTemplate} extracts only the template's direct class/struct/union/enum/function child
+     * (and, for a class, walks its body); a template whose child is anything else — a friend
+     * declaration, a variable/prototype {@code declaration}, a concept, or a further nested
+     * {@code template_declaration} — is not descended, so such a child and everything under it is
+     * invisible. At every enclosing template, the child on the path must be one of those handled node
+     * types, or the node is gated out.
+     */
+    private boolean templateGated(final TSNode node) {
+        for (TSNode child = node, p = node.getParent(); p != null && !p.isNull(); child = p, p = p.getParent()) {
+            if (p.getType().equals("template_declaration")) {
+                final boolean handled = switch (child.getType()) {
+                    case "class_specifier", "struct_specifier", "union_specifier", "enum_specifier",
+                         "function_definition" -> true;
+                    default -> false;
+                };
+                if (!handled) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether a node is (or is inside) a class/struct/union/enum specifier that serves as the
+     * {@code type} of a {@code declaration} or a class-body {@code field_declaration}. The visitor
+     * handles such a declaration with {@code visitDeclaration}/{@code visitField}, which never descend
+     * into the type, so the specifier and everything under it — including the members of an anonymous
+     * inline {@code union}/{@code struct} — are invisible. A specifier at namespace or file scope, or
+     * under a {@code typedef}, is reached by the walk and so is not gated here.
+     */
+    private boolean inTypeSpecifier(final TSNode node) {
+        for (TSNode n = node; n != null && !n.isNull(); n = n.getParent()) {
+            if (isSpecifier(n)) {
+                final TSNode p = n.getParent();
+                if (p != null && !p.isNull()
+                        && (p.getType().equals("field_declaration") || p.getType().equals("declaration"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean hasAncestorType(final TSNode node, final String type) {
+        for (TSNode p = node.getParent(); p != null && !p.isNull(); p = p.getParent()) {
+            if (p.getType().equals(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isSpecifier(final TSNode node) {
+        return switch (node.getType()) {
+            case "class_specifier", "struct_specifier", "union_specifier", "enum_specifier" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * The name of a data member, matching whichever traversal the visitor uses for the containing
+     * declaration. A class-body {@code field_declaration} uses {@code collectFieldNames} (only a
+     * {@code field_identifier}, reached solely through nested {@code *declarator}s), so a spurious
+     * identifier inside an error-recovery subtree is not mistaken for the name; a namespace or
+     * file-scope {@code declaration} unwraps an {@code init_declarator} and uses {@code declaratorName}.
+     * Returns null when the declaration names no data member (e.g. a friend declaration).
+     */
+    private TSNode fieldNameNode(final TSNode declaration, final TSNode declarator) {
+        if (declaration.getType().equals("field_declaration")) {
+            // mirror collectFieldNames applied to this declarator: a field_identifier names it, a
+            // nested *declarator is descended for one, and anything else (e.g. a template_method the
+            // parser produced from a macro-prefixed member) contributes no name
+            if (declarator.getType().equals("field_identifier")) {
+                return declarator;
+            }
+            if (!declarator.getType().endsWith("declarator")) {
+                return null;
+            }
+            final List<TSNode> names = new ArrayList<>();
+            collectFieldNames(declarator, names);
+            return names.isEmpty() ? null : names.get(0);
+        }
+        final TSNode inner = declarator.getType().equals("init_declarator")
+                ? declarator.getChildByFieldName("declarator") : declarator;
+        return declaratorName(inner);
+    }
+
+    /**
+     * The node whose lines are the element's content: a specifier or function directly wrapped in a
+     * {@code template_declaration} widens to the template so the template header is included, matching
+     * the visitor's extent.
+     */
+    private TSNode extentOf(final TSNode node) {
+        final TSNode parent = node.getParent();
+        return parent != null && !parent.isNull() && parent.getType().equals("template_declaration")
+                ? parent : node;
     }
 }

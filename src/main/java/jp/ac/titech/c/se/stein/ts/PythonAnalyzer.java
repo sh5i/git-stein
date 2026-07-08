@@ -16,7 +16,7 @@ import jp.ac.titech.c.se.stein.core.SourceText;
  * captured on its {@code decorated_definition} node so its extent includes the decorators, while its
  * name and parameters come from the inner definition.
  */
-public class PythonQueryAnalyzer extends QueryAnalyzer {
+public class PythonAnalyzer extends QueryAnalyzer {
     private static final String QUERY = """
             (module (function_definition name: (identifier) @name parameters: (parameters) @params) @method)
             (block (function_definition name: (identifier) @name parameters: (parameters) @params) @method)
@@ -29,7 +29,7 @@ public class PythonQueryAnalyzer extends QueryAnalyzer {
             (class_definition body: (block (expression_statement (assignment left: (identifier) @name)) @field))
             """;
 
-    public PythonQueryAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
+    public PythonAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 

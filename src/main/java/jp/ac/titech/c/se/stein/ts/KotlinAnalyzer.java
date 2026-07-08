@@ -16,7 +16,7 @@ import jp.ac.titech.c.se.stein.core.SourceText;
  * a class exposes through its {@code class_body} nest by containment. An enum's members live in an
  * {@code enum_class_body} the visitor never descends into, so they are pruned in {@link #postProcess}.
  */
-public class KotlinQueryAnalyzer extends QueryAnalyzer {
+public class KotlinAnalyzer extends QueryAnalyzer {
     private static final String QUERY = """
             (class_declaration (type_identifier) @name) @class
             (object_declaration (type_identifier) @name) @class
@@ -24,7 +24,7 @@ public class KotlinQueryAnalyzer extends QueryAnalyzer {
             (property_declaration (variable_declaration (simple_identifier) @name)) @field
             """;
 
-    public KotlinQueryAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
+    public KotlinAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 

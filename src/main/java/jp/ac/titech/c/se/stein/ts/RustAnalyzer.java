@@ -3,112 +3,68 @@ package jp.ac.titech.c.se.stein.ts;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TreeSitterRust;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
 
 /**
- * Analyzes a Rust file: structs, enums, unions, and traits (classes, with struct fields and trait
- * methods split out), free functions, {@code impl} blocks (whose methods attach to the implemented
- * type), modules (naming scopes), and constants and statics (fields).
+ * A query-based analyzer for Rust: detection is the declarative {@link #QUERY} and only naming
+ * (receiver-free method signatures and the base type name of an {@code impl}) stays imperative. An
+ * {@code impl} block and a module are {@code @scope}s whose members nest under them by containment
+ * (the {@code impl}'s methods attach to the implemented type); struct and union fields, and trait
+ * method signatures, are scoped to their declaring body so that enum-variant fields, tuple-struct
+ * fields, and associated constants — which are not extracted — stay out, and constants/statics/type
+ * aliases are scoped to the file or a module body so that {@code impl}/trait members are not mistaken
+ * for them.
  */
-public class RustAnalyzer extends LanguageAnalyzer {
+public class RustAnalyzer extends QueryAnalyzer {
+    private static final String QUERY = """
+            (struct_item name: (type_identifier) @name) @class
+            (enum_item name: (type_identifier) @name) @class
+            (union_item name: (type_identifier) @name) @class
+            (trait_item name: (type_identifier) @name) @class
+            (mod_item name: (identifier) @name) @scope
+            (impl_item type: (_) @type) @scope
+            (function_item name: (identifier) @name parameters: (parameters) @params) @method
+            (struct_item body: (field_declaration_list
+                (field_declaration name: (field_identifier) @name) @field))
+            (union_item body: (field_declaration_list
+                (field_declaration name: (field_identifier) @name) @field))
+            (trait_item body: (declaration_list
+                (function_signature_item name: (identifier) @name parameters: (parameters) @params) @method))
+            (source_file (const_item name: (identifier) @name) @field)
+            (source_file (static_item name: (identifier) @name) @field)
+            (source_file (type_item name: (type_identifier) @name) @field)
+            (mod_item body: (declaration_list (const_item name: (identifier) @name) @field))
+            (mod_item body: (declaration_list (static_item name: (identifier) @name) @field))
+            (mod_item body: (declaration_list (type_item name: (type_identifier) @name) @field))
+            """;
+
     public RustAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 
     @Override
-    protected void run() {
-        walk(treeRoot, root);
+    protected TSLanguage grammar() {
+        return new TreeSitterRust();
     }
 
-    protected void walk(final TSNode node, final Element parent) {
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            switch (child.getType()) {
-                case "struct_item", "enum_item", "union_item" -> visitType(child, parent);
-                case "trait_item" -> visitTrait(child, parent);
-                case "function_item" -> visitFunction(child, child, parent);
-                case "impl_item" -> visitImpl(child, parent);
-                case "mod_item" -> visitModule(child, parent);
-                case "const_item", "static_item", "type_item" -> visitConst(child, parent);
-                default -> {
-                    if (!child.isError()) {
-                        walk(child, parent);
-                    }
-                }
-            }
-        }
+    @Override
+    protected String queryString() {
+        return QUERY;
     }
 
-    protected void visitType(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        if (name.isNull()) {
-            return;
+    @Override
+    protected String name(final ElementKind kind, final TSNode node, final Captures captures) {
+        if (kind == ElementKind.METHOD) {
+            return flatten(textOf(captures.get("name"))) + "(" + signature(captures.get("params")) + ")";
         }
-        final Element klass = element(ElementKind.CLASS, flatten(textOf(name)), parent, node);
-        final TSNode body = node.getChildByFieldName("body");
-        if (!body.isNull()) {
-            for (int i = 0; i < body.getNamedChildCount(); i++) {
-                final TSNode f = body.getNamedChild(i);
-                if (f.getType().equals("field_declaration")) {
-                    element(ElementKind.FIELD, flatten(textOf(f.getChildByFieldName("name"))), klass, f);
-                }
-            }
+        if (captures.has("type")) {
+            return flatten(baseTypeName(captures.get("type")));
         }
-    }
-
-    protected void visitTrait(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        if (name.isNull()) {
-            return;
-        }
-        final Element klass = element(ElementKind.CLASS, flatten(textOf(name)), parent, node);
-        final TSNode body = node.getChildByFieldName("body");
-        if (!body.isNull()) {
-            for (int i = 0; i < body.getNamedChildCount(); i++) {
-                final TSNode m = body.getNamedChild(i);
-                if (m.getType().equals("function_item") || m.getType().equals("function_signature_item")) {
-                    visitFunction(m, m, klass);
-                }
-            }
-        }
-    }
-
-    protected void visitImpl(final TSNode node, final Element parent) {
-        final TSNode type = node.getChildByFieldName("type");
-        final Element scope = type.isNull() ? parent
-                : element(ElementKind.CLASS, flatten(baseTypeName(type)), parent, null);
-        final TSNode body = node.getChildByFieldName("body");
-        if (!body.isNull()) {
-            for (int i = 0; i < body.getNamedChildCount(); i++) {
-                final TSNode m = body.getNamedChild(i);
-                if (m.getType().equals("function_item")) {
-                    visitFunction(m, m, scope);
-                }
-            }
-        }
-    }
-
-    protected void visitFunction(final TSNode extent, final TSNode def, final Element parent) {
-        final TSNode name = def.getChildByFieldName("name");
-        element(ElementKind.METHOD, flatten(textOf(name)) + "(" + signature(def.getChildByFieldName("parameters")) + ")", parent, extent);
-    }
-
-    protected void visitModule(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        final Element scope = name.isNull() ? parent : element(ElementKind.CLASS, flatten(textOf(name)), parent, null);
-        final TSNode body = node.getChildByFieldName("body");
-        if (!body.isNull()) {
-            walk(body, scope);
-        }
-    }
-
-    protected void visitConst(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        if (!name.isNull()) {
-            element(ElementKind.FIELD, flatten(textOf(name)), parent, node);
-        }
+        return flatten(textOf(captures.get("name")));
     }
 
     /**

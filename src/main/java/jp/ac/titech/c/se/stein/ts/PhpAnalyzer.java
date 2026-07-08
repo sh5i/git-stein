@@ -3,112 +3,79 @@ package jp.ac.titech.c.se.stein.ts;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TreeSitterPhp;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
 
 /**
- * Analyzes a PHP file: classes, interfaces, and traits (classes, with their methods and properties),
- * free functions (methods), and namespaces (naming scopes). A block namespace scopes its body; a
- * statement namespace ({@code namespace N;}) scopes the siblings that follow it.
+ * A query-based analyzer for PHP: detection is the declarative {@link #QUERY}
+ * (types, functions/methods, and data members), and a block namespace ({@code namespace N { }}) is a
+ * {@code @scope} whose body nests its members by containment. The one case a query cannot express — a
+ * statement namespace ({@code namespace N;}) that scopes the siblings that follow it rather than a
+ * body — is handled by {@link #postProcess}, exactly as C# handles a file-scoped namespace.
  */
-public class PhpAnalyzer extends LanguageAnalyzer {
+public class PhpAnalyzer extends QueryAnalyzer {
+    private static final String QUERY = """
+            (namespace_definition name: (_) @name body: (_)) @scope
+            (class_declaration name: (name) @name) @class
+            (interface_declaration name: (name) @name) @class
+            (trait_declaration name: (name) @name) @class
+            (enum_declaration name: (name) @name) @class
+            (method_declaration name: (name) @name parameters: (formal_parameters) @params) @method
+            (function_definition name: (name) @name parameters: (formal_parameters) @params) @method
+            (property_declaration (property_element name: (variable_name) @name)) @field
+            (const_declaration (const_element (name) @name)) @field
+            (enum_case name: (name) @name) @field
+            """;
+
     public PhpAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 
     @Override
-    protected void run() {
-        walk(treeRoot, root);
+    protected TSLanguage grammar() {
+        return new TreeSitterPhp();
     }
 
-    protected void walk(final TSNode node, Element parent) {
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            switch (child.getType()) {
-                case "namespace_definition" -> parent = visitNamespace(child, parent);
-                case "class_declaration", "interface_declaration", "trait_declaration",
-                     "enum_declaration" -> visitType(child, parent);
-                case "method_declaration", "function_definition" -> visitMethod(child, parent);
-                case "property_declaration" -> visitProperty(child, parent);
-                case "const_declaration" -> visitConst(child, parent);
-                case "enum_case" -> {
-                    final TSNode name = child.getChildByFieldName("name");
-                    if (!name.isNull()) {
-                        element(ElementKind.FIELD, flatten(textOf(name)), parent, child);
-                    }
-                }
-                default -> {
-                    if (!child.isError()) {
-                        walk(child, parent);
-                    }
-                }
-            }
+    @Override
+    protected String queryString() {
+        return QUERY;
+    }
+
+    @Override
+    protected String name(final ElementKind kind, final TSNode node, final Captures captures) {
+        if (kind == ElementKind.METHOD) {
+            return flatten(textOf(captures.get("name"))) + "(" + signature(captures.get("params")) + ")";
         }
+        final String raw = textOf(captures.get("name"));
+        if (node.getType().equals("namespace_definition")) {
+            return flatten(raw.replace("\\", "."));
+        }
+        return flatten(raw);
     }
 
     /**
-     * Descends a block namespace's body and returns the unchanged parent, or, for a statement
-     * namespace with no body, returns the scope so the following siblings nest under it.
+     * A statement namespace ({@code namespace N;}) scopes the siblings that follow its declaration;
+     * move them under it. Several such namespaces in one file chain, each scoping under the previous.
      */
-    protected Element visitNamespace(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        final Element scope = name.isNull() ? parent
-                : element(ElementKind.CLASS, flatten(textOf(name).replace("\\", ".")), parent, null);
-        final TSNode body = node.getChildByFieldName("body");
-        if (!body.isNull()) {
-            walk(body, scope);
-            return parent;
-        }
-        return scope;
-    }
-
-    protected void visitType(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        if (name.isNull()) {
-            return;
-        }
-        final Element klass = element(ElementKind.CLASS, flatten(textOf(name)), parent, node);
-        TSNode body = node.getChildByFieldName("body");
-        if (body.isNull()) {
-            final TSNode enumBody = firstChildOfType(node, "enum_declaration_list");
-            if (enumBody != null) {
-                body = enumBody;
+    @Override
+    protected void postProcess() {
+        Element current = root;
+        for (int i = 0; i < treeRoot.getNamedChildCount(); i++) {
+            final TSNode child = treeRoot.getNamedChild(i);
+            if (!child.getType().equals("namespace_definition")) {
+                continue;
             }
-        }
-        if (!body.isNull()) {
-            walk(body, klass);
-        }
-    }
-
-    protected void visitMethod(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        if (!name.isNull()) {
-            element(ElementKind.METHOD, flatten(textOf(name)) + "(" + signature(node.getChildByFieldName("parameters")) + ")", parent, node);
-        }
-    }
-
-    protected void visitProperty(final TSNode node, final Element parent) {
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            if (child.getType().equals("property_element")) {
-                final TSNode name = firstChildOfType(child, "variable_name");
-                if (name != null) {
-                    element(ElementKind.FIELD, flatten(textOf(name)), parent, node);
-                }
+            if (!child.getChildByFieldName("body").isNull()) {
+                continue; // a block namespace is handled by containment
             }
-        }
-    }
-
-    protected void visitConst(final TSNode node, final Element parent) {
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            if (child.getType().equals("const_element")) {
-                final TSNode name = firstChildOfType(child, "name");
-                if (name != null) {
-                    element(ElementKind.FIELD, flatten(textOf(name)), parent, node);
-                }
+            final TSNode name = child.getChildByFieldName("name");
+            if (name.isNull()) {
+                continue;
             }
+            current = reparentAfter(current, flatten(textOf(name).replace("\\", ".")), child.getEndByte());
         }
     }
 

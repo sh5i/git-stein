@@ -12,13 +12,13 @@ import jp.ac.titech.c.se.stein.core.SourceText;
  * under a method), and assignments the visitor never descends into — those inside a {@code command}
  * (an environment prefix or a substitution) — are pruned in {@link #postProcess}.
  */
-public class BashQueryAnalyzer extends QueryAnalyzer {
+public class BashAnalyzer extends QueryAnalyzer {
     private static final String QUERY = """
             (function_definition name: (_) @name) @method
             (variable_assignment name: (_) @name) @field
             """;
 
-    public BashQueryAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
+    public BashAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 

@@ -5,19 +5,70 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TreeSitterJava;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
 
 /**
- * Analyzes a Java file with the same extraction semantics and FinerGit-compatible naming as the JDT
- * generator: type declarations, methods and constructors, and one element per declared field. Method
- * and constructor bodies, field initializers, and anonymous class bodies are not descended into;
- * initializer blocks are, so local classes there are extracted like the JDT generator does.
+ * A query-based analyzer for Java: detection is the declarative {@link #QUERY} (class-like
+ * declarations, methods/constructors, and one field per declarator, matched at any depth), while
+ * naming applies the FinerGit method-name canonicalization and content attaches surrounding comments.
+ * The "don't extract inside a method body, but do inside an initializer block" rule falls out of the
+ * engine's generic containment: a class local to a method body nests under the method (a leaf) and is
+ * dropped, while one in an initializer block nests under its class.
  */
-public class JavaAnalyzer extends LanguageAnalyzer {
+public class JavaAnalyzer extends QueryAnalyzer {
+    private static final String QUERY = """
+            (class_declaration name: (identifier) @name) @class
+            (interface_declaration name: (identifier) @name) @class
+            (enum_declaration name: (identifier) @name) @class
+            (annotation_type_declaration name: (identifier) @name) @class
+            (record_declaration name: (identifier) @name) @class
+            (method_declaration) @method
+            (constructor_declaration) @method
+            (compact_constructor_declaration) @method
+            (field_declaration (variable_declarator name: (identifier) @name)) @field
+            (constant_declaration (variable_declarator name: (identifier) @name)) @field
+            """;
+
     public JavaAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
+    }
+
+    @Override
+    protected TSLanguage grammar() {
+        return new TreeSitterJava();
+    }
+
+    @Override
+    protected String queryString() {
+        return QUERY;
+    }
+
+    /**
+     * Rejects anything inside a {@code class_body} that belongs to an anonymous class or an enum
+     * constant rather than a type declaration: the visitor never descends into such a body (it treats
+     * it like an anonymous class), so e.g. the {@code shine()} of {@code enum Color { GREEN { void
+     * shine() {} } }} is not a member of {@code Color}.
+     */
+    @Override
+    protected boolean accept(final ElementKind kind, final TSNode node, final Captures captures) {
+        for (TSNode p = node.getParent(); p != null && !p.isNull(); p = p.getParent()) {
+            if (p.getType().equals("class_body")) {
+                final String owner = p.getParent().getType();
+                if (owner.equals("enum_constant") || owner.equals("object_creation_expression")) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    @Override
+    protected String name(final ElementKind kind, final TSNode node, final Captures captures) {
+        return kind == ElementKind.METHOD ? generateMethodName(node) : textOf(captures.get("name"));
     }
 
     @Override
@@ -26,55 +77,6 @@ public class JavaAnalyzer extends LanguageAnalyzer {
             case "method_declaration", "constructor_declaration", "compact_constructor_declaration" -> true;
             default -> false;
         };
-    }
-
-    @Override
-    protected void run() {
-        walk(treeRoot, root);
-    }
-
-    protected void walk(final TSNode node, final Element parent) {
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            switch (child.getType()) {
-                case "class_declaration", "interface_declaration", "enum_declaration",
-                     "annotation_type_declaration", "record_declaration" -> visitType(child, parent);
-                case "method_declaration", "constructor_declaration", "compact_constructor_declaration"
-                        -> visitMethod(child, parent);
-                case "field_declaration", "constant_declaration" -> visitField(child, parent);
-                // a class body reached here belongs to an anonymous class (object creation,
-                // enum constant); skipped like HistorageJdt
-                case "class_body" -> { }
-                default -> {
-                    if (!child.isError()) {
-                        walk(child, parent);
-                    }
-                }
-            }
-        }
-    }
-
-    protected void visitType(final TSNode node, final Element parent) {
-        final String name = textOf(node.getChildByFieldName("name"));
-        final Element klass = element(ElementKind.CLASS, name, parent, node);
-        final TSNode body = node.getChildByFieldName("body");
-        if (!body.isNull()) {
-            walk(body, klass);
-        }
-    }
-
-    protected void visitMethod(final TSNode node, final Element parent) {
-        element(ElementKind.METHOD, generateMethodName(node), parent, node);
-    }
-
-    protected void visitField(final TSNode node, final Element parent) {
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            if (child.getType().equals("variable_declarator")) {
-                final String name = textOf(child.getChildByFieldName("name"));
-                element(ElementKind.FIELD, name, parent, node);
-            }
-        }
     }
 
     /**

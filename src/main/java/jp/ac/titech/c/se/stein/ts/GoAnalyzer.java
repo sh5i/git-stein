@@ -13,7 +13,7 @@ import jp.ac.titech.c.se.stein.core.SourceText;
  * A query-based reimplementation of the imperative Go visitor: detection is the declarative {@link #QUERY},
  * and only naming (receiver-prefixed method names, type-list signatures) stays imperative.
  */
-public class GoQueryAnalyzer extends QueryAnalyzer {
+public class GoAnalyzer extends QueryAnalyzer {
     private static final String QUERY = """
             (const_declaration (const_spec name: (identifier) @name)) @field
             (var_declaration (var_spec name: (identifier) @name)) @field
@@ -25,7 +25,7 @@ public class GoQueryAnalyzer extends QueryAnalyzer {
                 name: (field_identifier) @name parameters: (parameter_list) @params) @method
             """;
 
-    public GoQueryAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
+    public GoAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 

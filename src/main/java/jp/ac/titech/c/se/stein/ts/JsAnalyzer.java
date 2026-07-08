@@ -3,124 +3,142 @@ package jp.ac.titech.c.se.stein.ts;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TreeSitterJavascript;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
 
 /**
- * Analyzes a JavaScript file: classes, functions (function declarations, class methods, and arrow or
- * function expressions bound to a variable), and fields (class fields and non-function top-level
- * bindings). Function bodies are not descended into, and object-literal methods are not extracted.
+ * A query-based analyzer for JavaScript: detection is the declarative {@link #QUERY} (class
+ * declarations with their method and field members, top-level functions, and variable bindings),
+ * while naming supplies parameter-name signatures and the method-versus-field decision for a binding.
+ * Class members are captured only inside a named {@code class_declaration}, so an object-literal method
+ * or a class-expression member is not extracted. The "do not descend into a function body" rule falls
+ * out of the engine's generic containment: anything nested under a captured method or field is dropped.
  * Since JavaScript is untyped, a signature lists parameter names.
  */
-public class JsAnalyzer extends LanguageAnalyzer {
+public class JsAnalyzer extends QueryAnalyzer {
+    private static final String QUERY = """
+            (class_declaration name: (_) @name) @class
+            (class_declaration body: (class_body (method_definition name: (_) @name) @method))
+            (class_declaration body: (class_body (field_definition property: (_) @name) @field))
+            (function_declaration name: (_) @name) @method
+            (generator_function_declaration name: (_) @name) @method
+            (lexical_declaration (variable_declarator name: (identifier) @name)) @field
+            (variable_declaration (variable_declarator name: (identifier) @name)) @field
+            (export_statement value: (_)) @field
+            """;
+
     public JsAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 
     @Override
-    protected void run() {
-        walk(treeRoot, root);
+    protected TSLanguage grammar() {
+        return new TreeSitterJavascript();
     }
 
-    protected void walk(final TSNode node, final Element parent) {
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            if (child.getType().equals("export_statement")) {
-                visitExport(child, parent);
-            } else if (!dispatch(child, child, parent) && !child.isError()) {
-                walk(child, parent);
-            }
-        }
+    @Override
+    protected String queryString() {
+        return QUERY;
     }
 
     /**
-     * Dispatches a declaration to its visitor, using {@code extent} as the content range (which
-     * differs from {@code def} when unwrapping an export). Returns whether it was handled; subclasses
-     * override to add language constructs and delegate the rest to {@code super}.
+     * A variable binding whose value is a function is a method; any other binding is a field. Every
+     * other captured kind is kept.
      */
-    protected boolean dispatch(final TSNode extent, final TSNode def, final Element parent) {
-        switch (def.getType()) {
-            case "class_declaration" -> visitClass(extent, def, parent);
-            case "function_declaration", "generator_function_declaration" -> visitMethod(extent, def, parent);
-            case "lexical_declaration", "variable_declaration" -> visitDeclaration(extent, def, parent);
-            default -> {
-                return false;
-            }
+    @Override
+    protected ElementKind refineKind(final ElementKind kind, final TSNode node, final Captures captures) {
+        if (!isBinding(node)) {
+            return kind;
         }
-        return true;
+        final TSNode value = bindingValue(node, captures);
+        return !value.isNull() && isFunction(value) ? ElementKind.METHOD : ElementKind.FIELD;
+    }
+
+    @Override
+    protected String name(final ElementKind kind, final TSNode node, final Captures captures) {
+        final TSNode nameNode = captures.get("name");
+        final String leaf = nameNode == null ? "" : flatten(textOf(nameNode));
+        if (kind != ElementKind.METHOD) {
+            return leaf;
+        }
+        final TSNode fn = isBinding(node) ? bindingValue(node, captures) : node;
+        return leaf + "(" + signature(fn) + ")";
     }
 
     /**
-     * Unwraps an export statement, visiting the declaration it exports with the {@code export} keyword
-     * included in the extent. An anonymous default export or a re-export has nothing named to extract.
+     * Drops the elements the visitor would never reach. The visitor stops walking at a declaration it
+     * recognizes, so it never descends into a binding's value; anything the query captured there (a
+     * function or class nested in a destructuring binding's initializer) is pruned. It also never
+     * descends into an export the {@code export} path cannot dispatch — an exported ambient declaration
+     * ({@code export declare ...}) or a value export ({@code export default {...}}) — whose subtree an
+     * {@code @field} barrier already dropped during the build, leaving only the barrier's placeholder
+     * element to remove here.
      */
-    protected void visitExport(final TSNode node, final Element parent) {
-        final TSNode decl = node.getChildByFieldName("declaration");
-        if (!decl.isNull()) {
-            dispatch(node, decl, parent);
-        }
+    @Override
+    protected void postProcess() {
+        prune(root);
     }
 
-    protected void visitClass(final TSNode extent, final TSNode def, final Element parent) {
-        final TSNode name = def.getChildByFieldName("name");
-        if (name.isNull()) {
-            return;
+    private void prune(final Element e) {
+        e.getChildren().removeIf(c -> isBarrierPlaceholder(c) || isInsideBinding(c));
+        e.getChildren().forEach(this::prune);
+    }
+
+    private boolean isBarrierPlaceholder(final Element e) {
+        if (e.node == null || !e.node.getType().equals("export_statement")) {
+            return false;
         }
-        final Element klass = element(ElementKind.CLASS, flatten(textOf(name)), parent, extent);
-        final TSNode body = def.getChildByFieldName("body");
-        if (body.isNull()) {
-            return;
+        // a barrier export tags the whole statement; a real exported element's node is an
+        // export_statement whose declaration this reused (via contentNode), so keep those
+        final TSNode decl = e.node.getChildByFieldName("declaration");
+        return decl.isNull() || decl.getType().equals("ambient_declaration");
+    }
+
+    private boolean isInsideBinding(final Element e) {
+        if (e.node == null) {
+            return false;
         }
-        for (int i = 0; i < body.getNamedChildCount(); i++) {
-            final TSNode member = body.getNamedChild(i);
-            switch (member.getType()) {
-                case "method_definition" -> visitMethod(member, member, klass);
-                case "field_definition", "public_field_definition" -> visitField(member, klass);
-                default -> { }
+        final int start = e.node.getStartByte();
+        for (TSNode p = e.node.getParent(); p != null && !p.isNull(); p = p.getParent()) {
+            final String type = p.getType();
+            if ((type.equals("lexical_declaration") || type.equals("variable_declaration"))
+                    && p.getStartByte() < start) {
+                return true;
             }
         }
-    }
-
-    protected void visitMethod(final TSNode extent, final TSNode def, final Element parent) {
-        final TSNode name = def.getChildByFieldName("name");
-        if (!name.isNull()) {
-            element(ElementKind.METHOD, flatten(textOf(name)) + "(" + signature(def) + ")", parent, extent);
-        }
-    }
-
-    protected void visitField(final TSNode node, final Element parent) {
-        // a JavaScript field_definition names it "property"; a TypeScript field/signature "name"
-        TSNode name = node.getChildByFieldName("property");
-        if (name.isNull()) {
-            name = node.getChildByFieldName("name");
-        }
-        if (!name.isNull()) {
-            element(ElementKind.FIELD, flatten(textOf(name)), parent, node);
-        }
+        return false;
     }
 
     /**
-     * A variable binding whose value is a function becomes a method element; any other binding becomes
-     * a field element. Destructuring bindings (whose name is a pattern) are skipped.
+     * An exported declaration's content is its whole {@code export_statement}, so it includes the
+     * {@code export} keyword and any decorators preceding the declaration, matching the visitor, which
+     * treats the export statement as the extent.
      */
-    protected void visitDeclaration(final TSNode extent, final TSNode def, final Element parent) {
-        for (int i = 0; i < def.getNamedChildCount(); i++) {
-            final TSNode declarator = def.getNamedChild(i);
-            if (!declarator.getType().equals("variable_declarator")) {
-                continue;
-            }
-            final TSNode name = declarator.getChildByFieldName("name");
-            if (name.isNull() || !name.getType().equals("identifier")) {
-                continue;
-            }
-            final TSNode value = declarator.getChildByFieldName("value");
-            if (!value.isNull() && isFunction(value)) {
-                element(ElementKind.METHOD, flatten(textOf(name)) + "(" + signature(value) + ")", parent, extent);
-            } else {
-                element(ElementKind.FIELD, flatten(textOf(name)), parent, extent);
+    @Override
+    protected TSNode contentNode(final TSNode node) {
+        final TSNode parent = node.getParent();
+        if (parent != null && !parent.isNull() && parent.getType().equals("export_statement")) {
+            final TSNode decl = parent.getChildByFieldName("declaration");
+            if (!decl.isNull() && sameNode(decl, node)) {
+                return parent;
             }
         }
+        return node;
+    }
+
+    private boolean isBinding(final TSNode node) {
+        final String type = node.getType();
+        return type.equals("lexical_declaration") || type.equals("variable_declaration");
+    }
+
+    /**
+     * The value assigned to the captured binding, found from its name identifier's declarator.
+     */
+    private TSNode bindingValue(final TSNode node, final Captures captures) {
+        return captures.get("name").getParent().getChildByFieldName("value");
     }
 
     protected boolean isFunction(final TSNode value) {

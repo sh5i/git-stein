@@ -1,87 +1,54 @@
 package jp.ac.titech.c.se.stein.ts;
 
+import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TreeSitterTypescript;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
 
 /**
- * Analyzes a TypeScript file. TypeScript is a superset of JavaScript, so this reuses
- * {@link JsAnalyzer} and adds the TypeScript-only constructs: namespaces (naming scopes), interfaces
- * and enums (classes), abstract classes, type aliases (fields), and the {@code required}/
- * {@code optional} parameter wrappers. Parameter types are dropped, leaving parameter names in the
- * signature.
+ * A query-based analyzer for TypeScript. TypeScript is a superset of JavaScript, so this reuses
+ * {@link JsAnalyzer}'s naming and binding logic and supplies a query that adds the TypeScript
+ * constructs: abstract classes and their members, interfaces (classes whose method and property
+ * signatures are members), enums (classes), type aliases (fields), and namespaces
+ * ({@code internal_module}/{@code module}) as {@code @scope}. Parameter types are stripped, leaving
+ * parameter names.
  */
 public class TsAnalyzer extends JsAnalyzer {
+    private static final String QUERY = """
+            (class_declaration name: (_) @name) @class
+            (class_declaration body: (class_body (method_definition name: (_) @name) @method))
+            (class_declaration body: (class_body (public_field_definition name: (_) @name) @field))
+            (abstract_class_declaration name: (_) @name) @class
+            (abstract_class_declaration body: (class_body (method_definition name: (_) @name) @method))
+            (abstract_class_declaration body: (class_body (public_field_definition name: (_) @name) @field))
+            (function_declaration name: (_) @name) @method
+            (generator_function_declaration name: (_) @name) @method
+            (lexical_declaration (variable_declarator name: (identifier) @name)) @field
+            (variable_declaration (variable_declarator name: (identifier) @name)) @field
+            (interface_declaration name: (_) @name) @class
+            (interface_declaration body: (interface_body (method_signature name: (_) @name) @method))
+            (interface_declaration body: (interface_body (property_signature name: (_) @name) @field))
+            (enum_declaration name: (_) @name) @class
+            (type_alias_declaration name: (_) @name) @field
+            (internal_module name: (_) @name) @scope
+            (module name: (_) @name) @scope
+            (export_statement value: (_)) @field
+            (export_statement declaration: (ambient_declaration)) @field
+            """;
+
     public TsAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         super(filename, text, treeRoot);
     }
 
     @Override
-    protected boolean dispatch(final TSNode extent, final TSNode def, final Element parent) {
-        switch (def.getType()) {
-            case "abstract_class_declaration" -> visitClass(extent, def, parent);
-            case "interface_declaration" -> visitInterface(extent, def, parent);
-            case "enum_declaration" -> visitType(extent, def, parent);
-            case "type_alias_declaration" -> visitTypeAlias(extent, def, parent);
-            case "internal_module", "module" -> visitNamespace(def, parent);
-            default -> {
-                return super.dispatch(extent, def, parent);
-            }
-        }
-        return true;
+    protected TSLanguage grammar() {
+        return new TreeSitterTypescript();
     }
 
-    /**
-     * An interface is a class element whose members are its property signatures (fields) and method
-     * signatures (methods).
-     */
-    protected void visitInterface(final TSNode extent, final TSNode def, final Element parent) {
-        final TSNode name = def.getChildByFieldName("name");
-        if (name.isNull()) {
-            return;
-        }
-        final Element iface = element(ElementKind.CLASS, flatten(textOf(name)), parent, extent);
-        final TSNode body = def.getChildByFieldName("body");
-        if (body.isNull()) {
-            return;
-        }
-        for (int i = 0; i < body.getNamedChildCount(); i++) {
-            final TSNode member = body.getNamedChild(i);
-            switch (member.getType()) {
-                case "method_signature" -> visitMethod(member, member, iface);
-                case "property_signature" -> visitField(member, iface);
-                default -> { }
-            }
-        }
-    }
-
-    /**
-     * An enum or other named type declaration becomes a class element without descending.
-     */
-    protected void visitType(final TSNode extent, final TSNode def, final Element parent) {
-        final TSNode name = def.getChildByFieldName("name");
-        if (!name.isNull()) {
-            element(ElementKind.CLASS, flatten(textOf(name)), parent, extent);
-        }
-    }
-
-    protected void visitTypeAlias(final TSNode extent, final TSNode def, final Element parent) {
-        final TSNode name = def.getChildByFieldName("name");
-        if (!name.isNull()) {
-            element(ElementKind.FIELD, flatten(textOf(name)), parent, extent);
-        }
-    }
-
-    /**
-     * A namespace ({@code internal_module}) is a naming scope only, never emitted as an element.
-     */
-    protected void visitNamespace(final TSNode node, final Element parent) {
-        final TSNode name = node.getChildByFieldName("name");
-        final Element scope = name.isNull() ? parent : element(ElementKind.CLASS, flatten(textOf(name)), parent, null);
-        final TSNode body = node.getChildByFieldName("body");
-        if (!body.isNull()) {
-            walk(body, scope);
-        }
+    @Override
+    protected String queryString() {
+        return QUERY;
     }
 
     @Override
