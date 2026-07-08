@@ -57,4 +57,19 @@ public class Element {
     public boolean hasContent() {
         return node != null;
     }
+
+    /**
+     * The byte offset where this element's source begins, or -1 for a scope with no source of its own.
+     */
+    public int getStartByte() {
+        return node == null ? -1 : node.getStartByte();
+    }
+
+    /**
+     * The byte offset where this element's source ends (past its spanned body, if any), or -1 for a
+     * scope.
+     */
+    public int getEndByte() {
+        return node == null ? -1 : (endNode != null ? endNode : node).getEndByte();
+    }
 }
