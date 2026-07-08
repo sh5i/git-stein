@@ -93,7 +93,8 @@ public class HistorageTreeSitter extends HistorageBase {
      */
     private final List<LanguageProfile> profiles = List.of(
             new LanguageProfile(PYTHON, TreeSitterPython::new, PythonSource::decode, PythonModuleGenerator::new),
-            new LanguageProfile(JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaModuleGenerator::new),
+            new LanguageProfile(JAVA, TreeSitterJava::new, SourceText::ofNormalized,
+                    (fn, txt) -> new JavaModuleGenerator(fn, txt, requiresClasses, requiresMethods, requiresFields)),
             new LanguageProfile(CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppModuleGenerator::new),
             new LanguageProfile(CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpModuleGenerator::new),
             new LanguageProfile(JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized, JsModuleGenerator::new),
@@ -174,7 +175,7 @@ public class HistorageTreeSitter extends HistorageBase {
      * The shared skeleton of a tree-sitter module generator. A subclass walks its language's CST in
      * {@link #run} and emits {@link Module} instances via {@link #module}.
      */
-    public abstract class ModuleGenerator {
+    public abstract static class ModuleGenerator {
         protected final String filename;
 
         protected final SourceText text;
@@ -398,9 +399,19 @@ public class HistorageTreeSitter extends HistorageBase {
      * constructor bodies, field initializers, and anonymous class bodies are not descended into;
      * initializer blocks are, so local classes there are extracted like HistorageJdt does.
      */
-    public class JavaModuleGenerator extends ModuleGenerator {
-        public JavaModuleGenerator(final String filename, final SourceText text) {
+    public static class JavaModuleGenerator extends ModuleGenerator {
+        protected final boolean requiresClasses;
+
+        protected final boolean requiresMethods;
+
+        protected final boolean requiresFields;
+
+        public JavaModuleGenerator(final String filename, final SourceText text, final boolean requiresClasses,
+                                   final boolean requiresMethods, final boolean requiresFields) {
             super(filename, text, FinerGitNaming.INSTANCE);
+            this.requiresClasses = requiresClasses;
+            this.requiresMethods = requiresMethods;
+            this.requiresFields = requiresFields;
         }
 
         @Override
@@ -432,7 +443,8 @@ public class HistorageTreeSitter extends HistorageBase {
 
         protected void visitType(final TSNode node, final Module parent) {
             final String name = textOf(node.getChildByFieldName("name"));
-            final Module klass = module(Kind.CLASS, name, parent, contentOf(node));
+            // a subclass that does not emit classes (e.g. Finer) uses the class only as a naming scope
+            final Module klass = module(Kind.CLASS, name, parent, requiresClasses ? contentOf(node) : null);
             if (requiresClasses) {
                 modules.add(klass);
             }
