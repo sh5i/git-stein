@@ -54,7 +54,7 @@ public class FinerTest {
                 if IF
                 ( IF_STATEMENT_LPAREN
                 length VARIABLE_NAME
-                == ==
+                == BINARY_EXPRESSION_EQEQ
                 0 DECIMAL_INTEGER_LITERAL
                 ) IF_STATEMENT_RPAREN
                 { IF_STATEMENT_LBRACE

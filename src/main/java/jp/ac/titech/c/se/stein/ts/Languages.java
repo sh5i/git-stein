@@ -61,19 +61,19 @@ public final class Languages {
      * The registered languages, tried in order; the first whose filter accepts a blob handles it.
      */
     private static final List<Entry> ENTRIES = List.of(
-            new Entry(PYTHON, TreeSitterPython::new, PythonSource::decode, PythonAnalyzer::new),
-            new Entry(JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaAnalyzer::new),
-            new Entry(CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppAnalyzer::new),
-            new Entry(CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpAnalyzer::new),
-            new Entry(JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized, JsAnalyzer::new),
-            new Entry(TYPESCRIPT, TreeSitterTypescript::new, SourceText::ofNormalized, TsAnalyzer::new),
+            new Entry("Python", PYTHON, TreeSitterPython::new, PythonSource::decode, PythonAnalyzer::new),
+            new Entry("Java", JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaAnalyzer::new),
+            new Entry("C++", CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppAnalyzer::new),
+            new Entry("C#", CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpAnalyzer::new),
+            new Entry("JavaScript", JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized, JsAnalyzer::new),
+            new Entry("TypeScript", TYPESCRIPT, TreeSitterTypescript::new, SourceText::ofNormalized, TsAnalyzer::new),
             // C is a subset of C++, so it reuses the C++ analyzer with the C grammar
-            new Entry(C, TreeSitterC::new, SourceText::ofNormalized, CppAnalyzer::new),
-            new Entry(GO, TreeSitterGo::new, SourceText::ofNormalized, GoAnalyzer::new),
-            new Entry(KOTLIN, TreeSitterKotlin::new, SourceText::ofNormalized, KotlinAnalyzer::new),
-            new Entry(RUST, TreeSitterRust::new, SourceText::ofNormalized, RustAnalyzer::new),
-            new Entry(SWIFT, TreeSitterSwift::new, SourceText::ofNormalized, SwiftAnalyzer::new),
-            new Entry(RUBY, TreeSitterRuby::new, SourceText::ofNormalized, RubyAnalyzer::new));
+            new Entry("C", C, TreeSitterC::new, SourceText::ofNormalized, CppAnalyzer::new),
+            new Entry("Go", GO, TreeSitterGo::new, SourceText::ofNormalized, GoAnalyzer::new),
+            new Entry("Kotlin", KOTLIN, TreeSitterKotlin::new, SourceText::ofNormalized, KotlinAnalyzer::new),
+            new Entry("Rust", RUST, TreeSitterRust::new, SourceText::ofNormalized, RustAnalyzer::new),
+            new Entry("Swift", SWIFT, TreeSitterSwift::new, SourceText::ofNormalized, SwiftAnalyzer::new),
+            new Entry("Ruby", RUBY, TreeSitterRuby::new, SourceText::ofNormalized, RubyAnalyzer::new));
 
     private Languages() {
     }
@@ -83,6 +83,13 @@ public final class Languages {
      */
     public static boolean accepts(final String filename) {
         return ENTRIES.stream().anyMatch(e -> e.filter.accept(filename));
+    }
+
+    /**
+     * The display name of the first language that accepts the given file name, or null when none does.
+     */
+    public static String nameOf(final String filename) {
+        return ENTRIES.stream().filter(e -> e.filter.accept(filename)).findFirst().map(e -> e.name).orElse(null);
     }
 
     /**
@@ -115,6 +122,8 @@ public final class Languages {
      * thread-safe.
      */
     private static final class Entry {
+        private final String name;
+
         private final NameFilter filter;
 
         private final ThreadLocal<TSParser> parser;
@@ -123,8 +132,9 @@ public final class Languages {
 
         private final Factory factory;
 
-        Entry(final NameFilter filter, final Supplier<TSLanguage> language,
+        Entry(final String name, final NameFilter filter, final Supplier<TSLanguage> language,
               final Function<byte[], SourceText> decoder, final Factory factory) {
+            this.name = name;
             this.filter = filter;
             this.parser = ThreadLocal.withInitial(() -> {
                 final TSParser p = new TSParser();

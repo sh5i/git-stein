@@ -1,8 +1,15 @@
 package jp.ac.titech.c.se.stein.ts;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import org.treesitter.TSNode;
+import org.treesitter.TSPoint;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.util.Names;
@@ -66,6 +73,93 @@ public abstract class LanguageAnalyzer {
      */
     public String render(final Element e, final RenderOptions options) {
         return options.tokenizes() ? tokenize(e.node, options) : rawContentOf(e.node);
+    }
+
+    /**
+     * A visitor over the structured token stream: a class/method/field element opens with
+     * {@link #begin} before its tokens and closes with {@link #end} after them, so a consumer such as
+     * cregit can wrap each declaration in {@code begin_}/{@code end_} markers.
+     */
+    public interface TokenSink {
+        void begin(ElementKind kind);
+
+        void token(Token token);
+
+        void end(ElementKind kind);
+    }
+
+    /**
+     * Walks the whole file's token stream, wrapping each extracted class/method/field element (by its
+     * source range) in a {@link TokenSink#begin}/{@link TokenSink#end} pair. Naming scopes with no
+     * source region of their own (e.g. namespaces) are not wrapped, but every token is still emitted.
+     */
+    public void walkTokens(final TokenSink sink) {
+        final List<int[]> regions = new ArrayList<>();
+        collectRegions(root, regions, new HashSet<>());
+        // outermost first at the same start, so nesting opens correctly
+        regions.sort((x, y) -> x[0] != y[0] ? Integer.compare(x[0], y[0]) : Integer.compare(y[1], x[1]));
+        final Deque<int[]> open = new ArrayDeque<>();
+        int r = 0;
+        for (final Token t : tokens(root)) {
+            final int p = t.start();
+            while (!open.isEmpty() && open.peek()[1] <= p) {
+                sink.end(ElementKind.values()[open.pop()[2]]);
+            }
+            while (r < regions.size() && regions.get(r)[0] <= p) {
+                final int[] region = regions.get(r++);
+                if (region[1] > p) {
+                    sink.begin(ElementKind.values()[region[2]]);
+                    open.push(region);
+                }
+            }
+            sink.token(t);
+        }
+        while (!open.isEmpty()) {
+            sink.end(ElementKind.values()[open.pop()[2]]);
+        }
+    }
+
+    private void collectRegions(final Element e, final List<int[]> regions, final Set<Long> seen) {
+        for (final Element c : e.getChildren()) {
+            if (c.node != null) {
+                final int start = c.node.getStartByte();
+                final int end = c.node.getEndByte();
+                if (seen.add((long) start << 32 | (end & 0xffffffffL))) {
+                    regions.add(new int[] {start, end, c.getKind().ordinal()});
+                }
+            }
+            collectRegions(c, regions, seen);
+        }
+    }
+
+    /**
+     * The full leaf-token stream of an element, comments included, each typed by {@link #category}.
+     * Unlike the FinerGit token sequence, it keeps every token (no comment skipping, no frame
+     * omission); a consumer such as cregit serializes it one token per line. Passing the file root
+     * yields the whole file's tokens.
+     */
+    public List<Token> tokens(final Element e) {
+        final List<Token> out = new ArrayList<>();
+        collectTokens(e.node, out);
+        return out;
+    }
+
+    private void collectTokens(final TSNode node, final List<Token> out) {
+        if (node.getChildCount() > 0) {
+            for (int i = 0; i < node.getChildCount(); i++) {
+                collectTokens(node.getChild(i), out);
+            }
+            return;
+        }
+        if (node.isMissing()) {
+            return; // an inserted error-recovery token is not real source
+        }
+        final String text = textOf(node).replaceAll("[\\r\\n]+", " ").trim();
+        if (text.isEmpty()) {
+            return;
+        }
+        final TSPoint start = node.getStartPoint();
+        out.add(new Token(text, category(node), start.getRow() + 1, start.getColumn() + 1, node.getStartByte()));
     }
 
     protected String textOf(final TSNode node) {
@@ -176,30 +270,69 @@ public abstract class LanguageAnalyzer {
     }
 
     /**
-     * The FinerGit token type. Brackets, parentheses, and semicolons are refined with their syntactic
-     * context (Heuristic 1): a wrapper node ({@code block}, {@code statement_block},
-     * {@code compound_statement}, {@code parenthesized_expression}) yields to the enclosing statement,
-     * so a method body brace and an {@code if} block brace get distinct types. Every other token
-     * defers to {@link #tokenType}.
+     * The FinerGit token type. A punctuation or operator token is refined with its syntactic context
+     * (Heuristic 1): its type is {@code <context>_<symbol-name>}, where a wrapper node ({@code block},
+     * {@code statement_block}, {@code compound_statement}, {@code parenthesized_expression}) yields to
+     * the enclosing statement, so a method body brace and an {@code if} block brace get distinct types,
+     * and an {@code if} condition operator differs from a return-value one. Every other token defers to
+     * {@link #tokenType}.
      */
     protected String category(final TSNode leaf) {
-        final String symbol = switch (leaf.getType()) {
-            case "(" -> "LPAREN";
-            case ")" -> "RPAREN";
-            case "{" -> "LBRACE";
-            case "}" -> "RBRACE";
-            case ";" -> "SEMICOLON";
-            case "," -> "COMMA";
-            case "[" -> "LBRACKET";
-            case "]" -> "RBRACKET";
-            default -> null;
-        };
+        final String symbol = symbolName(leaf.getType());
         if (symbol == null) {
             return tokenType(leaf);
         }
         final TSNode parent = leaf.getParent();
         final String context = isWrapper(parent.getType()) ? parent.getParent().getType() : parent.getType();
         return context.toUpperCase(Locale.ROOT) + "_" + symbol;
+    }
+
+    /**
+     * The name of a punctuation or operator token, each character spelled out (so {@code ==} becomes
+     * {@code EQEQ} and {@code ->} becomes {@code MINUSGT}), or null when the token is not pure
+     * punctuation (a keyword, identifier, or literal).
+     */
+    protected String symbolName(final String type) {
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < type.length(); i++) {
+            final String word = switch (type.charAt(i)) {
+                case '(' -> "LPAREN";
+                case ')' -> "RPAREN";
+                case '{' -> "LBRACE";
+                case '}' -> "RBRACE";
+                case '[' -> "LBRACKET";
+                case ']' -> "RBRACKET";
+                case ';' -> "SEMICOLON";
+                case ',' -> "COMMA";
+                case '.' -> "DOT";
+                case ':' -> "COLON";
+                case '?' -> "QUESTION";
+                case '+' -> "PLUS";
+                case '-' -> "MINUS";
+                case '*' -> "STAR";
+                case '/' -> "SLASH";
+                case '%' -> "PERCENT";
+                case '=' -> "EQ";
+                case '<' -> "LT";
+                case '>' -> "GT";
+                case '!' -> "BANG";
+                case '&' -> "AMP";
+                case '|' -> "PIPE";
+                case '^' -> "CARET";
+                case '~' -> "TILDE";
+                case '@' -> "AT";
+                case '#' -> "HASH";
+                case '$' -> "DOLLAR";
+                case '\\' -> "BACKSLASH";
+                case '`' -> "BACKTICK";
+                default -> null;
+            };
+            if (word == null) {
+                return null;
+            }
+            sb.append(word);
+        }
+        return sb.isEmpty() ? null : sb.toString();
     }
 
     /**
