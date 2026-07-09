@@ -34,19 +34,13 @@ import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
 
 /**
- * Splits source files into finer-grained Historage modules (one file per class, method, or field),
- * choosing the analysis backend per file. {@code --backend} lists backends in priority order; each
- * file is handled by the first that accepts it. Available backends: {@code ts} (tree-sitter, every
- * supported language), {@code jdt} (Eclipse JDT, Java only, adding comment/mapping side files and
- * binding-based method naming), {@code srcml}, and {@code ctags} (universal-ctags, needs the
- * {@code ctags} command). The default {@code ts,ctags} handles all tree-sitter languages with
- * tree-sitter and falls back to ctags for the rest; use {@code --backend jdt} for the JDT-only
- * features.
+ * Explodes each source file into finer-grained Historage modules: one file per class, method, or
+ * field, named after the declaration it holds. Committing these derived files, instead of or beside
+ * the originals, lets Git track history, blame, and renames at the granularity of individual program
+ * entities rather than whole files. Each blob is parsed by a pluggable analysis backend and its
+ * declarations are emitted as separate module files, with optional comment and mapping side files.
  *
- * <p>With {@code --tokens} each module's content is rendered as a FinerGit-style token sequence (one
- * token per line, optionally annotated with its type) instead of the raw source, and classes become
- * naming scopes only; this only applies where the analyzer tokenizes, i.e. the tree-sitter backend.</p>
- *
+ * @see <a href="https://github.com/hideakihata/git2historage">git2historage</a>
  * @see <a href="https://github.com/kusumotolab/FinerGit">FinerGit</a>
  */
 @ToString
@@ -54,69 +48,148 @@ import picocli.CommandLine.Option;
 public class Historage implements BlobTranslator {
     public enum BackendType { ts, jdt, srcml, ctags }
 
+    /**
+     * Whether to keep the original, unsplit file alongside the generated modules.
+     */
     @Option(names = "--no-original", negatable = true, description = "Exclude original files")
     protected boolean requiresOriginals = true;
 
+    /**
+     * The analysis backends to try, in priority order; each file is handled by the first whose languages
+     * include it.
+     * <ul>
+     * <li>{@code ts}: tree-sitter, every supported language.</li>
+     * <li>{@code jdt}: Eclipse JDT, Java only, with binding-resolved method names.</li>
+     * <li>{@code srcml}: srcML.</li>
+     * <li>{@code ctags}: universal-ctags.</li>
+     * </ul>
+     * The default {@code ts,ctags} falls back to ctags for the languages tree-sitter does not cover.
+     */
     @Option(names = "--backend", split = ",", paramLabel = "<b>",
             description = "analysis backends in priority order (${COMPLETION-CANDIDATES}; default: ${DEFAULT-VALUE})")
     protected List<BackendType> backendNames = List.of(BackendType.ts, BackendType.ctags);
 
+    /**
+     * Whether a class (or other type declaration) becomes its own module file. With {@code --tokens} a
+     * class is only a naming scope and emits no file of its own, regardless of this option.
+     */
     @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
     protected boolean requiresClasses = true;
 
+    /**
+     * Whether a method becomes its own module file.
+     */
     @Option(names = "--no-methods", negatable = true, description = "[ex]/include method files")
     protected boolean requiresMethods = true;
 
+    /**
+     * Whether a field becomes its own module file.
+     */
     @Option(names = "--no-fields", negatable = true, description = "[ex]/include field files")
     protected boolean requiresFields = true;
 
+    /**
+     * Whether to render each module as a FinerGit-style token sequence, one token per line, in place of
+     * its raw source. Applies only where the backend tokenizes, i.e. the tree-sitter backend.
+     */
     @Option(names = "--tokens", description = "render modules as FinerGit token sequences (tree-sitter)")
     protected boolean tokens = false;
 
+    /**
+     * With {@code --tokens}, whether each token is annotated with its type (FinerGit Heuristic 1).
+     */
     @Option(names = "--token-type", negatable = true,
             description = "annotate each token with its type (FinerGit Heuristic 1; with --tokens)")
     protected boolean includesTokenType = true;
 
+    /**
+     * With {@code --tokens}, whether a method's frame tokens, its parameter parentheses and body braces,
+     * are dropped from the sequence (FinerGit Heuristic 2).
+     */
     @Option(names = "--omit-frame", negatable = true,
             description = "omit each method's parameter parentheses and body braces (Heuristic 2; with --tokens)")
     protected boolean omitsFrame = true;
 
+    /**
+     * Whether to emit, beside each module, a side file holding the comments attached to its declaration.
+     */
     @Option(names = "--comments", description = "extract comment files (jdt)")
     protected boolean requiresComments = false;
 
+    /**
+     * Whether a module's own content excludes the comments attached to its declaration, leaving them
+     * only in the comment side file (jdt backend).
+     */
     @Option(names = "--separate-comments", description = "exclude comments from modules (jdt)")
     protected boolean separatesComments = false;
 
+    /**
+     * Whether to emit a mapping side file: one JSON record per module giving its file name and its line
+     * range in the original source.
+     */
     @Option(names = "--mapping", description = "extract mapping file (jdt)")
     protected boolean requiresMapping = false;
 
+    /**
+     * The file-name extension appended to a module's name to form its comment side file.
+     */
     @Option(names = "--comment-ext", paramLabel = "<ext>", description = "comment file extension (default: ${DEFAULT-VALUE})")
     protected String commentExtension = ".com";
 
+    /**
+     * The file name of the mapping side file, formed from the source file's base name and this extension.
+     */
     @Option(names = "--mapping-ext", paramLabel = "<ext>", description = "mapping file extension (default: ${DEFAULT-VALUE})")
     protected String mappingExtension = ".mapping";
 
+    /**
+     * Whether a method module's name digests its parameter list into a short fixed-length hash instead
+     * of spelling the parameters out, keeping the file name short (Java naming).
+     */
     @Option(names = "--digest-params", description = "digest parameters (jdt)")
     protected boolean digestParameters = false;
 
+    /**
+     * Whether the type names in a method module's name drop their package qualification (Java naming).
+     */
     @Option(names = "--unqualify", description = "unqualify typenames (jdt)")
     protected boolean unqualifyTypename = false;
 
+    /**
+     * Whether to emit each module in a form that is more likely to parse on its own (jdt backend).
+     */
     @Option(names = "--parsable", description = "generate more parsable files (jdt)")
     protected boolean parsable = false;
 
+    /**
+     * The {@code srcml} executable to invoke (srcml backend).
+     */
     @Option(names = "--srcml", description = "srcml command used (srcml)")
     protected String srcml = "srcml";
 
+    /**
+     * The {@code ctags} executable to invoke (ctags backend).
+     */
     @Option(names = "--ctags", description = "ctags command used (ctags)")
     protected String ctags = "ctags";
 
+    /**
+     * Whether a module file keeps the original source file's extension rather than a kind-derived one
+     * (ctags backend).
+     */
     @Option(names = "--no-original-ext", negatable = true, description = "disuse original file extension (ctags)")
     protected boolean requiresOriginalExtension = true;
 
+    /**
+     * Whether a module's name digests the declaration signature into a short fixed-length hash (ctags
+     * backend).
+     */
     @Option(names = "--no-digest-sig", negatable = true, description = "stop digesting signature (ctags)")
     protected boolean digestSignature = true;
 
+    /**
+     * The ctags kinds to emit as modules; when unset, every kind is included (ctags backend).
+     */
     @Option(names = "--kind", paramLabel = "<k>", description = "module kinds to include (ctags)",
             arity = "0..*", split = ",")
     protected Set<String> moduleKinds;

@@ -22,14 +22,14 @@ import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
 
 /**
- * Converts source files to cregit token-per-line format, choosing the analysis backend per file.
- * {@code --backend} lists backends in priority order; each file is handled by the first that accepts
- * it. Available backends: {@code srcml} (C, C++, C#, Java; preprocessor-aware; needs the {@code srcml}
- * command) and {@code ts} (tree-sitter, every supported language). Both write one token per line as
- * {@code type|content} and wrap each class/method/field in a {@code begin_}/{@code end_} pair, but
- * their token vocabularies differ (srcML element names vs grammar-derived types), so their output is
- * not byte-identical. The default {@code srcml,ts} uses srcML where it applies and tree-sitter for the
- * rest.
+ * Converts each source file to cregit's token-per-line format: every leaf token on its own line as
+ * {@code type|content}, with each class, method, or field wrapped in a matching {@code begin_} /
+ * {@code end_} pair. Exposing a file's token stream this way lets Git follow history and blame at the
+ * token level. Each blob is tokenized by a pluggable analysis backend; because the backends type
+ * tokens differently (srcML element names vs grammar-derived types), their output is not
+ * byte-identical.
+ *
+ * @see <a href="https://github.com/dmgerman/tokenizers">cregit tokenizer</a>
  */
 @Slf4j
 @ToString
@@ -39,19 +39,38 @@ public class Cregit implements BlobTranslator {
 
     public enum BackendType { srcml, ts }
 
+    /**
+     * The analysis backends to try, in priority order; each file is handled by the first whose languages
+     * include it.
+     * <ul>
+     * <li>{@code srcml}: srcML, C, C++, C#, and Java, preprocessor-aware.</li>
+     * <li>{@code ts}: tree-sitter, every supported language.</li>
+     * </ul>
+     * The default {@code srcml,ts} falls back to tree-sitter for the languages srcML does not cover.
+     */
     @Option(names = "--backend", split = ",", paramLabel = "<b>",
             description = "analysis backends in priority order (${COMPLETION-CANDIDATES}; default: ${DEFAULT-VALUE})")
     protected List<BackendType> backendNames = List.of(BackendType.srcml, BackendType.ts);
 
+    /**
+     * The {@code srcml} executable to invoke (srcml backend).
+     */
     @Option(names = "--srcml", description = "srcml command path (srcml)")
     protected String srcml = "srcml";
 
+    /**
+     * Whether each token line also carries the token's {@code line:column} position in the source.
+     */
     @Option(names = "--position", description = "include line:column position in output")
     protected boolean position = false;
 
     @Mixin
     private final NameFilter filter = new NameFilter();
 
+    /**
+     * Forces the srcML source language, and, unless a name filter was given explicitly, restricts
+     * processing to that language's file extensions.
+     */
     @Option(names = {"-l", "--lang"}, description = "force the srcML language: C, C++, C#, or Java")
     protected void setLanguage(final String language) {
         this.language = language;
