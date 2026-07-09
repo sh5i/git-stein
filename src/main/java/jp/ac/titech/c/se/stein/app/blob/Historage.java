@@ -28,6 +28,7 @@ import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.HashUtils;
 import jp.ac.titech.c.se.stein.util.Names;
+import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import lombok.ToString;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -215,6 +216,16 @@ public class Historage implements BlobTranslator {
         return this;
     }
 
+    /**
+     * Restricts a filename predicate to when the given external command is available on the system
+     * (checked once); a missing command makes the backend accept nothing, so {@code @historage} defers
+     * to the next backend in the priority list.
+     */
+    private static Predicate<String> whenAvailable(final String command, final Predicate<String> accepts) {
+        final boolean present = ProcessRunner.isAvailable(command);
+        return name -> present && accepts.test(name);
+    }
+
     @Override
     public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
         for (final Engine engine : engines()) {
@@ -255,9 +266,9 @@ public class Historage implements BlobTranslator {
             case ts -> new Engine(Languages::accepts, (e, c) -> Languages.of(e.getName(), e.getBlob()), null);
             case jdt -> new Engine(JdtAnalyzer::accepts,
                     (e, c) -> JdtAnalyzer.of(e.getName(), e.getBlob(), separatesComments, parsable), null);
-            case srcml -> new Engine(SrcmlAnalyzer::accepts,
+            case srcml -> new Engine(whenAvailable(srcml, SrcmlAnalyzer::accepts),
                     (e, c) -> SrcmlAnalyzer.of(e.getName(), e.getBlob(), srcml, null, c), null);
-            case ctags -> new Engine(filter::accept,
+            case ctags -> new Engine(whenAvailable(ctags, filter::accept),
                     (e, c) -> CtagsAnalyzer.of(e.getName(), e.getBlob(), ctags, moduleKinds, requiresOriginalExtension, c),
                     f -> new NamingStrategy.Ctags(digestSignature, requiresOriginalExtension));
         };
