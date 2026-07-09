@@ -95,18 +95,6 @@ public abstract class QueryAnalyzer extends LanguageAnalyzer {
                 k -> new TSQuery(grammar(), queryString()));
     }
 
-    private boolean hasErrorAncestor(final TSNode node) {
-        for (TSNode p = node.getParent(); p != null && !p.isNull(); p = p.getParent()) {
-            // the visitors iterate the children of whatever node they are handed, so a whole-file parse
-            // error (an ERROR root) does not stop them; only an ERROR node reached deeper, which they
-            // skip rather than descend, hides its subtree. Exclude the parse root to match that.
-            if (p.isError() && !sameNode(p, treeRoot)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Override
     protected void run() {
         final List<Detected> found = detect();
@@ -174,8 +162,10 @@ public abstract class QueryAnalyzer extends LanguageAnalyzer {
                             x -> new ArrayList<>()).add(node);
                 }
             }
-            if (d.node == null || hasErrorAncestor(d.node)) {
-                continue; // the visitors do not descend into ERROR subtrees, so neither does the query
+            if (d.node == null || d.node.isError() || d.node.isMissing()) {
+                continue; // skip only a match that is itself a recovery artifact; a well-formed
+                          // declaration is kept even when a preprocessor-split construct elsewhere
+                          // left it under a spanning ERROR node (tree-sitter still parses it correctly)
             }
             d.captures = new Captures(captures);
             d.start = d.node.getStartByte();
