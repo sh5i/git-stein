@@ -3,14 +3,15 @@ package jp.ac.titech.c.se.stein.analyzer;
 import java.util.List;
 
 /**
- * A {@link SourceAnalyzer} that can also tokenize: beyond extracting and rendering elements, it
- * exposes the file's leaf-token stream, so a consumer such as cregit can wrap each declaration in
- * {@code begin_}/{@code end_} markers. A backend that only recovers structure implements {@link
- * SourceAnalyzer} alone.
+ * A {@link SourceAnalyzer} that can also tokenize: beyond extracting elements, it exposes the file's
+ * leaf-token stream as neutral material a consumer assembles into its own output -- cregit wraps each
+ * declaration in {@code begin_}/{@code end_} markers, a FinerGit sequence drops comments and frame
+ * tokens. A backend that only recovers structure implements {@link SourceAnalyzer} alone.
  */
 public interface TokenizingAnalyzer extends SourceAnalyzer {
     /**
-     * The leaf tokens of an element, in source order.
+     * The leaf tokens of an element, in source order, each carrying its {@link Token#comment} and
+     * {@link Token#frame} classification, so a consumer can keep or drop them by its own policy.
      */
     List<Token> tokens(Element e);
 

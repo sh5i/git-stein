@@ -18,9 +18,9 @@ import jp.ac.titech.c.se.stein.util.Names;
 
 /**
  * The shared skeleton of a per-language tree-sitter analyzer. A subclass walks its language's CST in
- * {@link #run} and emits {@link Element} instances via {@link #element}; this base turns an element
- * into text ({@link #render}), either as raw source or as a FinerGit-style token sequence. The token
- * sequence is derived from the grammar alone (structural tokens are typed by the non-terminal that
+ * {@link #run} and emits {@link Element} instances via {@link #element}; this base recovers an
+ * element's raw source ({@link #rawText}) and its classified leaf-token stream ({@link #tokens}). Each
+ * token's type is derived from the grammar alone (structural tokens are typed by the non-terminal that
  * contains them, identifiers by the field they fill), so it needs no per-language rules.
  */
 public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
@@ -37,13 +37,6 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
     private final Map<Element, TSNode> nodes = new HashMap<>();
 
     private final Map<Element, TSNode> endNodes = new HashMap<>();
-
-    // the declaration currently being tokenized and its frame nodes, for Heuristic 2
-    private TSNode frameRoot;
-
-    private TSNode frameParameters;
-
-    private TSNode frameBody;
 
     protected TreeSitterAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
         this.filename = filename;
@@ -112,21 +105,13 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
     }
 
     /**
-     * Renders an element's content: a FinerGit token sequence when {@link RenderOptions#tokenizes},
-     * otherwise its raw source.
+     * The raw source text of an element: the source lines its declaration spans (both segments when it
+     * spans split nodes).
      */
     @Override
-    public String render(final Element e, final RenderOptions options) {
+    public String rawText(final Element e) {
         if (!e.hasSpan()) {
-            final TSNode node = nodeOf(e);
-            return options.tokenizes() ? tokenize(node, options) : rawContentOf(node);
-        }
-        if (options.tokenizes()) {
-            final RenderOptions noFrame = new RenderOptions(true, options.includesType(), false);
-            final StringBuilder sb = new StringBuilder();
-            emitLeaves(nodeOf(e), sb, noFrame);
-            emitLeaves(endNodeOf(e), sb, noFrame);
-            return sb.toString();
+            return rawContentOf(nodeOf(e));
         }
         final int begin = nodeOf(e).getStartPoint().getRow() + 1;
         final int end = endNodeOf(e).getEndPoint().getRow() + 1;
@@ -179,15 +164,20 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
     }
 
     /**
-     * The full leaf-token stream of an element, comments included, each typed by {@link #category}.
-     * Unlike the FinerGit token sequence, it keeps every token (no comment skipping, no frame
-     * omission); a consumer such as cregit serializes it one token per line. Passing the file root
-     * yields the whole file's tokens.
+     * The leaf-token stream of an element, in source order, each typed by {@link #category} and flagged
+     * with its {@link Token#comment} and {@link Token#frame} classification. Comments are kept (flagged,
+     * not dropped) so a consumer chooses; passing the file root yields the whole file's tokens. Frame
+     * delimiters are flagged relative to the element's own declaration; a split-node element flags none.
      */
     @Override
     public List<Token> tokens(final Element e) {
         final List<Token> out = new ArrayList<>();
-        collectTokens(nodeOf(e), out);
+        if (e.hasSpan()) {
+            collectTokens(nodeOf(e), null, out);
+            collectTokens(endNodeOf(e), null, out);
+        } else {
+            collectTokens(nodeOf(e), frameOf(nodeOf(e)), out);
+        }
         return out;
     }
 
@@ -227,10 +217,10 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
         return node.getType().endsWith("comment");
     }
 
-    private void collectTokens(final TSNode node, final List<Token> out) {
+    private void collectTokens(final TSNode node, final Frame frame, final List<Token> out) {
         if (node.getChildCount() > 0) {
             for (int i = 0; i < node.getChildCount(); i++) {
-                collectTokens(node.getChild(i), out);
+                collectTokens(node.getChild(i), frame, out);
             }
             return;
         }
@@ -242,7 +232,34 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
             return;
         }
         final TSPoint start = node.getStartPoint();
-        out.add(new Token(text, category(node), start.getRow() + 1, start.getColumn() + 1, node.getStartByte()));
+        out.add(new Token(text, category(node), start.getRow() + 1, start.getColumn() + 1, node.getStartByte(),
+                node.isExtra(), frame != null && isFrame(node, frame)));
+    }
+
+    /**
+     * The frame context of a declaration node: its parameter-list and body nodes (each possibly a null
+     * node) and whether it is a function, against which a leaf is tested by {@link #isFrame}.
+     */
+    private record Frame(TSNode parameters, TSNode body, TSNode root, boolean function) {
+    }
+
+    private Frame frameOf(final TSNode declaration) {
+        return new Frame(declaration.getChildByFieldName("parameters"), declaration.getChildByFieldName("body"),
+                declaration, isFunctionNode(declaration));
+    }
+
+    /**
+     * Whether the leaf is one of the declaration's frame delimiters (Heuristic 2): the parentheses of
+     * its parameter list, the braces of its body, or a bodyless declaration's terminating semicolon.
+     */
+    private boolean isFrame(final TSNode leaf, final Frame frame) {
+        final TSNode parent = leaf.getParent();
+        return switch (leaf.getType()) {
+            case "(", ")" -> !frame.parameters().isNull() && sameNode(parent, frame.parameters());
+            case "{", "}" -> !frame.body().isNull() && sameNode(parent, frame.body());
+            case ";" -> frame.function() && sameNode(parent, frame.root());
+            default -> false;
+        };
     }
 
     protected String textOf(final TSNode node) {
@@ -288,60 +305,6 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
         final int beginLine = node.getStartPoint().getRow() + 1;
         final int endLine = node.getEndPoint().getRow() + 1;
         return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
-    }
-
-    // --- FinerGit token sequence ---
-
-    /**
-     * The FinerGit token sequence of a declaration: each leaf token on its own line, annotated with
-     * its type when {@link RenderOptions#includesType} is set (Heuristic 1). Comments are skipped, and
-     * a method's frame tokens are dropped when {@link RenderOptions#omitsFrame} is set (Heuristic 2).
-     */
-    protected String tokenize(final TSNode node, final RenderOptions options) {
-        frameRoot = node;
-        frameParameters = node.getChildByFieldName("parameters");
-        frameBody = node.getChildByFieldName("body");
-        final StringBuilder sb = new StringBuilder();
-        emitLeaves(node, sb, options);
-        return sb.toString();
-    }
-
-    private void emitLeaves(final TSNode node, final StringBuilder sb, final RenderOptions options) {
-        if (node.getChildCount() > 0) {
-            for (int i = 0; i < node.getChildCount(); i++) {
-                emitLeaves(node.getChild(i), sb, options);
-            }
-            return;
-        }
-        if (node.isExtra() || node.isMissing()) {
-            return; // a comment or an inserted-error token is not part of the token sequence
-        }
-        if (options.omitsFrame() && isFrameToken(node)) {
-            return;
-        }
-        final String token = textOf(node).replaceAll("[\\r\\n]+", " ");
-        if (token.isEmpty()) {
-            return;
-        }
-        sb.append(token);
-        if (options.includesType()) {
-            sb.append(" ").append(category(node));
-        }
-        sb.append("\n");
-    }
-
-    /**
-     * Whether the leaf is one of a method's omnipresent frame tokens (Heuristic 2): the parentheses
-     * of its parameter list, the braces of its body, or a bodyless method's terminating semicolon.
-     */
-    protected boolean isFrameToken(final TSNode leaf) {
-        final TSNode parent = leaf.getParent();
-        return switch (leaf.getType()) {
-            case "(", ")" -> !frameParameters.isNull() && sameNode(parent, frameParameters);
-            case "{", "}" -> !frameBody.isNull() && sameNode(parent, frameBody);
-            case ";" -> isFunctionNode(frameRoot) && sameNode(parent, frameRoot);
-            default -> false;
-        };
     }
 
     /**

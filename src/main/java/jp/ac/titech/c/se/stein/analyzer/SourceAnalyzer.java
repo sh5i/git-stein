@@ -2,10 +2,10 @@ package jp.ac.titech.c.se.stein.analyzer;
 
 /**
  * The backend-neutral contract a consumer needs to decompose one source file into named elements and
- * render each element's text. This is the minimum an analyzer must provide; a structure-only backend
- * (for example one driven by a tag extractor) implements just this, honoring only {@link
- * RenderOptions#RAW}. A backend that can also produce a typed token stream implements {@link
- * TokenizingAnalyzer}.
+ * recover each element's raw source text. This is the minimum an analyzer must provide; a
+ * structure-only backend (for example one driven by a tag extractor) implements just this. A backend
+ * that can also produce a typed token stream implements {@link TokenizingAnalyzer}, from which a
+ * consumer builds its own token output (a FinerGit sequence, cregit's token-per-line format).
  */
 public interface SourceAnalyzer {
     /**
@@ -14,10 +14,9 @@ public interface SourceAnalyzer {
     Element extract();
 
     /**
-     * Renders an element to text per the given options (its raw source, or, for a tokenizing analyzer,
-     * a token sequence).
+     * The raw source text of an element (the source lines its declaration spans).
      */
-    String render(Element e, RenderOptions options);
+    String rawText(Element e);
 
     /**
      * The comment text attached to the element's declaration, for a Historage comment side file, or

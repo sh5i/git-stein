@@ -27,8 +27,8 @@ import lombok.extern.slf4j.Slf4j;
  * flat stream of tags into an element tree: each distinct ctags scope (a dotted string) becomes one
  * naming-scope element under the file root, and every tag a leaf under its scope. A tag's ctags kind
  * (richer than the neutral {@link Element.Kind}) is carried as {@link Element#getRawKind}, and its
- * signature and line range as the element's {@link Signature} and line range; rendering returns the
- * tag's source lines. It supports only {@link RenderOptions#RAW}. Pair it with {@link jp.ac.titech.c.se.stein.app.blob.Historage.NamingStrategy.Ctags}.
+ * signature and line range as the element's {@link Signature} and line range; {@link #rawText} returns
+ * the tag's source lines. Pair it with {@link jp.ac.titech.c.se.stein.app.blob.Historage.NamingStrategy.Ctags}.
  */
 @Slf4j
 public class CtagsAnalyzer implements SourceAnalyzer {
@@ -115,7 +115,7 @@ public class CtagsAnalyzer implements SourceAnalyzer {
     }
 
     @Override
-    public String render(final Element e, final RenderOptions options) {
+    public String rawText(final Element e) {
         return text.getFragmentOfLines(e.getStartLine(), e.getEndLine()).getWiderContent();
     }
 

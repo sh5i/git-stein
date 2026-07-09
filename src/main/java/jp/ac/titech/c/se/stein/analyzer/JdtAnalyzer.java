@@ -103,7 +103,7 @@ public class JdtAnalyzer implements SourceAnalyzer {
     }
 
     @Override
-    public String render(final Element e, final RenderOptions options) {
+    public String rawText(final Element e) {
         final BodyDeclaration node = nodes.get(e);
         return getContent(getFragmentWithSurroundingComments(node), node, enclosingClass.get(e));
     }

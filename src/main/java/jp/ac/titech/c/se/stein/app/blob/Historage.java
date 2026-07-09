@@ -16,10 +16,11 @@ import jp.ac.titech.c.se.stein.analyzer.CtagsAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.Element;
 import jp.ac.titech.c.se.stein.analyzer.JdtAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.Languages;
-import jp.ac.titech.c.se.stein.analyzer.RenderOptions;
 import jp.ac.titech.c.se.stein.analyzer.Signature;
 import jp.ac.titech.c.se.stein.analyzer.SourceAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.Token;
+import jp.ac.titech.c.se.stein.analyzer.TokenizingAnalyzer;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
@@ -91,9 +92,10 @@ public class Historage implements BlobTranslator {
 
     /**
      * Whether to render each module as a FinerGit-style token sequence, one token per line, in place of
-     * its raw source. Applies only where the backend tokenizes, i.e. the tree-sitter backend.
+     * its raw source. Applies only to the tokenizing backends (tree-sitter and srcML); {@code --tokens}
+     * disables the others.
      */
-    @Option(names = "--tokens", description = "render modules as FinerGit token sequences (tree-sitter)")
+    @Option(names = "--tokens", description = "render modules as FinerGit token sequences (ts, srcml)")
     protected boolean tokens = false;
 
     /**
@@ -227,6 +229,11 @@ public class Historage implements BlobTranslator {
     }
 
     @Override
+    public void setUp(final Context c) {
+        engines(); // build and validate the backend selection at startup
+    }
+
+    @Override
     public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
         for (final Engine engine : engines()) {
             if (engine.accepts().test(entry.getName())) {
@@ -248,29 +255,39 @@ public class Historage implements BlobTranslator {
      * has its own convention such as ctags) the naming strategy to use instead of the default.
      */
     private record Engine(Predicate<String> accepts, BiFunction<BlobEntry, Context, SourceAnalyzer> analyzer,
-                          Function<String, NamingStrategy> naming) {
+                          Function<String, NamingStrategy> naming, boolean tokenizes) {
     }
 
     /**
-     * The chosen backend engines, built lazily once the options are parsed.
+     * The chosen backend engines, built lazily once the options are parsed. With {@code --tokens} the
+     * non-tokenizing backends (those that render raw source only) are dropped, and it is an error if
+     * none remains.
      */
     private List<Engine> engines() {
         if (engines == null) {
-            engines = backendNames.stream().map(this::engine).toList();
+            List<Engine> selected = backendNames.stream().map(this::engine).toList();
+            if (tokens) {
+                selected = selected.stream().filter(Engine::tokenizes).toList();
+                if (selected.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "--tokens needs a tokenizing backend (ts or srcml); none of " + backendNames + " qualifies");
+                }
+            }
+            engines = selected;
         }
         return engines;
     }
 
     private Engine engine(final BackendType backend) {
         return switch (backend) {
-            case ts -> new Engine(Languages::accepts, (e, c) -> Languages.of(e.getName(), e.getBlob()), null);
+            case ts -> new Engine(Languages::accepts, (e, c) -> Languages.of(e.getName(), e.getBlob()), null, true);
             case jdt -> new Engine(JdtAnalyzer::accepts,
-                    (e, c) -> JdtAnalyzer.of(e.getName(), e.getBlob(), separatesComments, parsable), null);
+                    (e, c) -> JdtAnalyzer.of(e.getName(), e.getBlob(), separatesComments, parsable), null, false);
             case srcml -> new Engine(whenAvailable(srcml, SrcmlAnalyzer::accepts),
-                    (e, c) -> SrcmlAnalyzer.of(e.getName(), e.getBlob(), srcml, null, c), null);
+                    (e, c) -> SrcmlAnalyzer.of(e.getName(), e.getBlob(), srcml, null, c), null, true);
             case ctags -> new Engine(whenAvailable(ctags, filter::accept),
                     (e, c) -> CtagsAnalyzer.of(e.getName(), e.getBlob(), ctags, moduleKinds, requiresOriginalExtension, c),
-                    f -> new NamingStrategy.Ctags(digestSignature, requiresOriginalExtension));
+                    f -> new NamingStrategy.Ctags(digestSignature, requiresOriginalExtension), false);
         };
     }
 
@@ -283,12 +300,11 @@ public class Historage implements BlobTranslator {
         final NamingStrategy naming = engine.naming() != null ? engine.naming().apply(entry.getName())
                 : entry.getName().endsWith(".java")
                 ? new NamingStrategy.FinerGit(unqualifyTypename, digestParameters) : NamingStrategy.Scoped.INSTANCE;
-        final RenderOptions render = tokens ? new RenderOptions(true, includesTokenType, omitsFrame) : RenderOptions.RAW;
 
         // collect the elements that become modules, then assign each a file name, appending @2, @3,
         // ... to the second and later occurrences of the same name
         final List<Generated> modules = new ArrayList<>();
-        collect(source, root, naming, render, entry.getName(), modules);
+        collect(source, root, naming, entry.getName(), modules);
         final Map<String, Integer> counter = new HashMap<>();
         final List<String> filenames = new ArrayList<>();
         final List<HotEntry> out = new ArrayList<>();
@@ -315,15 +331,37 @@ public class Historage implements BlobTranslator {
     }
 
     private void collect(final SourceAnalyzer source, final Element parent, final NamingStrategy naming,
-                         final RenderOptions render, final String filename, final List<Generated> out) {
+                         final String filename, final List<Generated> out) {
         for (final Element e : parent.getChildren()) {
             if (e.hasContent() && wants(e.getKind())) {
                 final String basename = naming.basename(e);
                 final String extension = naming.extension(e.getKind(), e.getRawKind(), filename);
-                out.add(new Generated(e, source.render(e, render), basename, extension));
+                final String content = tokens ? tokenSequence((TokenizingAnalyzer) source, e) : source.rawText(e);
+                out.add(new Generated(e, content, basename, extension));
             }
-            collect(source, e, naming, render, filename, out);
+            collect(source, e, naming, filename, out);
         }
+    }
+
+    /**
+     * The FinerGit token sequence of an element: each leaf token on its own line, dropping comments and
+     * (with {@code --omit-frame}) frame tokens, and annotating each with its type when {@code --token-type}
+     * is set. Assembled here from the analyzer's neutral token stream, so the FinerGit rendering policy
+     * stays with this consumer.
+     */
+    private String tokenSequence(final TokenizingAnalyzer analyzer, final Element e) {
+        final StringBuilder sb = new StringBuilder();
+        for (final Token t : analyzer.tokens(e)) {
+            if (t.comment() || (omitsFrame && t.frame())) {
+                continue;
+            }
+            sb.append(t.text());
+            if (includesTokenType) {
+                sb.append(' ').append(t.type());
+            }
+            sb.append('\n');
+        }
+        return sb.toString();
     }
 
     private boolean wants(final Element.Kind kind) {

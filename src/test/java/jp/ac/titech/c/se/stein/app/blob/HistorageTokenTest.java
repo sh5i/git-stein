@@ -4,6 +4,7 @@ import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -12,7 +13,9 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 public class HistorageTokenTest {
     private final Context c = Context.init();
@@ -160,6 +163,42 @@ public class HistorageTokenTest {
         assertTrue(py.contains("add FUNCTION_DEFINITION_NAME\n"), py);
         assertTrue(py.contains("help CALL_FUNCTION\n"), py);
         assertTrue(py.contains("b VARIABLE_NAME\n"), py);
+    }
+
+    @Test
+    public void testTokensDisablesNonTokenizingBackend() {
+        // --tokens keeps only the tokenizing backends; with only jdt selected none qualifies, so the
+        // backend selection is rejected at startup
+        final Historage jdtTokens = new Historage().backends(Historage.BackendType.jdt);
+        jdtTokens.tokens = true;
+        assertThrows(IllegalArgumentException.class, () -> jdtTokens.setUp(c));
+    }
+
+    @Test
+    public void testSrcmlTokenSequence() {
+        assumeTrue(ProcessRunner.isAvailable("srcml"), "srcml not available");
+        final Historage h = new Historage().backends(Historage.BackendType.srcml);
+        h.tokens = true;
+        final AnyHotEntry result = h.rewriteBlobEntry(HotEntry.ofBlob("Person.java", """
+                class Person {
+                    // a comment
+                    public int getLength() {
+                        return 42;
+                    }
+                }
+                """), c);
+        final Map<String, String> modules = result.stream()
+                .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));
+        // srcML emits a FinerGit-style token sequence too, typed by srcML element names; the comment is
+        // skipped and the method's own parameter parentheses and body braces are omitted (Heuristic 2)
+        assertEquals("""
+                public specifier
+                int name
+                getLength name
+                return return
+                42 literal
+                ; return
+                """, modules.get("Person#getLength().mjava"));
     }
 
     @Test

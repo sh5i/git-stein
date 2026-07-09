@@ -23,10 +23,11 @@ import lombok.extern.slf4j.Slf4j;
  * A {@link TokenizingAnalyzer} backed by srcML, the srcML-free tree-sitter analyzers' counterpart for
  * C, C++, C#, and Java. It walks the {@code srcml --position} XML (its {@code <unit>} root is supplied
  * by {@link Srcml}), mapping each {@code <class>}/{@code <function>}/{@code <constructor>}/
- * {@code <decl_stmt>} to an {@link Element} (a naming scope for a {@code <namespace>}) and, for cregit,
- * producing a token per leaf typed by its enclosing srcML element. Because srcML is preprocessor-aware,
- * it handles C/C++ that defeats the tree-sitter parser. Its element and token names are not
- * byte-identical to the tree-sitter analyzers.
+ * {@code <decl_stmt>} to an {@link Element} (a naming scope for a {@code <namespace>}) and producing a
+ * token per leaf, typed by its enclosing srcML element and classified as comment or frame, for a
+ * cregit or FinerGit token sequence. Because srcML is preprocessor-aware, it handles C/C++ that
+ * defeats the tree-sitter parser. Its element and token names are not byte-identical to the
+ * tree-sitter analyzers.
  */
 @Slf4j
 public class SrcmlAnalyzer implements TokenizingAnalyzer {
@@ -179,44 +180,84 @@ public class SrcmlAnalyzer implements TokenizingAnalyzer {
         return e;
     }
 
-    // --- rendering (historage) ---
+    // --- raw text (historage) ---
 
     @Override
-    public String render(final Element e, final RenderOptions options) {
+    public String rawText(final Element e) {
         final org.w3c.dom.Element dom = nodes.get(e);
         return text.getFragmentOfLines(startLine(dom), endLine(dom)).getWiderContent();
     }
 
-    // --- tokens (cregit) ---
+    // --- tokens (historage token sequence, cregit) ---
 
     @Override
     public List<Token> tokens(final Element e) {
         final List<Token> out = new ArrayList<>();
-        collectTokens(e == root ? unit : nodes.get(e), out);
+        if (e == root) {
+            collectTokens(unit, null, out);
+        } else {
+            final org.w3c.dom.Element node = nodes.get(e);
+            collectTokens(node, frameOf(node), out);
+        }
         return out;
     }
 
-    private void collectTokens(final Node node, final List<Token> out) {
+    private void collectTokens(final Node node, final Frame frame, final List<Token> out) {
         for (Node ch = node.getFirstChild(); ch != null; ch = ch.getNextSibling()) {
             if (ch.getNodeType() == Node.TEXT_NODE) {
-                token(ch, out);
+                token(ch, frame, out);
             } else if (isElement(ch)) {
-                token(ch, out); // a leaf element's own text is reached by recursion; its type is the element
-                collectTokens(ch, out);
+                collectTokens(ch, frame, out);
             }
         }
     }
 
-    private void token(final Node node, final List<Token> out) {
-        if (node.getNodeType() != Node.TEXT_NODE) {
-            return;
-        }
+    private void token(final Node node, final Frame frame, final List<Token> out) {
         final String trimmed = node.getTextContent().trim().replace('\n', ' ').replace("\r", "");
         if (trimmed.isEmpty()) {
             return;
         }
         final org.w3c.dom.Element parent = (org.w3c.dom.Element) node.getParentNode();
-        out.add(new Token(trimmed, parent.getLocalName(), startLine(parent), startCol(parent), 0));
+        final boolean comment = "comment".equals(parent.getLocalName());
+        out.add(new Token(trimmed, parent.getLocalName(), startLine(parent), startCol(parent), 0,
+                comment, frame != null && isFrame(trimmed, parent, frame)));
+    }
+
+    /**
+     * The frame context of a declaration element: its {@code parameter_list} and {@code block} children
+     * (either possibly null) and whether it is a function, against which a leaf is tested by
+     * {@link #isFrame}.
+     */
+    private record Frame(org.w3c.dom.Element parameters, org.w3c.dom.Element block, org.w3c.dom.Element root,
+                         boolean function) {
+    }
+
+    private Frame frameOf(final org.w3c.dom.Element declaration) {
+        return new Frame(child(declaration, "parameter_list"), child(declaration, "block"), declaration,
+                isFunction(declaration.getLocalName()));
+    }
+
+    private static boolean isFunction(final String localName) {
+        return switch (localName) {
+            case "function", "constructor", "destructor" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Whether the leaf is one of the declaration's frame delimiters (Heuristic 2): the parentheses of
+     * its parameter list, the braces of its body, or a bodyless declaration's terminating semicolon.
+     * srcML emits an empty parameter list or body as a single {@code ()}/{@code {}} text node, so a leaf
+     * counts when it is wholly the enclosing delimiter's punctuation (leaving a {@code ,} separator).
+     */
+    private boolean isFrame(final String text, final org.w3c.dom.Element parent, final Frame frame) {
+        if (frame.parameters() != null && parent == frame.parameters()) {
+            return text.chars().allMatch(ch -> ch == '(' || ch == ')');
+        }
+        if (frame.block() != null && parent == frame.block()) {
+            return text.chars().allMatch(ch -> ch == '{' || ch == '}');
+        }
+        return frame.function() && ";".equals(text) && parent == frame.root();
     }
 
     @Override
