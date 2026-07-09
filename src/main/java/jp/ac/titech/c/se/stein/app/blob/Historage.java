@@ -19,6 +19,7 @@ import jp.ac.titech.c.se.stein.analyzer.Languages;
 import jp.ac.titech.c.se.stein.analyzer.RenderOptions;
 import jp.ac.titech.c.se.stein.analyzer.Signature;
 import jp.ac.titech.c.se.stein.analyzer.SourceAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
@@ -37,7 +38,7 @@ import picocli.CommandLine.Option;
  * choosing the analysis backend per file. {@code --backend} lists backends in priority order; each
  * file is handled by the first that accepts it. Available backends: {@code ts} (tree-sitter, every
  * supported language), {@code jdt} (Eclipse JDT, Java only, adding comment/mapping side files and
- * binding-based method naming), and {@code ctags} (universal-ctags, needs the
+ * binding-based method naming), {@code srcml}, and {@code ctags} (universal-ctags, needs the
  * {@code ctags} command). The default {@code ts,ctags} handles all tree-sitter languages with
  * tree-sitter and falls back to ctags for the rest; use {@code --backend jdt} for the JDT-only
  * features.
@@ -51,7 +52,7 @@ import picocli.CommandLine.Option;
 @ToString
 @Command(name = "@historage", description = "Generate finer-grained modules")
 public class Historage implements BlobTranslator {
-    public enum BackendType { ts, jdt, ctags }
+    public enum BackendType { ts, jdt, srcml, ctags }
 
     @Option(names = "--no-original", negatable = true, description = "Exclude original files")
     protected boolean requiresOriginals = true;
@@ -103,6 +104,9 @@ public class Historage implements BlobTranslator {
 
     @Option(names = "--parsable", description = "generate more parsable files (jdt)")
     protected boolean parsable = false;
+
+    @Option(names = "--srcml", description = "srcml command used (srcml)")
+    protected String srcml = "srcml";
 
     @Option(names = "--ctags", description = "ctags command used (ctags)")
     protected String ctags = "ctags";
@@ -178,6 +182,8 @@ public class Historage implements BlobTranslator {
             case ts -> new Engine(Languages::accepts, (e, c) -> Languages.of(e.getName(), e.getBlob()), null);
             case jdt -> new Engine(JdtAnalyzer::accepts,
                     (e, c) -> JdtAnalyzer.of(e.getName(), e.getBlob(), separatesComments, parsable), null);
+            case srcml -> new Engine(SrcmlAnalyzer::accepts,
+                    (e, c) -> SrcmlAnalyzer.of(e.getName(), e.getBlob(), srcml, null, c), null);
             case ctags -> new Engine(filter::accept,
                     (e, c) -> CtagsAnalyzer.of(e.getName(), e.getBlob(), ctags, moduleKinds, requiresOriginalExtension, c),
                     f -> new NamingStrategy.Ctags(digestSignature, requiresOriginalExtension));
