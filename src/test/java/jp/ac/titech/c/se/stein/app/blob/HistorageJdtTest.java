@@ -1,8 +1,6 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.core.SourceText;
-import jp.ac.titech.c.se.stein.historage.Module;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
@@ -34,7 +32,7 @@ public class HistorageJdtTest {
             sampleSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
         source = TestRepo.createSample();
-        result = TestRepo.rewrite(source,new HistorageJdt());
+        result = TestRepo.rewrite(source,new Historage().backends(Historage.BackendType.jdt));
     }
 
     @AfterAll
@@ -43,13 +41,32 @@ public class HistorageJdtTest {
         source.close();
     }
 
-    List<Module> generateModules() {
-        return generateModules(new HistorageJdt());
+    List<BlobEntry> generateModules() {
+        return generateModules(jdt(true, true, true, false));
     }
 
-    List<Module> generateModules(HistorageJdt historage) {
-        SourceText text = SourceText.ofNormalized(sampleSource.getBytes(StandardCharsets.UTF_8));
-        return historage.new ModuleGenerator("Hello.java", text).generate();
+    List<BlobEntry> generateModules(Historage backend) {
+        BlobEntry entry = HotEntry.ofBlob("Hello.java", sampleSource);
+        return backend.rewriteBlobEntry(entry, Context.init()).stream()
+                .map(e -> (BlobEntry) e).toList();
+    }
+
+    private Historage jdt(final boolean classes, final boolean methods, final boolean fields, final boolean digestParams) {
+        final Historage h = new Historage().backends(Historage.BackendType.jdt);
+        h.requiresClasses = classes;
+        h.requiresMethods = methods;
+        h.requiresFields = fields;
+        h.digestParameters = digestParams;
+        h.requiresOriginals = false;  // keep only the generated modules for the assertions
+        return h;
+    }
+
+    private Historage jdtWithSideFiles() {
+        final Historage h = new Historage().backends(Historage.BackendType.jdt);
+        h.requiresComments = true;
+        h.requiresMapping = true;
+        h.requiresOriginals = false;
+        return h;
     }
 
     // --- Module generation tests ---
@@ -57,7 +74,7 @@ public class HistorageJdtTest {
     @Test
     public void testModuleNames() {
         Set<String> filenames = generateModules().stream()
-                .map(Module::getFilename).collect(Collectors.toSet());
+                .map(BlobEntry::getName).collect(Collectors.toSet());
 
         assertEquals(Set.of(
                 // classes (records included)
@@ -107,18 +124,18 @@ public class HistorageJdtTest {
 
     @Test
     public void testModuleContent() {
-        List<Module> modules = generateModules();
+        List<BlobEntry> modules = generateModules();
 
         // getCount(): exact content
-        Module getCount = modules.stream()
-                .filter(m -> m.getFilename().equals("Hello#getCount().mjava"))
+        BlobEntry getCount = modules.stream()
+                .filter(m -> m.getName().equals("Hello#getCount().mjava"))
                 .findFirst().orElseThrow();
         assertEquals("    public int getCount() {\n        return count;\n    }\n",
                 new String(getCount.getBlob(), StandardCharsets.UTF_8));
 
         // class module contains declaration and fields
-        Module classModule = modules.stream()
-                .filter(m -> m.getFilename().equals("Hello.cjava"))
+        BlobEntry classModule = modules.stream()
+                .filter(m -> m.getName().equals("Hello.cjava"))
                 .findFirst().orElseThrow();
         String classContent = new String(classModule.getBlob(), StandardCharsets.UTF_8);
         assertTrue(classContent.contains("public class Hello"));
@@ -129,48 +146,60 @@ public class HistorageJdtTest {
 
     @Test
     public void testExcludeClasses() {
-        HistorageJdt historage = new HistorageJdt();
-        historage.requiresClasses = false;
-        assertTrue(generateModules(historage).stream()
-                .noneMatch(m -> m.getFilename().endsWith(".cjava")));
+        assertTrue(generateModules(jdt(false, true, true, false)).stream()
+                .noneMatch(m -> m.getName().endsWith(".cjava")));
     }
 
     @Test
     public void testExcludeMethods() {
-        HistorageJdt historage = new HistorageJdt();
-        historage.requiresMethods = false;
-        assertTrue(generateModules(historage).stream()
-                .noneMatch(m -> m.getFilename().endsWith(".mjava")));
+        assertTrue(generateModules(jdt(true, false, true, false)).stream()
+                .noneMatch(m -> m.getName().endsWith(".mjava")));
     }
 
     @Test
     public void testExcludeFields() {
-        HistorageJdt historage = new HistorageJdt();
-        historage.requiresFields = false;
-        assertTrue(generateModules(historage).stream()
-                .noneMatch(m -> m.getFilename().endsWith(".fjava")));
+        assertTrue(generateModules(jdt(true, true, false, false)).stream()
+                .noneMatch(m -> m.getName().endsWith(".fjava")));
     }
 
     @Test
     public void testDigestParameters() {
-        HistorageJdt historage = new HistorageJdt();
-        historage.digestParameters = true;
-        List<Module> modules = generateModules(historage);
+        List<BlobEntry> modules = generateModules(jdt(true, true, true, true));
 
         // methods with parameters should have digested names (~XXXXXX)
-        Module greetBool = modules.stream()
-                .filter(m -> m.getFilename().contains("greet(~") && m.getFilename().endsWith(".mjava"))
+        BlobEntry greetBool = modules.stream()
+                .filter(m -> m.getName().contains("greet(~") && m.getName().endsWith(".mjava"))
                 .findFirst().orElseThrow();
-        assertTrue(greetBool.getFilename().matches("Hello#greet\\(~[0-9a-f]{6}\\)\\.mjava"));
+        assertTrue(greetBool.getName().matches("Hello#greet\\(~[0-9a-f]{6}\\)\\.mjava"));
 
         // no-arg methods should have empty parens (no digest)
-        assertTrue(modules.stream().anyMatch(m -> m.getFilename().equals("Hello#greet().mjava")));
+        assertTrue(modules.stream().anyMatch(m -> m.getName().equals("Hello#greet().mjava")));
+    }
+
+    @Test
+    public void testCommentAndMappingSideFiles() {
+        List<BlobEntry> modules = generateModules(jdtWithSideFiles());
+
+        // the class's comment file carries its Javadoc
+        BlobEntry classComment = modules.stream()
+                .filter(m -> m.getName().equals("Hello.cjava.com"))
+                .findFirst().orElseThrow();
+        assertTrue(new String(classComment.getBlob(), StandardCharsets.UTF_8)
+                .contains("A sample class for testing blob converters"));
+
+        // exactly one mapping file, in JSON-lines form recording line ranges
+        List<BlobEntry> mappings = modules.stream()
+                .filter(m -> m.getName().endsWith(".mapping")).toList();
+        assertEquals(1, mappings.size());
+        String mapping = new String(mappings.get(0).getBlob(), StandardCharsets.UTF_8);
+        assertTrue(mapping.contains("\"filename\""));
+        assertTrue(mapping.contains("\"beginLine\""));
     }
 
     @Test
     public void testNonJavaFilePassedThrough() {
         BlobEntry entry = HotEntry.ofBlob("README.md", "# Hello");
-        HistorageJdt historage = new HistorageJdt();
+        Historage historage = new Historage().backends(Historage.BackendType.jdt);
         AnyHotEntry result = historage.rewriteBlobEntry(entry, Context.init());
         assertEquals(1, result.size());
         assertSame(entry, result.stream().findFirst().orElseThrow());
@@ -178,7 +207,7 @@ public class HistorageJdtTest {
 
     @Test
     public void testRequiresOriginals() {
-        HistorageJdt historage = new HistorageJdt();
+        Historage historage = new Historage().backends(Historage.BackendType.jdt);
         historage.requiresOriginals = false;
         BlobEntry entry = HotEntry.ofBlob("Hello.java", sampleSource);
         AnyHotEntry result = historage.rewriteBlobEntry(entry, Context.init());

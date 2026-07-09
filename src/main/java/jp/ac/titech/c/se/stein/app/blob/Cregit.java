@@ -1,56 +1,49 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Locale;
+import java.util.stream.Stream;
+
+import jp.ac.titech.c.se.stein.analyzer.Element;
+import jp.ac.titech.c.se.stein.analyzer.Languages;
+import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.Token;
+import jp.ac.titech.c.se.stein.analyzer.TokenizingAnalyzer;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
-import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
-import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.xml.sax.Attributes;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-import org.xml.sax.helpers.DefaultHandler;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 import picocli.CommandLine.Mixin;
-
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParser;
-import javax.xml.parsers.SAXParserFactory;
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import picocli.CommandLine.Option;
 
 /**
- * Converts source files to cregit format using srcML.
- * Each token is output as {@code type|content} on a separate line.
- *
- * <p>Based on the <a href="https://github.com/dmgerman/tokenizers">cregit tokenizer</a>.
- * Requires the {@code srcml} command to be available on the system.</p>
+ * Converts source files to cregit token-per-line format, choosing the analysis backend per file.
+ * {@code --backend} lists backends in priority order; each file is handled by the first that accepts
+ * it. Available backends: {@code srcml} (C, C++, C#, Java; preprocessor-aware; needs the {@code srcml}
+ * command) and {@code ts} (tree-sitter, every supported language). Both write one token per line as
+ * {@code type|content} and wrap each class/method/field in a {@code begin_}/{@code end_} pair, but
+ * their token vocabularies differ (srcML element names vs grammar-derived types), so their output is
+ * not byte-identical. The default {@code srcml,ts} uses srcML where it applies and tree-sitter for the
+ * rest.
  */
 @Slf4j
 @ToString
-@Command(name = "@cregit", description = "cregit format via srcML")
+@Command(name = "@cregit", description = "cregit format via srcML or tree-sitter")
 public class Cregit implements BlobTranslator {
-    public static final String CREGIT_VERSION = "0.0.1";
+    static final String VERSION = "0.0.1";
 
-    /**
-     * Defined based on <a href="https://github.com/srcML/srcML/blob/master/src/libsrcml/language_extension_registry.cpp">srcML extension list</a>
-     */
-    public static final String[] JAVA_EXT = {"*.java", "*.aj", "*.mjava", "*.fjava", "*.cjava"}; // @historage-jdt extensions added
-    public static final String[] C_EXT = {"*.c", "*.h", "*.i"};
-    public static final String[] CXX_EXT = {"*.cpp", "*.CPP", "*.cp", "*.hpp", "*.cxx", "*.hxx", "*.cc", "*.hh", "*.c++", "*.h++", "*.C", "*.H", "*.tcc", "*.ii"};
-    public static final String[] CSHARP_EXT = {"*.cs"};
+    public enum BackendType { srcml, ts }
 
-    public static final NameFilter JAVA_FILTER = new NameFilter(JAVA_EXT);
-    public static final NameFilter C_FILTER = new NameFilter(C_EXT);
-    public static final NameFilter CXX_FILTER = new NameFilter(CXX_EXT);
-    public static final NameFilter CSHARP_FILTER = new NameFilter(CSHARP_EXT);
+    @Option(names = "--backend", split = ",", paramLabel = "<b>",
+            description = "analysis backends in priority order (${COMPLETION-CANDIDATES}; default: ${DEFAULT-VALUE})")
+    protected List<BackendType> backendNames = List.of(BackendType.srcml, BackendType.ts);
 
-    @Option(names = "--srcml", description = "srcml command path")
+    @Option(names = "--srcml", description = "srcml command path (srcml)")
     protected String srcml = "srcml";
 
     @Option(names = "--position", description = "include line:column position in output")
@@ -59,164 +52,156 @@ public class Cregit implements BlobTranslator {
     @Mixin
     private final NameFilter filter = new NameFilter();
 
-    @SuppressWarnings("unused")
-    @Option(names = {"-l", "--lang"}, description = "target language: either of 'C', 'C++', 'C#', 'Java'")
+    @Option(names = {"-l", "--lang"}, description = "force the srcML language: C, C++, C#, or Java")
     protected void setLanguage(final String language) {
         this.language = language;
         if (filter.isDefault()) {
             switch (language) {
-                case "C" -> filter.setPatterns(C_EXT);
-                case "C++" -> filter.setPatterns(CXX_EXT);
-                case "C#" -> filter.setPatterns(CSHARP_EXT);
-                case "Java" -> filter.setPatterns(JAVA_EXT);
+                case "C" -> filter.setPatterns(globs(SrcmlAnalyzer.C_EXT));
+                case "C++" -> filter.setPatterns(globs(SrcmlAnalyzer.CXX_EXT));
+                case "C#" -> filter.setPatterns(globs(SrcmlAnalyzer.CSHARP_EXT));
+                case "Java" -> filter.setPatterns(globs(SrcmlAnalyzer.JAVA_EXT));
                 default -> log.error("Unknown language: {}", language);
             }
         }
     }
+
     protected String language;
 
-    @Override
-    public AnyHotEntry rewriteBlobEntry(BlobEntry entry, Context c) {
-        if (!filter.accept(entry)) {
-            return entry;
-        }
-
-        String lang = language;
-        if (lang == null) {
-            lang = guessLanguage(entry);
-            if (lang == null) {
-                return entry;
-            }
-        }
-
-        log.debug("Generate cregit module for {} as {} language {}", entry, lang, c);
-        final byte[] result = convert(entry.getBlob(), lang, c);
-        return result != null ? entry.update(result) : entry;
+    private static String[] globs(final String[] suffixes) {
+        return Stream.of(suffixes).map(s -> "*" + s).toArray(String[]::new);
     }
+
+    private List<Backend> backends;
 
     /**
-     * Converts source code to cregit format using srcml.
-     *
-     * @return the cregit-formatted output, or {@code null} on failure
+     * Selects the backends to try, in priority order (mainly for programmatic use); returns this.
      */
-    public byte[] convert(byte[] source, String lang, Context c) {
-        final String[] cmd = position
-                ? new String[]{ srcml, "--language", lang, "--position" }
-                : new String[]{ srcml, "--language", lang };
-        try (final ProcessRunner proc = new ProcessRunner(cmd, source, c)) {
-            final InputSource input = new InputSource(new ByteArrayInputStream(proc.getResult()));
-            final SAXParserFactory factory = SAXParserFactory.newInstance();
-            factory.setNamespaceAware(true);
-            final SAXParser parser = factory.newSAXParser();
-            final Handler handler = new Handler(position);
-            parser.parse(input, handler);
-            return handler.getResult();
-        } catch (final IOException | ParserConfigurationException | SAXException e) {
-            log.error(e.getMessage(), e);
-            return null;
-        }
+    public Cregit backends(final BackendType... names) {
+        this.backendNames = List.of(names);
+        this.backends = null;
+        return this;
     }
 
-    protected String guessLanguage(HotEntry entry) {
-        final File file = new File(entry.getName());
-        if (JAVA_FILTER.accept(file)) {
-            return "Java";
+    private List<Backend> backends() {
+        if (backends == null) {
+            backends = backendNames.stream().map(this::create).toList();
         }
-        if (C_FILTER.accept(file)) {
-            return "C";
-        }
-        if (CXX_FILTER.accept(file)) {
-            return "C++";
-        }
-        if (CSHARP_FILTER.accept(file)) {
-            return "C#";
+        return backends;
+    }
+
+    private Backend create(final BackendType type) {
+        return switch (type) {
+            case srcml -> new SrcmlBackend(srcml, language);
+            case ts -> new TreeSitterBackend();
+        };
+    }
+
+    private Backend pick(final BlobEntry entry) {
+        for (final Backend backend : backends()) {
+            if (backend.accepts(entry)) {
+                return backend;
+            }
         }
         return null;
     }
 
-    static class Handler extends DefaultHandler {
-        private static final String POS_NS = "http://www.srcML.org/srcML/position";
+    @Override
+    public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
+        if (!filter.accept(entry)) {
+            return entry;
+        }
+        final Backend backend = pick(entry);
+        if (backend == null) {
+            return entry;
+        }
+        log.debug("Generate cregit module for {} {}", entry, c);
+        final TokenizingAnalyzer analyzer = backend.analyzer(entry, c);
+        return analyzer == null ? entry : entry.update(convert(analyzer, backend.languageName(entry.getName())));
+    }
 
-        final boolean includePosition;
-        final StringBuilder content = new StringBuilder();
-        String contentType;
-        String contentPos;
+    /**
+     * Walks the analyzer's token stream into cregit format: each token as {@code type|content}, each
+     * class/method/field wrapped in {@code begin_}/{@code end_}, the whole file in {@code begin_unit}/
+     * {@code end_unit}.
+     */
+    private byte[] convert(final TokenizingAnalyzer source, final String language) {
+        source.extract();
+        final StringBuilder sb = new StringBuilder();
+        marker(sb, "begin_unit|language:" + language + ";cregit-version:" + VERSION);
+        source.walkTokens(new TokenizingAnalyzer.TokenVisitor() {
+            @Override
+            public void begin(final Element.Kind kind) {
+                marker(sb, "begin_" + kind.name().toLowerCase(Locale.ROOT));
+            }
 
-        final Stack<String> elements = new Stack<>();
+            @Override
+            public void token(final Token t) {
+                if (position) {
+                    sb.append(t.line()).append(":").append(t.column()).append("|");
+                }
+                sb.append(t.type()).append("|").append(t.text()).append("\n");
+            }
 
-        final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        final PrintStream out = new PrintStream(buffer, false, StandardCharsets.UTF_8);
+            @Override
+            public void end(final Element.Kind kind) {
+                marker(sb, "end_" + kind.name().toLowerCase(Locale.ROOT));
+            }
+        });
+        marker(sb, "end_unit");
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
 
-        Handler(boolean includePosition) {
-            this.includePosition = includePosition;
+    private void marker(final StringBuilder sb, final String line) {
+        if (position) {
+            sb.append("-:-|");
+        }
+        sb.append(line).append("\n");
+    }
+
+    /**
+     * The analysis engine for one file: whether it handles the blob, the analyzer over it, and the
+     * language name for the cregit header. The rendering itself lives in {@link Cregit}.
+     */
+    private interface Backend {
+        boolean accepts(BlobEntry entry);
+
+        TokenizingAnalyzer analyzer(BlobEntry entry, Context c);
+
+        String languageName(String filename);
+    }
+
+    private record SrcmlBackend(String srcml, String language) implements Backend {
+        @Override
+        public boolean accepts(final BlobEntry entry) {
+            return language != null || SrcmlAnalyzer.accepts(entry.getName());
         }
 
         @Override
-        public void startElement(String uri, String localName, String qName, Attributes attributes) {
-            if (elements.size() <= 1) {
-                final String revision = attributes.getValue("revision");
-                final String language = attributes.getValue("language");
-                if (qName.equals("unit") && revision != null && language != null) {
-                    printPos("-:-");
-                    out.println("begin_unit|" +
-                                    "revision:" + revision + ";" +
-                                    "language:" + language + ";" +
-                                    "cregit-version:" + CREGIT_VERSION);
-                } else {
-                    printPos("-:-");
-                    out.print("begin_" + qName + "\n");
-                }
-            }
-            dump();
-            final String pos = attributes.getValue(POS_NS, "start");
-            if (pos != null) {
-                contentPos = pos;
-            }
-            elements.push(qName);
+        public TokenizingAnalyzer analyzer(final BlobEntry entry, final Context c) {
+            return SrcmlAnalyzer.of(entry.getName(), entry.getBlob(), srcml, language, c);
         }
 
         @Override
-        public void endElement(String uri, String localName, String qName) {
-            dump();
-            elements.pop();
-            if (elements.size() <= 1) {
-                printPos("-:-");
-                out.print("end_" + qName + "\n");
-            }
+        public String languageName(final String filename) {
+            return language != null ? language : SrcmlAnalyzer.languageOf(filename);
+        }
+    }
+
+    private static final class TreeSitterBackend implements Backend {
+        @Override
+        public boolean accepts(final BlobEntry entry) {
+            return Languages.accepts(entry.getName());
         }
 
         @Override
-        public void characters(char[] ch, int start, int length) {
-            String s = new String(ch, start, length);
-            if (!s.isEmpty()) {
-                if (content.length() == 0) {
-                    contentType = elements.peek();
-                }
-                content.append(s);
-            }
+        public TokenizingAnalyzer analyzer(final BlobEntry entry, final Context c) {
+            return Languages.of(entry.getName(), entry.getBlob());
         }
 
-        private void dump() {
-            if (content.length() > 0) {
-                String trimmed = content.toString().trim().replace('\n', ' ').replace("\r", "");
-                if (!trimmed.isEmpty()) {
-                    printPos(contentPos);
-                    out.print(contentType + "|" + trimmed + "\n");
-                }
-                content.setLength(0);
-            }
-        }
-
-        private void printPos(String pos) {
-            if (includePosition) {
-                out.print(pos != null ? pos : "-:-");
-                out.print("|");
-            }
-        }
-
-        public byte[] getResult() {
-            out.flush();
-            return buffer.toByteArray();
+        @Override
+        public String languageName(final String filename) {
+            return Languages.nameOf(filename);
         }
     }
 }

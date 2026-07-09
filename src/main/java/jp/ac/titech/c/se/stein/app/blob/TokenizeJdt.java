@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
+import jp.ac.titech.c.se.stein.analyzer.JdtAnalyzer;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
@@ -26,7 +27,7 @@ import picocli.CommandLine.Command;
 public class TokenizeJdt implements BlobTranslator {
     @Override
     public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
-        if (!HistorageJdt.JAVA.accept(entry)) {
+        if (!JdtAnalyzer.accepts(entry.getName())) {
             return entry;
         }
         final String text = SourceText.of(entry.getBlob()).getContent();

@@ -1,5 +1,7 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
+import jp.ac.titech.c.se.stein.analyzer.Element;
+import jp.ac.titech.c.se.stein.analyzer.Signature;
 import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
@@ -38,7 +40,7 @@ public class HistorageTest {
     static RepositoryAccess getResult() {
         if (result == null) {
             assumeTrue(ProcessRunner.isAvailable("ctags"), "ctags not available");
-            result = TestRepo.rewrite(source,new Historage());
+            result = TestRepo.rewrite(source,new Historage().backends(Historage.BackendType.ctags));
         }
         return result;
     }
@@ -46,36 +48,25 @@ public class HistorageTest {
     // --- Static tests (no ctags required) ---
 
     @Test
-    public void testGenerateFileName() {
-        // basic: name + kind
-        assertEquals("greet.method",
-                Historage.LanguageObject.of("greet", "method", null, null, 1).generateFileName(true));
+    public void testCtagsNaming() {
+        final Historage.NamingStrategy.Ctags digest = new Historage.NamingStrategy.Ctags(true, true);
+        final Historage.NamingStrategy.Ctags plain = new Historage.NamingStrategy.Ctags(false, true);
 
-        // with scope
-        assertEquals("Hello$greet.method",
-                Historage.LanguageObject.of("greet", "method", null, "Hello", 1).generateFileName(true));
+        // a name with no signature has no parentheses
+        assertEquals("greet", digest.leafName(Signature.of("greet")));
 
-        // with signature (digested): "(int, String)" → normalize → "int,String" → digest(6)
-        assertEquals("greet(~f3299f).method",
-                Historage.LanguageObject.of("greet", "method", "(int, String)", null, 1).generateFileName(true));
+        // signature digested: "(int, String)" normalizes to "int,String", then a 6-char hash
+        assertEquals("greet(~f3299f)", digest.leafName(new Signature("greet", null, List.of("int, String"))));
 
-        // with signature (not digested): comma-adjacent spaces are removed, others become ~
-        assertEquals("greet(int).method",
-                Historage.LanguageObject.of("greet", "method", "(int)", null, 1).generateFileName(false));
-        assertEquals("greet(int,String~name).method",
-                Historage.LanguageObject.of("greet", "method", "(int, String name)", null, 1).generateFileName(false));
+        // signature not digested: comma-adjacent spaces are removed, other spaces become ~
+        assertEquals("greet(int)", plain.leafName(new Signature("greet", null, List.of("int"))));
+        assertEquals("greet(int,String~name)", plain.leafName(new Signature("greet", null, List.of("int, String name"))));
+        assertEquals("getValue(Map[String,Object])",
+                plain.leafName(new Signature("getValue", null, List.of("Map<String, Object>"))));
 
-        // with index (before kind)
-        assertEquals("greet@3.method",
-                Historage.LanguageObject.of("greet", "method", null, null, 3).generateFileName(true));
-
-        // full: scope + name + signature (not digested) + kind
-        assertEquals("MyClass$getValue(Map[String,Object]).method",
-                Historage.LanguageObject.of("getValue", "method", "(Map<String, Object>)", "MyClass", 1).generateFileName(false));
-
-        // full: scope + name + signature (digested) + kind
-        assertEquals("MyClass$getValue(~42c8a7).method",
-                Historage.LanguageObject.of("getValue", "method", "(Map<String, Object>)", "MyClass", 1).generateFileName(true));
+        // the extension is the ctags kind, plus the source extension when requiresOriginalExtension
+        assertEquals(".method.java", digest.extension(Element.Kind.METHOD, "method", "Hello.java"));
+        assertEquals(".method", new Historage.NamingStrategy.Ctags(true, false).extension(Element.Kind.METHOD, "method", "Hello.java"));
     }
 
     // --- Integration tests (ctags required) ---

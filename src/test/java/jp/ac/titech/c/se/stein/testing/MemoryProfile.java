@@ -2,7 +2,7 @@ package jp.ac.titech.c.se.stein.testing;
 
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.app.Identity;
-import jp.ac.titech.c.se.stein.app.blob.HistorageJdt;
+import jp.ac.titech.c.se.stein.app.blob.Historage;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.rewriter.RepositoryRewriter;
 import jp.ac.titech.c.se.stein.util.TemporaryFile;
@@ -42,7 +42,7 @@ public class MemoryProfile {
             final FileRepository targetRepo = createRepository(tmp.getPath().toFile());
 
             final RepositoryRewriter rewriter = switch (command) {
-                case "historage" -> new HistorageJdt().toRewriter();
+                case "historage" -> new Historage().backends(Historage.BackendType.jdt).toRewriter();
                 default -> new Identity();
             };
             rewriter.setConfig(new Application.Config());

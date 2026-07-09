@@ -1,6 +1,6 @@
 package jp.ac.titech.c.se.stein.rewriter;
 
-import jp.ac.titech.c.se.stein.app.blob.HistorageJdt;
+import jp.ac.titech.c.se.stein.app.blob.Historage;
 import jp.ac.titech.c.se.stein.app.blob.TokenizeJdt;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
@@ -88,10 +88,10 @@ public class BlobTranslatorTest {
     @Test
     public void testFinerGit() throws IOException {
         try (RepositoryAccess source = TestRepo.createSample()) {
-            final BlobTranslator composite = BlobTranslator.composite(new HistorageJdt(), new TokenizeJdt());
+            final BlobTranslator composite = BlobTranslator.composite(new Historage().backends(Historage.BackendType.jdt), new TokenizeJdt());
 
             try (RepositoryAccess compositeResult = TestRepo.rewrite(source, composite);
-                 RepositoryAccess step1 = TestRepo.rewrite(source, new HistorageJdt());
+                 RepositoryAccess step1 = TestRepo.rewrite(source, new Historage().backends(Historage.BackendType.jdt));
                  RepositoryAccess sequentialResult = TestRepo.rewrite(step1, new TokenizeJdt())) {
 
                 final RevCommit compositeHead = compositeResult.getHead("refs/heads/main");

@@ -1,6 +1,6 @@
 package jp.ac.titech.c.se.stein.app.commit;
 
-import jp.ac.titech.c.se.stein.app.blob.HistorageJdt;
+import jp.ac.titech.c.se.stein.app.blob.Historage;
 import jp.ac.titech.c.se.stein.app.blob.TokenizeJdt;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
@@ -70,7 +70,7 @@ public class NoteCommitTest {
         // Historage → Tokenize → NoteCommit: notes should still trace back to original
         final List<RevCommit> sourceCommits = source.collectCommits("refs/heads/main");
 
-        try (RepositoryAccess step1 = TestRepo.rewrite(source,new HistorageJdt());
+        try (RepositoryAccess step1 = TestRepo.rewrite(source,new Historage().backends(Historage.BackendType.jdt));
              RepositoryAccess step2 = TestRepo.rewrite(step1,new TokenizeJdt());
              RepositoryAccess noted = TestRepo.rewrite(step2,new NoteCommit())) {
 

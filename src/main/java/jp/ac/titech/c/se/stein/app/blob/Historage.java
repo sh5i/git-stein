@@ -1,231 +1,434 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Predicate;
+
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import jp.ac.titech.c.se.stein.core.*;
+import com.google.gson.JsonObject;
+import jp.ac.titech.c.se.stein.analyzer.CtagsAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.Element;
+import jp.ac.titech.c.se.stein.analyzer.JdtAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.Languages;
+import jp.ac.titech.c.se.stein.analyzer.RenderOptions;
+import jp.ac.titech.c.se.stein.analyzer.Signature;
+import jp.ac.titech.c.se.stein.analyzer.SourceAnalyzer;
+import jp.ac.titech.c.se.stein.core.Context;
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
+import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.HashUtils;
 import jp.ac.titech.c.se.stein.util.Names;
-import jp.ac.titech.c.se.stein.util.ProcessRunner;
-import jp.ac.titech.c.se.stein.util.TemporaryFile;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.ToString;
-import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 import picocli.CommandLine.Mixin;
-
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import picocli.CommandLine.Option;
 
 /**
- * A Historage generator using universal-ctags.
- * Splits source files into finer-grained modules (one file per language object)
- * based on ctags output. For Java-specific splitting via JDT, see {@link HistorageJdt}.
+ * Splits source files into finer-grained Historage modules (one file per class, method, or field),
+ * choosing the analysis backend per file. {@code --backend} lists backends in priority order; each
+ * file is handled by the first that accepts it. Available backends: {@code ts} (tree-sitter, every
+ * supported language), {@code jdt} (Eclipse JDT, Java only, adding comment/mapping side files and
+ * binding-based method naming), and {@code ctags} (universal-ctags, needs the
+ * {@code ctags} command). The default {@code ts,ctags} handles all tree-sitter languages with
+ * tree-sitter and falls back to ctags for the rest; use {@code --backend jdt} for the JDT-only
+ * features.
  *
- * <p>Requires the {@code ctags} command to be available on the system.</p>
+ * <p>With {@code --tokens} each module's content is rendered as a FinerGit-style token sequence (one
+ * token per line, optionally annotated with its type) instead of the raw source, and classes become
+ * naming scopes only; this only applies where the analyzer tokenizes, i.e. the tree-sitter backend.</p>
+ *
+ * @see <a href="https://github.com/kusumotolab/FinerGit">FinerGit</a>
  */
-@Slf4j
 @ToString
-@Command(name = "@historage", description = "Generate finer-grained modules via ctags")
-public class Historage extends HistorageBase {
-    @Option(names = "--ctags", description = "ctags command used")
+@Command(name = "@historage", description = "Generate finer-grained modules")
+public class Historage implements BlobTranslator {
+    public enum BackendType { ts, jdt, ctags }
+
+    @Option(names = "--no-original", negatable = true, description = "Exclude original files")
+    protected boolean requiresOriginals = true;
+
+    @Option(names = "--backend", split = ",", paramLabel = "<b>",
+            description = "analysis backends in priority order (${COMPLETION-CANDIDATES}; default: ${DEFAULT-VALUE})")
+    protected List<BackendType> backendNames = List.of(BackendType.ts, BackendType.ctags);
+
+    @Option(names = "--no-classes", negatable = true, description = "[ex]/include class files")
+    protected boolean requiresClasses = true;
+
+    @Option(names = "--no-methods", negatable = true, description = "[ex]/include method files")
+    protected boolean requiresMethods = true;
+
+    @Option(names = "--no-fields", negatable = true, description = "[ex]/include field files")
+    protected boolean requiresFields = true;
+
+    @Option(names = "--tokens", description = "render modules as FinerGit token sequences (tree-sitter)")
+    protected boolean tokens = false;
+
+    @Option(names = "--token-type", negatable = true,
+            description = "annotate each token with its type (FinerGit Heuristic 1; with --tokens)")
+    protected boolean includesTokenType = true;
+
+    @Option(names = "--omit-frame", negatable = true,
+            description = "omit each method's parameter parentheses and body braces (Heuristic 2; with --tokens)")
+    protected boolean omitsFrame = true;
+
+    @Option(names = "--comments", description = "extract comment files (jdt)")
+    protected boolean requiresComments = false;
+
+    @Option(names = "--separate-comments", description = "exclude comments from modules (jdt)")
+    protected boolean separatesComments = false;
+
+    @Option(names = "--mapping", description = "extract mapping file (jdt)")
+    protected boolean requiresMapping = false;
+
+    @Option(names = "--comment-ext", paramLabel = "<ext>", description = "comment file extension (default: ${DEFAULT-VALUE})")
+    protected String commentExtension = ".com";
+
+    @Option(names = "--mapping-ext", paramLabel = "<ext>", description = "mapping file extension (default: ${DEFAULT-VALUE})")
+    protected String mappingExtension = ".mapping";
+
+    @Option(names = "--digest-params", description = "digest parameters (jdt)")
+    protected boolean digestParameters = false;
+
+    @Option(names = "--unqualify", description = "unqualify typenames (jdt)")
+    protected boolean unqualifyTypename = false;
+
+    @Option(names = "--parsable", description = "generate more parsable files (jdt)")
+    protected boolean parsable = false;
+
+    @Option(names = "--ctags", description = "ctags command used (ctags)")
     protected String ctags = "ctags";
 
-    @Option(names = "--no-original-ext", negatable = true, description = "disuse original file extension")
+    @Option(names = "--no-original-ext", negatable = true, description = "disuse original file extension (ctags)")
     protected boolean requiresOriginalExtension = true;
 
-    @Option(names = "--no-sig", negatable = true, description = "stop using signature")
-    protected boolean useSignature = true;
-
-    @Option(names = "--no-digest-sig", negatable = true, description = "stop digesting signature")
+    @Option(names = "--no-digest-sig", negatable = true, description = "stop digesting signature (ctags)")
     protected boolean digestSignature = true;
+
+    @Option(names = "--kind", paramLabel = "<k>", description = "module kinds to include (ctags)",
+            arity = "0..*", split = ",")
+    protected Set<String> moduleKinds;
 
     @Mixin
     private final NameFilter filter = new NameFilter();
 
-    @Option(names = "--kind", paramLabel = "<k>", description = "specify module kinds to include",
-            arity = "0..*", split = ",")
-    protected Set<String> moduleKinds;
+    private static final Gson GSON = new Gson();
 
-    @Override
-    protected boolean accepts(final BlobEntry entry) {
-        return filter.accept(entry);
+    /**
+     * The maximum length of a single file name on common file systems.
+     */
+    private static final int MAX_FILENAME_BYTES = 255;
+
+    private List<Engine> engines;
+
+    /**
+     * Selects the backends to try, in priority order (mainly for programmatic use); returns this.
+     */
+    public Historage backends(final BackendType... names) {
+        this.backendNames = List.of(names);
+        this.engines = null;
+        return this;
     }
 
     @Override
-    protected List<? extends HotEntry> generateModules(final BlobEntry entry, final Context c) {
-        try {
-            final SourceText text = SourceText.ofNormalized(entry.getBlob());
-            return new CtagsRunner(entry, text, c).generate();
-        } catch (final IOException e) {
-            log.error(e.getMessage(), e);
+    public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
+        for (final Engine engine : engines()) {
+            if (engine.accepts().test(entry.getName())) {
+                final AnyHotEntry.Set result = AnyHotEntry.set();
+                if (requiresOriginals) {
+                    result.add(entry);
+                }
+                for (final HotEntry module : generateModules(engine, entry, c)) {
+                    result.add(module);
+                }
+                return result;
+            }
+        }
+        return entry;
+    }
+
+    /**
+     * How one backend analyses a file: whether it handles the blob, the analyzer over it, and (when it
+     * has its own convention such as ctags) the naming strategy to use instead of the default.
+     */
+    private record Engine(Predicate<String> accepts, BiFunction<BlobEntry, Context, SourceAnalyzer> analyzer,
+                          Function<String, NamingStrategy> naming) {
+    }
+
+    /**
+     * The chosen backend engines, built lazily once the options are parsed.
+     */
+    private List<Engine> engines() {
+        if (engines == null) {
+            engines = backendNames.stream().map(this::engine).toList();
+        }
+        return engines;
+    }
+
+    private Engine engine(final BackendType backend) {
+        return switch (backend) {
+            case ts -> new Engine(Languages::accepts, (e, c) -> Languages.of(e.getName(), e.getBlob()), null);
+            case jdt -> new Engine(JdtAnalyzer::accepts,
+                    (e, c) -> JdtAnalyzer.of(e.getName(), e.getBlob(), separatesComments, parsable), null);
+            case ctags -> new Engine(filter::accept,
+                    (e, c) -> CtagsAnalyzer.of(e.getName(), e.getBlob(), ctags, moduleKinds, requiresOriginalExtension, c),
+                    f -> new NamingStrategy.Ctags(digestSignature, requiresOriginalExtension));
+        };
+    }
+
+    private List<? extends HotEntry> generateModules(final Engine engine, final BlobEntry entry, final Context c) {
+        final SourceAnalyzer source = engine.analyzer().apply(entry, c);
+        if (source == null) {
             return List.of();
         }
+        final Element root = source.extract();
+        final NamingStrategy naming = engine.naming() != null ? engine.naming().apply(entry.getName())
+                : entry.getName().endsWith(".java")
+                ? new NamingStrategy.FinerGit(unqualifyTypename, digestParameters) : NamingStrategy.Scoped.INSTANCE;
+        final RenderOptions render = tokens ? new RenderOptions(true, includesTokenType, omitsFrame) : RenderOptions.RAW;
+
+        // collect the elements that become modules, then assign each a file name, appending @2, @3,
+        // ... to the second and later occurrences of the same name
+        final List<Generated> modules = new ArrayList<>();
+        collect(source, root, naming, render, entry.getName(), modules);
+        final Map<String, Integer> counter = new HashMap<>();
+        final List<String> filenames = new ArrayList<>();
+        final List<HotEntry> out = new ArrayList<>();
+        for (final Generated m : modules) {
+            final int index = counter.merge(m.filename(1), 1, Integer::sum);
+            final String name = m.filename(index);
+            filenames.add(name);
+            out.add(HotEntry.of(entry.getMode(), name, m.content.getBytes(StandardCharsets.UTF_8)));
+        }
+        if (requiresComments) {
+            for (int i = 0; i < modules.size(); i++) {
+                final String comment = source.commentText(modules.get(i).element);
+                if (comment != null) {
+                    out.add(HotEntry.of(entry.getMode(), filenames.get(i) + commentExtension,
+                            comment.getBytes(StandardCharsets.UTF_8)));
+                }
+            }
+        }
+        if (requiresMapping && !modules.isEmpty()) {
+            out.add(HotEntry.of(entry.getMode(), root.getName() + mappingExtension,
+                    mappingContent(modules, filenames).getBytes(StandardCharsets.UTF_8)));
+        }
+        return out;
     }
 
-    @RequiredArgsConstructor
-    public class CtagsRunner {
-        private final HotEntry entry;
-
-        private final SourceText text;
-
-        private final Context c;
-
-        public List<HotEntry> generate() throws IOException {
-            try (final TemporaryFile tmp = TemporaryFile.of("_stein", "." + entry.getName())) {
-                try (final FileOutputStream out = new FileOutputStream(tmp.getPath().toFile())) {
-                    out.write(text.getRaw());
-                }
-                return extractModules(tmp.getPath());
+    private void collect(final SourceAnalyzer source, final Element parent, final NamingStrategy naming,
+                         final RenderOptions render, final String filename, final List<Generated> out) {
+        for (final Element e : parent.getChildren()) {
+            if (e.hasContent() && wants(e.getKind())) {
+                final String basename = naming.basename(e);
+                final String extension = naming.extension(e.getKind(), e.getRawKind(), filename);
+                out.add(new Generated(e, source.render(e, render), basename, extension));
             }
+            collect(source, e, naming, render, filename, out);
         }
+    }
 
-        protected List<HotEntry> extractModules(final Path path) throws IOException {
-            final List<LanguageObject> los = runCtags(path);
-            resolveNameConflicts(los);
-            return los.stream()
-                    .map(lo -> HotEntry.of(entry.getMode(), generateName(lo), generateContent(lo)))
-                    .collect(Collectors.toList());
+    private boolean wants(final Element.Kind kind) {
+        return switch (kind) {
+            case CLASS -> requiresClasses && !tokens;  // in token mode classes are naming scopes only
+            case METHOD -> requiresMethods;
+            case FIELD -> requiresFields;
+            case FILE -> false;
+        };
+    }
+
+    private String mappingContent(final List<Generated> modules, final List<String> filenames) {
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < modules.size(); i++) {
+            final Element e = modules.get(i).element;
+            final JsonObject o = new JsonObject();
+            o.addProperty("filename", filenames.get(i));
+            o.addProperty("beginLine", e.getStartLine());
+            o.addProperty("endLine", e.getEndLine());
+            sb.append(GSON.toJson(o)).append("\n");
         }
+        return sb.toString();
+    }
 
-        /**
-         * Similar to RepositoryAccess#resolveNameConflicts, but a bit simpler.
-         */
-        protected void resolveNameConflicts(final List<LanguageObject> los) {
-            final Map<String, Integer> counter = new HashMap<>();
-            for (final LanguageObject lo : los) {
-                final String name = lo.generateFileName(digestSignature);
-                if (counter.containsKey(name)) {
-                    lo.index = counter.get(name) + 1;
-                    counter.put(name, lo.index);
-                } else {
-                    counter.put(name, 1);
-                }
-            }
-        }
-
-        protected String generateName(final LanguageObject lo) {
-            final String moduleName = lo.generateFileName(digestSignature);
-            if (requiresOriginalExtension) {
-                final String name = entry.getName();
-                final int index = name.lastIndexOf('.');
-                final String basename = index > 0 ? name.substring(0, index) : name;
-                final String ext = index > 0 ? name.substring(index) : "";
-                return basename + "!" + moduleName + ext;
-            } else {
-                return entry.getName() + "!" + moduleName;
-            }
-        }
-
-        protected byte[] generateContent(final LanguageObject lo) {
-            return text.getFragmentOfLines(lo.line, lo.end).getWiderContent().getBytes(StandardCharsets.UTF_8);
-        }
-
-        protected List<LanguageObject> runCtags(final Path inputPath) throws IOException {
-            final String[] cmd = { ctags, "--output-format=json", "--fields=NnesKS", "-o", "-", inputPath.toString() };
-            try (final ProcessRunner proc = new ProcessRunner(cmd, c)) {
-                Stream<LanguageObject> result = proc.getResultReader().lines()
-                        .map(LanguageObject::parse)
-                        .filter(LanguageObject::isValid);
-                if (moduleKinds != null) {
-                    result = result.filter(lo -> moduleKinds.contains(lo.kind));
-                }
-                return result.sorted().collect(Collectors.toList());
-            }
+    /**
+     * A generated module before its final file name: the element it came from, its rendered content,
+     * and the base name and extension a naming strategy produced. {@link #filename} assembles the file
+     * name, inserting a {@code @index} conflict marker (when 2 or more) and truncating an over-long base.
+     */
+    private record Generated(Element element, String content, String basename, String extension) {
+        String filename(final int index) {
+            final String suffix = (index >= 2 ? "@" + index : "") + extension;
+            final int budget = MAX_FILENAME_BYTES - suffix.getBytes(StandardCharsets.UTF_8).length;
+            return HashUtils.abbreviateToBytes(basename, budget) + suffix;
         }
     }
 
     /**
-     * Parsed result of a language object of ctags.
+     * Turns an extracted {@link Element} into the base file name (without extension or conflict index)
+     * of its Historage module, by walking the element up its parent chain. It also formats each
+     * element's leaf name from the {@link Signature} the analyzer emitted and chooses the module's file
+     * extension. The concrete conventions are the nested {@link FinerGit}, {@link Scoped}, and
+     * {@link Ctags}.
      */
-    @ToString
-    public static class LanguageObject implements Comparable<LanguageObject> {
-        protected static final Gson GSON = new Gson();
-        protected static final TypeToken<LanguageObject> TYPE_TOKEN = new TypeToken<>() {};
-
-        @Getter
-        protected String name, kind, signature, scope;
-
-        @Getter
-        protected int line, end;
-
-        @Getter
-        protected int index = 1;
-
-        public static LanguageObject parse(final String source) {
-            return GSON.fromJson(source, TYPE_TOKEN.getType());
-        }
+    interface NamingStrategy {
+        String basename(Element element);
 
         /**
-         * Creates a LanguageObject (mainly for testing purposes).
+         * Assembles an element's leaf name from the raw {@link Signature} the analyzer extracted:
+         * prefixes the type parameters as {@code [..]_}, appends the name, and wraps the parameter list
+         * in parentheses when the signature has one (an empty list yields {@code ()}). The analyzer
+         * supplies each part already escaped for file names; since the assembled punctuation
+         * ({@code []()_,}) is not itself a reserved character, no further escaping is needed here. A
+         * strategy that transforms the parameters (FinerGit's digesting or unqualifying) overrides
+         * {@link #formatParameters}.
          */
-        public static LanguageObject of(String name, String kind, String signature, String scope, int index) {
-            final LanguageObject lo = new LanguageObject();
-            lo.name = name;
-            lo.kind = kind;
-            lo.signature = signature;
-            lo.scope = scope;
-            lo.index = index;
-            return lo;
-        }
-
-        public boolean isValid() {
-            return name != null && line != 0 && end != 0;
-        }
-
-        public String generateFileName(final boolean digestSignature) {
+        default String leafName(final Signature signature) {
             final StringBuilder sb = new StringBuilder();
-            if (scope != null) {
-                sb.append(Names.escape(scope)).append("$");
+            if (signature.typeParameters() != null && !signature.typeParameters().isEmpty()) {
+                sb.append("[").append(String.join(",", signature.typeParameters())).append("]_");
             }
-            if (name != null) {
-                sb.append(Names.escape(name));
+            sb.append(signature.name());
+            if (signature.parameters() != null) {
+                sb.append("(").append(formatParameters(String.join(",", signature.parameters()))).append(")");
             }
-            if (signature != null) {
-                sb.append("(").append(generateSignature(signature, digestSignature)).append(")");
-            }
-            if (index >= 2) {
-                sb.append("@").append(index);
-            }
-            sb.append(".").append(Names.escape(kind));
             return sb.toString();
         }
 
-        protected String generateSignature(String sig, final boolean digestSignature) {
-            sig = sig.replaceAll("\\s+", " ").trim();
-            if (sig.startsWith("(") && sig.endsWith(")")) {
-                sig = sig.substring(1, sig.length() - 1);
-            }
-            sig = sig.replaceAll(" ?([,;:]) ?", "$1");
-            if (digestSignature) {
-                sig = "~" + HashUtils.digest(sig, 6);
-            } else {
-                sig = Names.escape(sig);
-            }
-            return sig;
+        /**
+         * Transforms the comma-joined parameter list before it is wrapped in parentheses. The default
+         * keeps it unchanged; FinerGit overrides it to optionally unqualify type names and digest it.
+         */
+        default String formatParameters(final String parameters) {
+            return parameters;
         }
 
-        public static final Comparator<LanguageObject> COMPARATOR = Comparator
-                .comparingInt(LanguageObject::getLine)
-                .thenComparing(LanguageObject::getEnd, Comparator.reverseOrder())
-                .thenComparing(LanguageObject::getScope, Comparator.nullsFirst(Comparator.naturalOrder()))
-                .thenComparing(LanguageObject::getKind, Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparing(LanguageObject::getName, Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparing(LanguageObject::getSignature, Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparing(LanguageObject::getIndex);
+        /**
+         * The module file extension for an element's kind, its analyzer-specific raw kind (or null), and
+         * the source file name. The default marks a class, method, or field with a single letter before
+         * the source extension (e.g. {@code .mjava}); a strategy for a tag-based analyzer may use the
+         * raw kind.
+         */
+        default String extension(final Element.Kind kind, final String rawKind, final String filename) {
+            final String letter = switch (kind) {
+                case CLASS -> "c";
+                case METHOD -> "m";
+                case FIELD -> "f";
+                case FILE -> "";
+            };
+            return "." + letter + filename.substring(filename.lastIndexOf('.') + 1);
+        }
 
-        @Override
-        public int compareTo(final LanguageObject other) {
-            return COMPARATOR.compare(this, other);
+        /**
+         * The FinerGit naming convention used by the Java Historage generators. Nested classes join with
+         * {@code .} and members with {@code #}; a top-level class whose name differs from the file base
+         * is written as {@code Name[FileBase]}. As a naming policy it also transforms a method's
+         * parameter list: optionally unqualifying type names and digesting the whole list into a hash.
+         */
+        class FinerGit implements NamingStrategy {
+            private final boolean unqualifyTypename;
+
+            private final boolean digestParameters;
+
+            public FinerGit(final boolean unqualifyTypename, final boolean digestParameters) {
+                this.unqualifyTypename = unqualifyTypename;
+                this.digestParameters = digestParameters;
+            }
+
+            @Override
+            public String basename(final Element e) {
+                final String leaf = leafName(e.getSignature());
+                return switch (e.getKind()) {
+                    case FILE -> leaf;
+                    case CLASS -> e.getParent().getKind() == Element.Kind.CLASS
+                            ? basename(e.getParent()) + "." + leaf
+                            : basename(e.getParent()).equals(leaf) ? leaf : leaf + "[" + basename(e.getParent()) + "]";
+                    case METHOD, FIELD -> basename(e.getParent()) + "#" + leaf;
+                };
+            }
+
+            @Override
+            public String formatParameters(final String parameters) {
+                String result = parameters;
+                if (unqualifyTypename) {
+                    result = result.replaceAll("[a-zA-Z0-9_$]+\\.", "");
+                }
+                if (digestParameters && !result.isEmpty()) {
+                    result = "~" + HashUtils.digest(result, 6);
+                }
+                return result;
+            }
+        }
+
+        /**
+         * The scoped naming convention shared by languages with explicit namespaces or packages:
+         * namespaces and classes nest with {@code .} and members with {@code #}, and a top-level
+         * definition is separated from the file base with {@code !}. It stays portable across file
+         * systems by using no reserved characters. Used by the Python, C++, and C# generators.
+         */
+        class Scoped implements NamingStrategy {
+            public static final Scoped INSTANCE = new Scoped();
+
+            @Override
+            public String basename(final Element e) {
+                final String leaf = leafName(e.getSignature());
+                return switch (e.getKind()) {
+                    case FILE -> leaf;
+                    case CLASS -> basename(e.getParent()) + (e.getParent().getKind() == Element.Kind.FILE ? "!" : ".") + leaf;
+                    case METHOD, FIELD -> basename(e.getParent()) + (e.getParent().getKind() == Element.Kind.FILE ? "!" : "#") + leaf;
+                };
+            }
+        }
+
+        /**
+         * The naming convention for the ctags-based Historage generator: a leaf's file name is
+         * {@code <fileBase>!<scope>$<name>(<signature>).<ctagsKind>}, where the enclosing scope (which
+         * ctags reports as a dotted string) is a single element under the file root. The signature is
+         * normalized and either digested to a short hash or made file-name-safe; the extension is the
+         * ctags kind, optionally followed by the source file's own extension.
+         */
+        class Ctags implements NamingStrategy {
+            private final boolean digestSignature;
+
+            private final boolean requiresOriginalExtension;
+
+            public Ctags(final boolean digestSignature, final boolean requiresOriginalExtension) {
+                this.digestSignature = digestSignature;
+                this.requiresOriginalExtension = requiresOriginalExtension;
+            }
+
+            @Override
+            public String basename(final Element e) {
+                final String leaf = leafName(e.getSignature());
+                if (e.getKind() == Element.Kind.FILE) {
+                    return leaf;
+                }
+                return e.getParent().getKind() == Element.Kind.FILE
+                        ? basename(e.getParent()) + "!" + leaf
+                        : basename(e.getParent()) + "$" + leaf;
+            }
+
+            @Override
+            public String formatParameters(final String parameters) {
+                final String signature = parameters.replaceAll(" ?([,;:]) ?", "$1");
+                return digestSignature ? "~" + HashUtils.digest(signature, 6) : Names.escape(signature);
+            }
+
+            @Override
+            public String extension(final Element.Kind kind, final String rawKind, final String filename) {
+                if (requiresOriginalExtension) {
+                    final int index = filename.lastIndexOf('.');
+                    return "." + rawKind + (index > 0 ? filename.substring(index) : "");
+                }
+                return "." + rawKind;
+            }
         }
     }
-
 }

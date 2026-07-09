@@ -5,7 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import jp.ac.titech.c.se.stein.Application;
 import jp.ac.titech.c.se.stein.app.Identity;
-import jp.ac.titech.c.se.stein.app.blob.HistorageJdt;
+import jp.ac.titech.c.se.stein.app.blob.Historage;
 import jp.ac.titech.c.se.stein.app.blob.TokenizeJdt;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
@@ -54,9 +54,9 @@ public class RewriteBenchmark {
 
         results.add(benchmark("identity", sourceDir, Identity::new, alternates, cache));
         results.add(benchmark("tokenize-jdt", sourceDir, () -> new TokenizeJdt().toRewriter(), alternates, cache));
-        results.add(benchmark("historage-jdt", sourceDir, () -> new HistorageJdt().toRewriter(), alternates, cache));
+        results.add(benchmark("historage-jdt", sourceDir, () -> new Historage().backends(Historage.BackendType.jdt).toRewriter(), alternates, cache));
         results.add(benchmark("historage+tokenize", sourceDir,
-                () -> BlobTranslator.composite(new HistorageJdt(), new TokenizeJdt()).toRewriter(), alternates, cache));
+                () -> BlobTranslator.composite(new Historage().backends(Historage.BackendType.jdt), new TokenizeJdt()).toRewriter(), alternates, cache));
 
         // summary
         System.out.println();

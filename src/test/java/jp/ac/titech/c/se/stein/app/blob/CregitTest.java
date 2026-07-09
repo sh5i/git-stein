@@ -1,8 +1,12 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
+import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
 import jp.ac.titech.c.se.stein.core.Context;
-import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
+import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
+import jp.ac.titech.c.se.stein.entry.BlobEntry;
+import jp.ac.titech.c.se.stein.entry.Entry;
+import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -49,13 +53,12 @@ public class CregitTest {
 
     @Test
     public void testGuessLanguage() {
-        assertEquals("Java", Cregit.JAVA_FILTER.accept("Hello.java") ? "Java" : null);
-        assertEquals("C", Cregit.C_FILTER.accept("hello.c") ? "C" : null);
-        assertEquals("C++", Cregit.CXX_FILTER.accept("hello.cpp") ? "C++" : null);
-        assertEquals("C#", Cregit.CSHARP_FILTER.accept("hello.cs") ? "C#" : null);
+        assertEquals("Java", SrcmlAnalyzer.languageOf("Hello.java"));
+        assertEquals("C", SrcmlAnalyzer.languageOf("hello.c"));
+        assertEquals("C++", SrcmlAnalyzer.languageOf("hello.cpp"));
+        assertEquals("C#", SrcmlAnalyzer.languageOf("hello.cs"));
 
-        assertFalse(Cregit.JAVA_FILTER.accept("hello.py"));
-        assertFalse(Cregit.C_FILTER.accept("hello.java"));
+        assertNull(SrcmlAnalyzer.languageOf("hello.py"));
     }
 
     @Test
@@ -63,14 +66,17 @@ public class CregitTest {
         assumeTrue(ProcessRunner.isAvailable("srcml"), "srcml not available");
 
         assertEquals(String.join("\n",
-                "begin_unit|revision:1.0.0;language:Java;cregit-version:0.0.1",
+                "begin_unit|language:Java;cregit-version:0.0.1",
                 "begin_class",
                 "class|class",
                 "name|A",
                 "block|{",
+                "begin_field",
                 "name|int",
                 "name|x",
                 "decl_stmt|;",
+                "end_field",
+                "begin_method",
                 "name|int",
                 "name|get",
                 "parameter_list|()",
@@ -79,6 +85,7 @@ public class CregitTest {
                 "name|x",
                 "return|;",
                 "block|}",
+                "end_method",
                 "block|}",
                 "end_class",
                 "end_unit",
@@ -91,8 +98,8 @@ public class CregitTest {
         assumeTrue(ProcessRunner.isAvailable("srcml"), "srcml not available");
 
         assertEquals(String.join("\n",
-                "begin_unit|revision:1.0.0;language:C;cregit-version:0.0.1",
-                "begin_function",
+                "begin_unit|language:C;cregit-version:0.0.1",
+                "begin_method",
                 "name|int",
                 "name|add",
                 "parameter_list|(",
@@ -109,7 +116,7 @@ public class CregitTest {
                 "name|b",
                 "return|;",
                 "block|}",
-                "end_function",
+                "end_method",
                 "end_unit",
                 ""
         ), convert("int add(int a, int b) { return a + b; }", "C"));
@@ -120,11 +127,18 @@ public class CregitTest {
     }
 
     private String convert(String source, String language, boolean position) {
-        final Cregit cregit = new Cregit();
+        final Cregit cregit = new Cregit().backends(Cregit.BackendType.srcml);
         cregit.position = position;
-        final byte[] sourceBlob = source.getBytes(StandardCharsets.UTF_8);
-        final byte[] resultBlob = cregit.convert(sourceBlob, language, Context.init());
-        return new String(resultBlob);
+        cregit.setLanguage(language);
+        final String name = switch (language) {
+            case "Java" -> "A.java";
+            case "C" -> "a.c";
+            case "C++" -> "a.cpp";
+            case "C#" -> "a.cs";
+            default -> "a";
+        };
+        final AnyHotEntry result = cregit.rewriteBlobEntry(HotEntry.ofBlob(name, source), Context.init());
+        return new String(((BlobEntry) result.stream().findFirst().orElseThrow()).getBlob());
     }
 
     @Test
@@ -139,7 +153,7 @@ public class CregitTest {
         }
         assertTrue(result.contains("-:-|begin_unit|"));
         assertTrue(result.contains("1:1|name|int"));
-        assertTrue(result.contains("-:-|end_function"));
+        assertTrue(result.contains("-:-|end_method"));
     }
 
     // --- Integration tests (srcml required) ---

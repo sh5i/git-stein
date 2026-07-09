@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CregitTreeSitterTest {
     private final Context c = Context.init();
-    private final CregitTreeSitter app = new CregitTreeSitter();
+    private final Cregit app = new Cregit().backends(Cregit.BackendType.ts);
 
     private String convert(final String name, final String source) {
         final AnyHotEntry result = app.rewriteBlobEntry(HotEntry.ofBlob(name, source), c);
@@ -54,7 +54,7 @@ public class CregitTreeSitterTest {
 
     @Test
     public void testCommentsKeptAcrossLanguages() {
-        // unlike @finer, cregit keeps comments; the language name is in the header; a Python function
+        // unlike @historage --tokens, cregit keeps comments; the language name is in the header; a Python function
         // is a method, so its tokens are wrapped in begin_method/end_method
         final String py = convert("s.py", "def add(a, b):\n    # sum\n    return a + b\n");
         assertTrue(py.startsWith("begin_unit|language:Python;cregit-version:0.0.1\nbegin_method\n"), py);

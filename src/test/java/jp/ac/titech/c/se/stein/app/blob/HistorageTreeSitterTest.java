@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class HistorageTreeSitterTest {
     private final Context c = Context.init();
-    private final HistorageTreeSitter app = new HistorageTreeSitter();
+    private final Historage app = new Historage().backends(Historage.BackendType.ts);
 
     private static final String SOURCE = """
             import os
@@ -249,7 +249,7 @@ public class HistorageTreeSitterTest {
     @Test
     public void testJavaMatchesHistorageJdt() {
         final Map<String, String> ts = rewrite("Hello.java", JAVA_SOURCE);
-        final HistorageJdt jdt = new HistorageJdt();
+        final Historage jdt = new Historage().backends(Historage.BackendType.jdt);
         final AnyHotEntry out = jdt.rewriteBlobEntry(HotEntry.ofBlob("Hello.java", JAVA_SOURCE), c);
         final Map<String, String> expected = out.stream()
                 .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));
