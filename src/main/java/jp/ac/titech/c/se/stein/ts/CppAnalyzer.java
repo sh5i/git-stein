@@ -102,7 +102,10 @@ public class CppAnalyzer extends QueryAnalyzer {
                 return fieldNameNode(node, captures.get("name")) != null;
             }
             default -> {
-                return true;
+                // a class/struct/union/enum is a real element only as a definition with a member
+                // body; a forward declaration or elaborated type reference (struct X;, struct X *p)
+                // has nothing to extract
+                return !isSpecifier(node) || !node.getChildByFieldName("body").isNull();
             }
         }
     }
