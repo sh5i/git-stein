@@ -46,6 +46,11 @@ public interface BlobTranslator extends RewriterCommand {
         }
 
         @Override
+        public void setUp(final Context c) {
+            translator.setUp(c);
+        }
+
+        @Override
         public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
             return translator.rewriteBlobEntry(entry, c);
         }
