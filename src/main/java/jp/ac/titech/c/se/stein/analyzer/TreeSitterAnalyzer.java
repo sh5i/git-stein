@@ -191,6 +191,42 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
         return out;
     }
 
+    /**
+     * The comments attached to an element's declaration, for a Historage comment side file: the run of
+     * comment siblings directly above it (stopping at a blank line) and a comment trailing on the same
+     * line as its end, each on its own line. Returns the empty string when there are none.
+     */
+    @Override
+    public String commentText(final Element e) {
+        final TSNode node = nodeOf(e);
+        final StringBuilder sb = new StringBuilder();
+        final List<TSNode> leading = new ArrayList<>();
+        int topRow = node.getStartPoint().getRow();
+        for (TSNode p = node.getPrevSibling(); !p.isNull() && isComment(p); p = p.getPrevSibling()) {
+            if (p.getEndPoint().getRow() + 1 < topRow) {
+                break; // a blank line separates this comment from the declaration below it
+            }
+            leading.add(p);
+            topRow = p.getStartPoint().getRow();
+        }
+        for (int i = leading.size() - 1; i >= 0; i--) {
+            sb.append(textOf(leading.get(i))).append("\n");
+        }
+        final TSNode next = node.getNextSibling();
+        if (!next.isNull() && isComment(next) && next.getStartPoint().getRow() == node.getEndPoint().getRow()) {
+            sb.append(textOf(next)).append("\n");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Whether the node is a comment. The generic test matches any node type ending in {@code comment}
+     * (e.g. {@code line_comment}, {@code block_comment}, {@code comment}); a subclass may narrow it.
+     */
+    protected boolean isComment(final TSNode node) {
+        return node.getType().endsWith("comment");
+    }
+
     private void collectTokens(final TSNode node, final List<Token> out) {
         if (node.getChildCount() > 0) {
             for (int i = 0; i < node.getChildCount(); i++) {

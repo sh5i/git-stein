@@ -166,6 +166,19 @@ public class HistorageTreeSitterTest {
     }
 
     @Test
+    public void testComments() {
+        final Historage withComments = new Historage().backends(Historage.BackendType.ts);
+        withComments.requiresComments = true;
+        final AnyHotEntry result = withComments.rewriteBlobEntry(HotEntry.ofBlob("sample.py", SOURCE), c);
+        final Map<String, String> entries = result.stream()
+                .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));
+        // the leading comment run attaches to the def directly below it
+        assertEquals("# あいさつ\n", entries.get("sample!top(a,b,+args,++kw).mpy.com"));
+        // a def with no comment still gets an (empty) comment file
+        assertEquals("", entries.get("sample!amain().mpy.com"));
+    }
+
+    @Test
     public void testCodingDeclaration() {
         // a PEP 263 declaration overrides the default UTF-8 (0xE9 = é in latin-1)
         final byte[] latin1 = ("# -*- coding: latin-1 -*-\ndef f():\n    return \"café\"\n")
