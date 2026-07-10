@@ -175,17 +175,10 @@ public class SrcmlAnalyzer implements TokenizingAnalyzer {
             nodes.put(e, dom);
             e.setStartLine(startLine(dom));
             e.setEndLine(endLine(dom));
+            e.setFragment(text.getFragmentOfLines(startLine(dom), endLine(dom)));
         }
         parent.addChild(e);
         return e;
-    }
-
-    // --- raw text (historage) ---
-
-    @Override
-    public String rawText(final Element e) {
-        final org.w3c.dom.Element dom = nodes.get(e);
-        return text.getFragmentOfLines(startLine(dom), endLine(dom)).getWiderContent();
     }
 
     // --- tokens (historage token sequence, cregit) ---

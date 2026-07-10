@@ -104,8 +104,7 @@ public class JdtAnalyzer implements SourceAnalyzer {
 
     @Override
     public String rawText(final Element e) {
-        final BodyDeclaration node = nodes.get(e);
-        return getContent(getFragmentWithSurroundingComments(node), node, enclosingClass.get(e));
+        return getContent(e.getFragment(), nodes.get(e), enclosingClass.get(e));
     }
 
     @Override
@@ -125,6 +124,7 @@ public class JdtAnalyzer implements SourceAnalyzer {
             final Element e = new Element(kind, signature, f.getBegin(), f.getEnd());
             e.setStartLine(unit.getLineNumber(f.getBegin()));
             e.setEndLine(unit.getLineNumber(f.getEnd()));
+            e.setFragment(f);
             stack.peek().addChild(e);
             nodes.put(e, node);
             if (kind != Element.Kind.CLASS) {

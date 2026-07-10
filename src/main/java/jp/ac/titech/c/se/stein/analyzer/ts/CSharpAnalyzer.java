@@ -104,13 +104,6 @@ public class CSharpAnalyzer extends QueryAnalyzer {
         return types;
     }
 
-    @Override
-    protected String rawContentOf(final TSNode node) {
-        final int beginLine = node.getStartPoint().getRow() + 1;
-        final int endLine = node.getEndPoint().getRow() + 1;
-        return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
-    }
-
     /**
      * A file-scoped namespace scopes the siblings that follow its declaration; move them under it.
      */

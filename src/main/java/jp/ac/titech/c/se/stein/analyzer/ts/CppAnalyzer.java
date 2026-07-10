@@ -11,6 +11,7 @@ import org.treesitter.TreeSitterC;
 import org.treesitter.TreeSitterCpp;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 
 /**
  * A query-based analyzer for C and C++: detection is the declarative {@link #CPP_QUERY} (or
@@ -113,11 +114,11 @@ public class CppAnalyzer extends QueryAnalyzer {
     }
 
     @Override
-    protected String rawContentOf(final TSNode node) {
+    protected Fragment contentFragment(final TSNode node) {
         final TSNode extent = extentOf(node);
         final int beginLine = extent.getStartPoint().getRow() + 1;
         final int endLine = extent.getEndPoint().getRow() + 1;
-        return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
+        return text.getFragmentOfLines(beginLine, endLine);
     }
 
     /**

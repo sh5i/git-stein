@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.analyzer;
 import java.util.ArrayList;
 import java.util.List;
 
+import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,11 +12,11 @@ import lombok.Setter;
  * {@link Kind#FILE} root. Elements nest into a tree mirroring the source's scope structure, which a
  * consumer walks to build its own model (e.g. Historage modules).
  *
- * <p>An element is a backend-neutral value: it carries the character range of its content (indices into
- * the decoded content, from which the analyzer re-derives whatever it needs to render or tokenize it),
- * not a tree-sitter node. A scope such as a namespace, which structures names but is never rendered, has
- * no content range ({@link #hasContent} is false). A few grammars split a declaration into two adjacent
- * nodes; such an element carries a second, {@code span} range so the analyzer can render both parts.</p>
+ * <p>An element is a backend-neutral value: it carries the character range that locates its content and
+ * a {@link Fragment} of the decoded text from which its raw source is rendered, not a tree-sitter node.
+ * A scope such as a namespace, which structures names but is never rendered, has no content range
+ * ({@link #hasContent} is false). A few grammars split a declaration into two adjacent nodes; such an
+ * element carries a second, {@code span} range so the analyzer can render both parts.</p>
  */
 public class Element {
     /**
@@ -48,6 +49,14 @@ public class Element {
      */
     final int spanStart;
     final int spanEnd;
+
+    /**
+     * The element's source span, from which its raw text is rendered, or null for a scope with no
+     * content.
+     */
+    @Getter
+    @Setter
+    private Fragment fragment;
 
     /**
      * The 1-based source line range of the element's content, or {@link #NONE} when the analyzer does

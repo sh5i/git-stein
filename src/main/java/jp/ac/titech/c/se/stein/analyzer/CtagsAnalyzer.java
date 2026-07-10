@@ -107,16 +107,12 @@ public class CtagsAnalyzer implements SourceAnalyzer {
                 e.setRawKind(lo.kind);
                 e.setStartLine(lo.line);
                 e.setEndLine(lo.end);
+                e.setFragment(fragment);
                 parent.addChild(e);
             }
             extracted = true;
         }
         return root;
-    }
-
-    @Override
-    public String rawText(final Element e) {
-        return text.getFragmentOfLines(e.getStartLine(), e.getEndLine()).getWiderContent();
     }
 
     /**

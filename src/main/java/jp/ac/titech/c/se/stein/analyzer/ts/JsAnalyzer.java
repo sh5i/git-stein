@@ -178,11 +178,4 @@ public class JsAnalyzer extends QueryAnalyzer {
         }
         return escape(textOf(p).replaceAll("\\s+", ""));
     }
-
-    @Override
-    protected String rawContentOf(final TSNode node) {
-        final int beginLine = node.getStartPoint().getRow() + 1;
-        final int endLine = node.getEndPoint().getRow() + 1;
-        return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
-    }
 }

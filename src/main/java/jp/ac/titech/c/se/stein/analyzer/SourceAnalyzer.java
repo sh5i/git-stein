@@ -14,9 +14,13 @@ public interface SourceAnalyzer {
     Element extract();
 
     /**
-     * The raw source text of an element (the source lines its declaration spans).
+     * The raw source text of an element, rendered from its source span ({@link Element#getFragment}). A
+     * backend that synthesizes text beyond the element's own source (e.g. wrapping a member so it parses
+     * standalone) overrides this.
      */
-    String rawText(Element e);
+    default String rawText(final Element e) {
+        return e.getFragment().getWiderContent();
+    }
 
     /**
      * The comment text attached to the element's declaration, for a Historage comment side file, or

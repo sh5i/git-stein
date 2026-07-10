@@ -12,6 +12,7 @@ import org.treesitter.TSNode;
 import org.treesitter.TreeSitterJava;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 
 /**
  * A query-based analyzer for Java: detection is the declarative {@link #QUERY} (class-like
@@ -340,16 +341,16 @@ public class JavaAnalyzer extends QueryAnalyzer {
     }
 
     /**
-     * Extracts the source of the given declaration with its surrounding comments, like JdtAnalyzer's
+     * The source span of the given declaration with its surrounding comments, like JdtAnalyzer's
      * fragment extraction: the leading comment run directly above (except comments that trail the
      * previous sibling on its own line) and the trailing comments on the same line as the declaration
      * end.
      */
     @Override
-    protected String rawContentOf(final TSNode node) {
+    protected Fragment contentFragment(final TSNode node) {
         final int begin = text.toCharIndex(attachedStart(node));
         final int end = text.toCharIndex(attachedEnd(node));
-        return text.getFragment(begin, end).getWiderContent();
+        return text.getFragment(begin, end);
     }
 
     protected boolean isComment(final TSNode node) {

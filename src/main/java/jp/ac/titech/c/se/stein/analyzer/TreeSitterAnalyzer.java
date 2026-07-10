@@ -14,6 +14,7 @@ import org.treesitter.TSNode;
 import org.treesitter.TSPoint;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import jp.ac.titech.c.se.stein.util.Names;
 
 /**
@@ -72,6 +73,7 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
             nodes.put(e, content);
             e.setStartLine(content.getStartPoint().getRow() + 1);
             e.setEndLine(content.getEndPoint().getRow() + 1);
+            e.setFragment(contentFragment(content));
         }
         parent.addChild(e);
         return e;
@@ -90,6 +92,7 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
         endNodes.put(e, end);
         e.setStartLine(start.getStartPoint().getRow() + 1);
         e.setEndLine(end.getEndPoint().getRow() + 1);
+        e.setFragment(text.getFragmentOfLines(e.getStartLine(), e.getEndLine()));
         parent.addChild(e);
         return e;
     }
@@ -104,20 +107,6 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
 
     private TSNode endNodeOf(final Element e) {
         return endNodes.get(e);
-    }
-
-    /**
-     * The raw source text of an element: the source lines its declaration spans (both segments when it
-     * spans split nodes).
-     */
-    @Override
-    public String rawText(final Element e) {
-        if (!e.hasSpan()) {
-            return rawContentOf(nodeOf(e));
-        }
-        final int begin = nodeOf(e).getStartPoint().getRow() + 1;
-        final int end = endNodeOf(e).getEndPoint().getRow() + 1;
-        return text.getFragmentOfLines(begin, end).getWiderContent();
     }
 
     /**
@@ -303,13 +292,13 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
     }
 
     /**
-     * The raw source of an element: the full source lines spanning the node. Subclasses override
-     * this with language-specific extraction (e.g. attaching comments).
+     * The source span an element renders as: the full source lines the node spans. A subclass narrows or
+     * widens it (e.g. attaching comments).
      */
-    protected String rawContentOf(final TSNode node) {
+    protected Fragment contentFragment(final TSNode node) {
         final int beginLine = node.getStartPoint().getRow() + 1;
         final int endLine = node.getEndPoint().getRow() + 1;
-        return text.getFragmentOfLines(beginLine, endLine).getWiderContent();
+        return text.getFragmentOfLines(beginLine, endLine);
     }
 
     /**
