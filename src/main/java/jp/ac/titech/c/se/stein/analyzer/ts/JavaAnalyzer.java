@@ -357,79 +357,8 @@ public class JavaAnalyzer extends QueryAnalyzer {
         return node.getType().equals("line_comment") || node.getType().equals("block_comment");
     }
 
-    /**
-     * The start of the leading comment run, following JDT. A doc comment directly preceding the
-     * declaration is bound to it regardless of blank lines, like the Eclipse parser binds Javadoc.
-     * Above that, comments chain upward as long as no blank line intervenes, as in JDT's
-     * {@code DefaultCommentMapper}; a comment starting on the same line as the previous sibling's end
-     * (for the first sibling: the file start) trails that sibling instead and stops the chain.
-     */
-    protected int attachedStart(final TSNode node) {
-        TSNode prev = node.getPrevSibling();
-        int start = node.getStartByte();
-        int startRow = node.getStartPoint().getRow();
-        if (!prev.isNull() && isComment(prev) && textOf(prev).startsWith("/**")) {
-            start = prev.getStartByte();
-            startRow = prev.getStartPoint().getRow();
-            prev = prev.getPrevSibling();
-        }
-        final int nodeStartRow = startRow;
-        int previousEndRow = 0;
-        {
-            TSNode p = prev;
-            while (!p.isNull() && isComment(p)) {
-                p = p.getPrevSibling();
-            }
-            if (!p.isNull()) {
-                previousEndRow = p.getEndPoint().getRow();
-            }
-        }
-        while (!prev.isNull() && isComment(prev)) {
-            final int commentRow = prev.getStartPoint().getRow();
-            if (startRow - prev.getEndPoint().getRow() > 1) {
-                break; // a blank line between the comment and what follows it
-            }
-            if (commentRow == previousEndRow && commentRow != nodeStartRow) {
-                break; // trails the previous sibling
-            }
-            start = prev.getStartByte();
-            startRow = commentRow;
-            prev = prev.getPrevSibling();
-        }
-        return start;
-    }
-
-    /**
-     * The end of the trailing comment run, following JDT's {@code DefaultCommentMapper}: comments
-     * chain downward until a blank line; unless the declaration is the last member, the run must be
-     * separated from the next declaration by a blank line, or only the comments on the declaration's
-     * own end line trail it.
-     */
-    protected int attachedEnd(final TSNode node) {
-        final int nodeEndRow = node.getEndPoint().getRow();
-        int end = node.getEndByte();
-        int endRow = nodeEndRow;
-        int sameLineEnd = -1;
-        TSNode next = node.getNextSibling();
-        while (!next.isNull() && isComment(next)) {
-            if (next.getStartPoint().getRow() - endRow > 1) {
-                break; // a blank line between the previous end and the comment
-            }
-            end = next.getEndByte();
-            endRow = next.getEndPoint().getRow();
-            if (next.getStartPoint().getRow() == nodeEndRow) {
-                sameLineEnd = end;
-            }
-            next = next.getNextSibling();
-        }
-        if (end == node.getEndByte()) {
-            return end;
-        }
-        // unless this is the last member (followed by a closing token), the run trails this
-        // declaration only when a blank line separates it from the next declaration
-        if (!next.isNull() && next.isNamed() && next.getStartPoint().getRow() - endRow <= 1) {
-            return sameLineEnd != -1 ? sameLineEnd : node.getEndByte();
-        }
-        return end;
+    @Override
+    protected boolean isDocComment(final TSNode node) {
+        return textOf(node).startsWith("/**");
     }
 }

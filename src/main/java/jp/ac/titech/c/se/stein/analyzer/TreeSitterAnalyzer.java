@@ -173,29 +173,29 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
     }
 
     /**
-     * The comments attached to an element's declaration, for a Historage comment side file: the run of
-     * comment siblings directly above it (stopping at a blank line) and a comment trailing on the same
-     * line as its end, each on its own line. Returns the empty string when there are none.
+     * The comments attached to an element's declaration, for a Historage comment side file: the leading
+     * run bound by {@link #attachedStart} and the trailing run bound by {@link #attachedEnd}, each
+     * comment on its own line. Returns the empty string when there are none.
      */
     @Override
     public String commentText(final Element e) {
         final TSNode node = nodeOf(e);
+        final int start = attachedStart(node);
+        final int end = attachedEnd(node);
         final StringBuilder sb = new StringBuilder();
         final List<TSNode> leading = new ArrayList<>();
-        int topRow = node.getStartPoint().getRow();
-        for (TSNode p = node.getPrevSibling(); !p.isNull() && isComment(p); p = p.getPrevSibling()) {
-            if (p.getEndPoint().getRow() + 1 < topRow) {
-                break; // a blank line separates this comment from the declaration below it
+        for (TSNode p = node.getPrevSibling(); !p.isNull() && p.getStartByte() >= start; p = p.getPrevSibling()) {
+            if (isComment(p)) {
+                leading.add(p);
             }
-            leading.add(p);
-            topRow = p.getStartPoint().getRow();
         }
         for (int i = leading.size() - 1; i >= 0; i--) {
             sb.append(textOf(leading.get(i))).append("\n");
         }
-        final TSNode next = node.getNextSibling();
-        if (!next.isNull() && isComment(next) && next.getStartPoint().getRow() == node.getEndPoint().getRow()) {
-            sb.append(textOf(next)).append("\n");
+        for (TSNode n = node.getNextSibling(); !n.isNull() && n.getEndByte() <= end; n = n.getNextSibling()) {
+            if (isComment(n)) {
+                sb.append(textOf(n)).append("\n");
+            }
         }
         return sb.toString();
     }
@@ -206,6 +206,90 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
      */
     protected boolean isComment(final TSNode node) {
         return node.getType().endsWith("comment");
+    }
+
+    /**
+     * Whether the comment is a documentation comment, which binds to the declaration directly below it
+     * regardless of an intervening blank line. The generic answer is no; a language subclass overrides
+     * it (e.g. Java's {@code /**}).
+     */
+    protected boolean isDocComment(final TSNode node) {
+        return false;
+    }
+
+    /**
+     * The byte offset where a declaration begins once its leading comments are attached, following JDT: a
+     * doc comment directly above binds regardless of a blank line; above that, comments chain upward while
+     * no blank line intervenes; a comment on the same line as the previous sibling's end trails that
+     * sibling instead and stops the chain.
+     */
+    protected int attachedStart(final TSNode node) {
+        TSNode prev = node.getPrevSibling();
+        int start = node.getStartByte();
+        int startRow = node.getStartPoint().getRow();
+        if (!prev.isNull() && isComment(prev) && isDocComment(prev)) {
+            start = prev.getStartByte();
+            startRow = prev.getStartPoint().getRow();
+            prev = prev.getPrevSibling();
+        }
+        final int nodeStartRow = startRow;
+        int previousEndRow = 0;
+        {
+            TSNode p = prev;
+            while (!p.isNull() && isComment(p)) {
+                p = p.getPrevSibling();
+            }
+            if (!p.isNull()) {
+                previousEndRow = p.getEndPoint().getRow();
+            }
+        }
+        while (!prev.isNull() && isComment(prev)) {
+            final int commentRow = prev.getStartPoint().getRow();
+            if (startRow - prev.getEndPoint().getRow() > 1) {
+                break; // a blank line between the comment and what follows it
+            }
+            if (commentRow == previousEndRow && commentRow != nodeStartRow) {
+                break; // trails the previous sibling
+            }
+            start = prev.getStartByte();
+            startRow = commentRow;
+            prev = prev.getPrevSibling();
+        }
+        return start;
+    }
+
+    /**
+     * The byte offset where a declaration ends once its trailing comments are attached, following JDT's
+     * {@code DefaultCommentMapper}: comments chain downward until a blank line; unless the declaration is
+     * the last member, the run trails it only when a blank line separates it from the next declaration,
+     * otherwise only the comments on its own end line trail.
+     */
+    protected int attachedEnd(final TSNode node) {
+        final int nodeEndRow = node.getEndPoint().getRow();
+        int end = node.getEndByte();
+        int endRow = nodeEndRow;
+        int sameLineEnd = -1;
+        TSNode next = node.getNextSibling();
+        while (!next.isNull() && isComment(next)) {
+            if (next.getStartPoint().getRow() - endRow > 1) {
+                break; // a blank line between the previous end and the comment
+            }
+            end = next.getEndByte();
+            endRow = next.getEndPoint().getRow();
+            if (next.getStartPoint().getRow() == nodeEndRow) {
+                sameLineEnd = end;
+            }
+            next = next.getNextSibling();
+        }
+        if (end == node.getEndByte()) {
+            return end;
+        }
+        // unless this is the last member (followed by a closing token), the run trails this
+        // declaration only when a blank line separates it from the next declaration
+        if (!next.isNull() && next.isNamed() && next.getStartPoint().getRow() - endRow <= 1) {
+            return sameLineEnd != -1 ? sameLineEnd : node.getEndByte();
+        }
+        return end;
     }
 
     private void collectTokens(final TSNode node, final Frame frame, final boolean inComment, final List<Token> out) {
