@@ -116,14 +116,14 @@ public class Historage implements BlobTranslator {
     /**
      * Whether to emit, beside each module, a side file holding the comments attached to its declaration.
      */
-    @Option(names = "--comments", description = "extract comment files (jdt)")
+    @Option(names = "--comments", description = "extract comment files (tree-sitter, jdt)")
     protected boolean requiresComments = false;
 
     /**
      * Whether a module's own content excludes the comments attached to its declaration, leaving them
-     * only in the comment side file (jdt backend).
+     * only in the comment side file (tree-sitter, jdt).
      */
-    @Option(names = "--separate-comments", description = "exclude comments from modules (jdt)")
+    @Option(names = "--separate-comments", description = "exclude comments from modules (tree-sitter, jdt)")
     protected boolean separatesComments = false;
 
     /**
