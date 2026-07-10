@@ -90,7 +90,7 @@ public class SrcmlAnalyzer implements TokenizingAnalyzer {
     }
 
     private static org.w3c.dom.Element parse(final String source, final String lang, final String srcml, final Context c) {
-        final String[] cmd = { srcml, "--language", lang, "--position" };
+        final String[] cmd = { srcml, "--language", lang, "--src-encoding", "UTF-8", "--position" };
         try (final ProcessRunner proc = new ProcessRunner(cmd, source.getBytes(StandardCharsets.UTF_8), c)) {
             final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);

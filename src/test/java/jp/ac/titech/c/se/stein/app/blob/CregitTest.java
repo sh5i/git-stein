@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.Token;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -59,6 +61,23 @@ public class CregitTest {
         assertEquals("C#", SrcmlAnalyzer.languageOf("hello.cs"));
 
         assertNull(SrcmlAnalyzer.languageOf("hello.py"));
+    }
+
+    @Test
+    public void testNonAsciiSourceIsDecodedAsUtf8() {
+        assumeTrue(ProcessRunner.isAvailable("srcml"), "srcml not available");
+        // e-acute (U+00E9) and its Latin-1-mojibake marker, built from bytes so this source file's own
+        // encoding cannot confound the test
+        final String eacute = new String(new byte[] { (byte) 0xC3, (byte) 0xA9 }, StandardCharsets.UTF_8);
+        final String mojibake = new String(new byte[] { (byte) 0xC3 }, StandardCharsets.ISO_8859_1);
+        // the blob is valid UTF-8; srcml must be told so (--src-encoding UTF-8), else it mis-decodes it
+        // and the token text (and positions) are mangled
+        final byte[] blob = ("class A { String s = \"caf" + eacute + "\"; }").getBytes(StandardCharsets.UTF_8);
+        final SrcmlAnalyzer a = SrcmlAnalyzer.of("A.java", blob, "srcml", null, Context.init());
+        assertNotNull(a);
+        final String text = a.tokens(a.extract()).stream().map(Token::text).collect(Collectors.joining(" "));
+        assertTrue(text.contains("caf" + eacute), text);   // U+00E9 intact
+        assertFalse(text.contains(mojibake), text);         // no Latin-1 mis-decode of the UTF-8 bytes
     }
 
     @Test
