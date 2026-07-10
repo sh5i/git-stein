@@ -29,9 +29,9 @@ import org.treesitter.TreeSitterSql;
 import org.treesitter.TreeSitterSwift;
 import org.treesitter.TreeSitterTypescript;
 
+import jp.ac.titech.c.se.stein.core.SourceEncoding;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
-import jp.ac.titech.c.se.stein.util.PythonSource;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -84,26 +84,26 @@ public final class Languages {
      * The registered languages, tried in order; the first whose filter accepts a blob handles it.
      */
     private static final List<Entry> ENTRIES = List.of(
-            new Entry("Python", PYTHON, TreeSitterPython::new, PythonSource::decode, PythonAnalyzer::new),
-            new Entry("Java", JAVA, TreeSitterJava::new, SourceText::ofNormalized, JavaAnalyzer::new),
-            new Entry("C++", CPP, TreeSitterCpp::new, SourceText::ofNormalized, CppAnalyzer::new),
-            new Entry("C#", CSHARP, TreeSitterCSharp::new, SourceText::ofNormalized, CSharpAnalyzer::new),
-            new Entry("JavaScript", JAVASCRIPT, TreeSitterJavascript::new, SourceText::ofNormalized, JsAnalyzer::new),
-            new Entry("TypeScript", TYPESCRIPT, TreeSitterTypescript::new, SourceText::ofNormalized, TsAnalyzer::new),
+            new Entry("Python", PYTHON, TreeSitterPython::new, SourceEncoding::decodeWithMagicComment, PythonAnalyzer::new),
+            new Entry("Java", JAVA, TreeSitterJava::new, SourceEncoding::decode, JavaAnalyzer::new),
+            new Entry("C++", CPP, TreeSitterCpp::new, SourceEncoding::decode, CppAnalyzer::new),
+            new Entry("C#", CSHARP, TreeSitterCSharp::new, SourceEncoding::decode, CSharpAnalyzer::new),
+            new Entry("JavaScript", JAVASCRIPT, TreeSitterJavascript::new, SourceEncoding::decode, JsAnalyzer::new),
+            new Entry("TypeScript", TYPESCRIPT, TreeSitterTypescript::new, SourceEncoding::decode, TsAnalyzer::new),
             // C is a subset of C++, so it reuses the C++ analyzer with the C grammar
-            new Entry("C", C, TreeSitterC::new, SourceText::ofNormalized, CppAnalyzer::new),
-            new Entry("Go", GO, TreeSitterGo::new, SourceText::ofNormalized, GoAnalyzer::new),
-            new Entry("Kotlin", KOTLIN, TreeSitterKotlin::new, SourceText::ofNormalized, KotlinAnalyzer::new),
-            new Entry("Rust", RUST, TreeSitterRust::new, SourceText::ofNormalized, RustAnalyzer::new),
-            new Entry("Swift", SWIFT, TreeSitterSwift::new, SourceText::ofNormalized, SwiftAnalyzer::new),
-            new Entry("Ruby", RUBY, TreeSitterRuby::new, SourceText::ofNormalized, RubyAnalyzer::new),
-            new Entry("PHP", PHP, TreeSitterPhp::new, SourceText::ofNormalized, PhpAnalyzer::new),
-            new Entry("Dart", DART, TreeSitterDart::new, SourceText::ofNormalized, DartAnalyzer::new),
-            new Entry("Objective-C", OBJC, TreeSitterObjc::new, SourceText::ofNormalized, ObjcAnalyzer::new),
-            new Entry("R", R, TreeSitterR::new, SourceText::ofNormalized, RAnalyzer::new),
-            new Entry("Shell", SHELL, TreeSitterBash::new, SourceText::ofNormalized, BashAnalyzer::new),
-            new Entry("SQL", SQL, TreeSitterSql::new, SourceText::ofNormalized, SqlAnalyzer::new),
-            new Entry("HTML", HTML, TreeSitterHtml::new, SourceText::ofNormalized, HtmlAnalyzer::new));
+            new Entry("C", C, TreeSitterC::new, SourceEncoding::decode, CppAnalyzer::new),
+            new Entry("Go", GO, TreeSitterGo::new, SourceEncoding::decode, GoAnalyzer::new),
+            new Entry("Kotlin", KOTLIN, TreeSitterKotlin::new, SourceEncoding::decode, KotlinAnalyzer::new),
+            new Entry("Rust", RUST, TreeSitterRust::new, SourceEncoding::decode, RustAnalyzer::new),
+            new Entry("Swift", SWIFT, TreeSitterSwift::new, SourceEncoding::decode, SwiftAnalyzer::new),
+            new Entry("Ruby", RUBY, TreeSitterRuby::new, SourceEncoding::decodeWithMagicComment, RubyAnalyzer::new),
+            new Entry("PHP", PHP, TreeSitterPhp::new, SourceEncoding::decode, PhpAnalyzer::new),
+            new Entry("Dart", DART, TreeSitterDart::new, SourceEncoding::decode, DartAnalyzer::new),
+            new Entry("Objective-C", OBJC, TreeSitterObjc::new, SourceEncoding::decode, ObjcAnalyzer::new),
+            new Entry("R", R, TreeSitterR::new, SourceEncoding::decode, RAnalyzer::new),
+            new Entry("Shell", SHELL, TreeSitterBash::new, SourceEncoding::decode, BashAnalyzer::new),
+            new Entry("SQL", SQL, TreeSitterSql::new, SourceEncoding::decode, SqlAnalyzer::new),
+            new Entry("HTML", HTML, TreeSitterHtml::new, SourceEncoding::decode, HtmlAnalyzer::new));
 
     private Languages() {
     }
@@ -131,7 +131,7 @@ public final class Languages {
         if (entry == null) {
             return null;
         }
-        final SourceText text = entry.decoder.apply(blob);
+        final SourceText text = SourceText.ofNormalized(blob, entry.decoder);
         final TSNode treeRoot = entry.parser.get().parseString(null, text.getContent()).getRootNode();
         if (treeRoot.hasError()) {
             log.debug("Syntax errors found; extracting the elements that parsed");
@@ -158,12 +158,12 @@ public final class Languages {
 
         private final ThreadLocal<TSParser> parser;
 
-        private final Function<byte[], SourceText> decoder;
+        private final Function<byte[], String> decoder;
 
         private final Factory factory;
 
         Entry(final String name, final NameFilter filter, final Supplier<TSLanguage> language,
-              final Function<byte[], SourceText> decoder, final Factory factory) {
+              final Function<byte[], String> decoder, final Factory factory) {
             this.name = name;
             this.filter = filter;
             this.parser = ThreadLocal.withInitial(() -> {

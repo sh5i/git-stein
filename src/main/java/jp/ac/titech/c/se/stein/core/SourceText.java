@@ -3,12 +3,9 @@ package jp.ac.titech.c.se.stein.core;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.mozilla.universalchardet.UniversalDetector;
 
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -16,11 +13,9 @@ import java.util.stream.IntStream;
 /**
  * A decoded view of a raw blob, providing character-level access and fragment extraction.
  *
- * <p>The raw bytes are decoded to a string using charset detection (via
- * {@link UniversalDetector}), falling back to UTF-8. {@link Fragment} allows extracting
- * a substring along with its surrounding whitespace context (indent and trailing spaces).</p>
+ * <p>The raw bytes are decoded to a string by {@link SourceEncoding}. {@link Fragment} allows
+ * extracting a substring along with its surrounding whitespace context (indent and trailing spaces).</p>
  */
-@Slf4j
 @RequiredArgsConstructor
 public class SourceText {
     public final static Pattern LINE_BREAK = Pattern.compile("\n");
@@ -51,59 +46,25 @@ public class SourceText {
     protected boolean utf8OffsetsPrepared;
 
     /**
-     * Creates a {@link SourceText} from raw bytes, decoding with charset detection.
+     * Creates a {@link SourceText} from raw bytes, decoding via {@link SourceEncoding}.
      */
     public static SourceText of(final byte[] raw) {
-        return new SourceText(raw, load(raw));
+        return new SourceText(raw, SourceEncoding.decode(raw));
     }
 
     /**
      * Creates a {@link SourceText} from raw bytes, normalizing line breaks to {@code \n}.
      */
     public static SourceText ofNormalized(final byte[] raw) {
-        return new SourceText(raw, normalizeBreaks(load(raw)));
+        return ofNormalized(raw, SourceEncoding::decode);
     }
 
     /**
-     * Creates a {@link SourceText} from raw bytes with the given charset, normalizing line breaks
-     * to {@code \n}.
+     * Creates a {@link SourceText} from raw bytes, decoding with the given decoder and normalizing line
+     * breaks to {@code \n}.
      */
-    public static SourceText ofNormalized(final byte[] raw, final Charset charset) {
-        return new SourceText(raw, normalizeBreaks(stripBom(new String(raw, charset))));
-    }
-
-    /**
-     * Decodes raw bytes to a string using charset detection, falling back to UTF-8.
-     */
-    protected static String load(final byte[] blob) {
-        final String charset = guessCharset(blob);
-        if (charset != null) {
-            try {
-                return stripBom(new String(blob, charset));
-            } catch (final UnsupportedEncodingException e) {
-                log.error(e.getMessage(), e);
-            }
-        }
-        return stripBom(new String(blob, StandardCharsets.UTF_8));
-    }
-
-    /**
-     * Strips a leading byte-order mark. A BOM is metadata rather than source content, and keeping
-     * it would misalign UTF-8 byte offsets: tree-sitter skips a leading BOM while the decoded
-     * string keeps it, so byte offsets from the parser would be shifted against the content.
-     */
-    private static String stripBom(final String s) {
-        return !s.isEmpty() && s.charAt(0) == '\uFEFF' ? s.substring(1) : s;
-    }
-
-    /**
-     * Guesses the charset of the given data, or returns {@code null} if unknown.
-     */
-    protected static String guessCharset(final byte[] data) {
-        final UniversalDetector detector = new UniversalDetector(null);
-        detector.handleData(data, 0, data.length);
-        detector.dataEnd();
-        return detector.getDetectedCharset();
+    public static SourceText ofNormalized(final byte[] raw, final Function<byte[], String> decoder) {
+        return new SourceText(raw, normalizeBreaks(decoder.apply(raw)));
     }
 
     /**
