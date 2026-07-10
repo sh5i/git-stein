@@ -173,10 +173,10 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
     public List<Token> tokens(final Element e) {
         final List<Token> out = new ArrayList<>();
         if (e.hasSpan()) {
-            collectTokens(nodeOf(e), null, out);
-            collectTokens(endNodeOf(e), null, out);
+            collectTokens(nodeOf(e), null, false, out);
+            collectTokens(endNodeOf(e), null, false, out);
         } else {
-            collectTokens(nodeOf(e), frameOf(nodeOf(e)), out);
+            collectTokens(nodeOf(e), frameOf(nodeOf(e)), false, out);
         }
         return out;
     }
@@ -217,10 +217,13 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
         return node.getType().endsWith("comment");
     }
 
-    private void collectTokens(final TSNode node, final Frame frame, final List<Token> out) {
+    private void collectTokens(final TSNode node, final Frame frame, final boolean inComment, final List<Token> out) {
+        // most grammars mark a comment as an extra node, but some (Rust, Dart) model it as a named
+        // *comment node whose punctuation leaves are not themselves extra, so comment-ness propagates down
+        final boolean comment = inComment || node.isExtra() || isComment(node);
         if (node.getChildCount() > 0) {
             for (int i = 0; i < node.getChildCount(); i++) {
-                collectTokens(node.getChild(i), frame, out);
+                collectTokens(node.getChild(i), frame, comment, out);
             }
             return;
         }
@@ -233,7 +236,7 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
         }
         final TSPoint start = node.getStartPoint();
         out.add(new Token(text, category(node), start.getRow() + 1, start.getColumn() + 1, node.getStartByte(),
-                node.isExtra(), frame != null && isFrame(node, frame)));
+                comment, frame != null && isFrame(node, frame)));
     }
 
     /**
