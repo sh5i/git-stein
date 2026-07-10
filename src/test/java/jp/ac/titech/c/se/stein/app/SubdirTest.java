@@ -1,7 +1,6 @@
 package jp.ac.titech.c.se.stein.app;
 
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
-import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.testing.TestRepo;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.jupiter.api.AfterAll;
