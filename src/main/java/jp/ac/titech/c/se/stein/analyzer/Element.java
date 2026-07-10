@@ -11,11 +11,11 @@ import lombok.Setter;
  * {@link Kind#FILE} root. Elements nest into a tree mirroring the source's scope structure, which a
  * consumer walks to build its own model (e.g. Historage modules).
  *
- * <p>An element is a backend-neutral value: it carries the byte range of its content (from which the
- * analyzer re-derives whatever native node it needs to render or tokenize it), not a tree-sitter node.
- * A scope such as a namespace, which structures names but is never rendered, has no content range
- * ({@link #hasContent} is false). A few grammars split a declaration into two adjacent nodes; such an
- * element carries a second, {@code span} range so the analyzer can render both parts.</p>
+ * <p>An element is a backend-neutral value: it carries the character range of its content (indices into
+ * the decoded content, from which the analyzer re-derives whatever it needs to render or tokenize it),
+ * not a tree-sitter node. A scope such as a namespace, which structures names but is never rendered, has
+ * no content range ({@link #hasContent} is false). A few grammars split a declaration into two adjacent
+ * nodes; such an element carries a second, {@code span} range so the analyzer can render both parts.</p>
  */
 public class Element {
     /**
@@ -35,19 +35,19 @@ public class Element {
     private final Signature signature;
 
     /**
-     * The byte range of the element's content node, or {@link #NONE} for a naming scope with no
-     * content.
+     * The character range (indices into the decoded content) of the element's content, or
+     * {@link #NONE} for a naming scope with no content.
      */
-    final int startByte;
-    final int endByte;
+    final int start;
+    final int end;
 
     /**
-     * When set (not {@link #NONE}), the byte range of the second node this element spans, adjacent to
-     * its content node; used for grammars that split a declaration into separate sibling nodes (e.g.
+     * When set (not {@link #NONE}), the character range of the second node this element spans, adjacent
+     * to its content; used for grammars that split a declaration into separate sibling nodes (e.g.
      * Dart's method signature and body).
      */
-    final int spanStartByte;
-    final int spanEndByte;
+    final int spanStart;
+    final int spanEnd;
 
     /**
      * The 1-based source line range of the element's content, or {@link #NONE} when the analyzer does
@@ -81,26 +81,26 @@ public class Element {
         this(kind, Signature.of(name));
     }
 
-    Element(final Kind kind, final String name, final int startByte, final int endByte) {
-        this(kind, Signature.of(name), startByte, endByte);
+    Element(final Kind kind, final String name, final int start, final int end) {
+        this(kind, Signature.of(name), start, end);
     }
 
     Element(final Kind kind, final Signature signature) {
         this(kind, signature, NONE, NONE, NONE, NONE);
     }
 
-    Element(final Kind kind, final Signature signature, final int startByte, final int endByte) {
-        this(kind, signature, startByte, endByte, NONE, NONE);
+    Element(final Kind kind, final Signature signature, final int start, final int end) {
+        this(kind, signature, start, end, NONE, NONE);
     }
 
-    Element(final Kind kind, final Signature signature, final int startByte, final int endByte,
-            final int spanStartByte, final int spanEndByte) {
+    Element(final Kind kind, final Signature signature, final int start, final int end,
+            final int spanStart, final int spanEnd) {
         this.kind = kind;
         this.signature = signature;
-        this.startByte = startByte;
-        this.endByte = endByte;
-        this.spanStartByte = spanStartByte;
-        this.spanEndByte = spanEndByte;
+        this.start = start;
+        this.end = end;
+        this.spanStart = spanStart;
+        this.spanEnd = spanEnd;
     }
 
     void addChild(final Element child) {
@@ -119,28 +119,29 @@ public class Element {
      * Whether this element has renderable content, as opposed to being a naming scope only.
      */
     public boolean hasContent() {
-        return startByte != NONE;
+        return start != NONE;
     }
 
     boolean hasSpan() {
-        return spanStartByte != NONE;
+        return spanStart != NONE;
     }
 
     /**
-     * The byte offset where this element's source begins, or -1 for a scope with no source of its own.
+     * The character offset where this element's source begins, or -1 for a scope with no source of its
+     * own.
      */
-    public int getStartByte() {
-        return startByte;
+    public int getStart() {
+        return start;
     }
 
     /**
-     * The byte offset where this element's source ends (past its spanned body, if any), or -1 for a
-     * scope.
+     * The character offset where this element's source ends (past its spanned body, if any), or -1 for
+     * a scope.
      */
-    public int getEndByte() {
-        if (startByte == NONE) {
+    public int getEnd() {
+        if (start == NONE) {
             return NONE;
         }
-        return spanStartByte != NONE ? spanEndByte : endByte;
+        return spanStart != NONE ? spanEnd : end;
     }
 }

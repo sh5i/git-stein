@@ -122,7 +122,7 @@ public class CSharpAnalyzer extends QueryAnalyzer {
         }
         final TSNode name = fileScoped.getChildByFieldName("name");
         if (!name.isNull()) {
-            reparentAfter(root, flatten(textOf(name)), fileScoped.getEndByte());
+            reparentAfter(root, flatten(textOf(name)), text.toCharIndex(fileScoped.getEndByte()));
         }
     }
 }

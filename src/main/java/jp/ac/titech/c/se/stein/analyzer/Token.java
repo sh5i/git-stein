@@ -2,8 +2,8 @@ package jp.ac.titech.c.se.stein.analyzer;
 
 /**
  * A single leaf token of a parse: its text, its grammar-derived type (the same typing the FinerGit
- * token sequence uses), its 1-based start line and column, its byte offset in the source, and two
- * classification flags a consumer uses to assemble its own output. {@code comment} marks a comment
+ * token sequence uses), its 1-based start line and column, its character offset into the decoded
+ * content, and two classification flags a consumer uses to assemble its own output. {@code comment} marks a comment
  * token (cregit keeps them; a FinerGit sequence skips them). {@code frame} marks one of the enclosing
  * declaration's frame delimiters -- the parentheses of its parameter list, the braces of its body, or
  * a bodyless declaration's terminating semicolon -- which a FinerGit sequence drops under Heuristic 2.

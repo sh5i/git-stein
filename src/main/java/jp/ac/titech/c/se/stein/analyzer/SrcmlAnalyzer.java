@@ -373,18 +373,26 @@ public class SrcmlAnalyzer implements TokenizingAnalyzer {
         return index == 0 ? Integer.parseInt(position.substring(0, i)) : Integer.parseInt(position.substring(i + 1));
     }
 
+    /**
+     * The character offset of a srcML position. srcML reports columns as UTF-8 byte offsets within the
+     * line, so the byte position is mapped back to a character index.
+     */
     private int offset(final int line, final int col) {
         if (line <= 0 || line > lineStart.length) {
             return 0;
         }
-        return lineStart[line - 1] + (col - 1);
+        return text.toCharIndex(lineStart[line - 1] + (col - 1));
     }
 
+    /**
+     * The UTF-8 byte offset of each line start, against which srcML's byte columns are resolved.
+     */
     private static int[] lineStarts(final String content) {
+        final byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         final List<Integer> starts = new ArrayList<>();
         starts.add(0);
-        for (int i = 0; i < content.length(); i++) {
-            if (content.charAt(i) == '\n') {
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] == '\n') {
                 starts.add(i + 1);
             }
         }

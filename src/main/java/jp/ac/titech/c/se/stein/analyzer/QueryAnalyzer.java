@@ -123,15 +123,15 @@ public abstract class QueryAnalyzer extends TreeSitterAnalyzer {
     }
 
     /**
-     * Reparents the given element's later children (those starting at or after {@code fromByte}) under
-     * a new scope appended to it; used to realize a file-scoped namespace.
+     * Reparents the given element's later children (those starting at or after character offset
+     * {@code from}) under a new scope appended to it; used to realize a file-scoped namespace.
      */
-    protected Element reparentAfter(final Element parent, final String scopeName, final int fromByte) {
+    protected Element reparentAfter(final Element parent, final String scopeName, final int from) {
         final Element scope = new Element(Element.Kind.CLASS, scopeName);
         final List<Element> children = parent.getChildren();
         final List<Element> moved = new ArrayList<>();
         children.removeIf(e -> {
-            if (e.getStartByte() >= fromByte) {
+            if (e.getStart() >= from) {
                 moved.add(e);
                 return true;
             }

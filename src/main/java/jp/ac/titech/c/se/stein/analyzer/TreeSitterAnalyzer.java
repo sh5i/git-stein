@@ -42,7 +42,8 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
         this.filename = filename;
         this.text = text;
         this.treeRoot = treeRoot;
-        this.root = new Element(Element.Kind.FILE, baseName(filename), treeRoot.getStartByte(), treeRoot.getEndByte());
+        this.root = new Element(Element.Kind.FILE, baseName(filename),
+                text.toCharIndex(treeRoot.getStartByte()), text.toCharIndex(treeRoot.getEndByte()));
         nodes.put(root, treeRoot);
     }
 
@@ -66,7 +67,7 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
      */
     protected Element element(final Element.Kind kind, final Signature signature, final Element parent, final TSNode content) {
         final Element e = content == null ? new Element(kind, signature)
-                : new Element(kind, signature, content.getStartByte(), content.getEndByte());
+                : new Element(kind, signature, text.toCharIndex(content.getStartByte()), text.toCharIndex(content.getEndByte()));
         if (content != null) {
             nodes.put(e, content);
             e.setStartLine(content.getStartPoint().getRow() + 1);
@@ -82,8 +83,9 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
      */
     protected Element element(final Element.Kind kind, final Signature signature, final Element parent,
                               final TSNode start, final TSNode end) {
-        final Element e = new Element(kind, signature, start.getStartByte(), start.getEndByte(),
-                end.getStartByte(), end.getEndByte());
+        final Element e = new Element(kind, signature,
+                text.toCharIndex(start.getStartByte()), text.toCharIndex(start.getEndByte()),
+                text.toCharIndex(end.getStartByte()), text.toCharIndex(end.getEndByte()));
         nodes.put(e, start);
         endNodes.put(e, end);
         e.setStartLine(start.getStartPoint().getRow() + 1);
@@ -153,8 +155,8 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
     private void collectRegions(final Element e, final List<int[]> regions, final Set<Long> seen) {
         for (final Element c : e.getChildren()) {
             if (c.hasContent()) {
-                final int start = c.getStartByte();
-                final int end = c.getEndByte();
+                final int start = c.getStart();
+                final int end = c.getEnd();
                 if (seen.add((long) start << 32 | (end & 0xffffffffL))) {
                     regions.add(new int[] {start, end, c.getKind().ordinal()});
                 }
@@ -235,8 +237,8 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
             return;
         }
         final TSPoint start = node.getStartPoint();
-        out.add(new Token(text, category(node), start.getRow() + 1, start.getColumn() + 1, node.getStartByte(),
-                comment, frame != null && isFrame(node, frame)));
+        out.add(new Token(text, category(node), start.getRow() + 1, start.getColumn() + 1,
+                this.text.toCharIndex(node.getStartByte()), comment, frame != null && isFrame(node, frame)));
     }
 
     /**

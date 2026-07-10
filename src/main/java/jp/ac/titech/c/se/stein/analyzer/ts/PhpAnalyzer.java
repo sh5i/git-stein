@@ -77,7 +77,7 @@ public class PhpAnalyzer extends QueryAnalyzer {
             if (name.isNull()) {
                 continue;
             }
-            current = reparentAfter(current, flatten(textOf(name).replace("\\", ".")), child.getEndByte());
+            current = reparentAfter(current, flatten(textOf(name).replace("\\", ".")), text.toCharIndex(child.getEndByte()));
         }
     }
 

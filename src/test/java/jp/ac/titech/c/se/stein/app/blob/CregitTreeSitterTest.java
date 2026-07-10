@@ -91,6 +91,18 @@ public class CregitTreeSitterTest {
     }
 
     @Test
+    public void testMultibyteBeforeElementKeepsWrapping() {
+        // a multibyte string literal (each Greek letter is 2 UTF-8 bytes) precedes the method; the
+        // begin_/end_ wrapping is placed by character offset, so the method still opens exactly on its
+        // own tokens rather than being shifted by the byte/char difference
+        final String out = convert("A.java", "class A { String s = \"αβγ\"; int get() { return 1; } }");
+        assertTrue(out.contains("αβγ"), out);                                          // multibyte preserved intact
+        assertTrue(out.contains("begin_field\nTYPE_NAME|String\n"), out);              // field opens on its own tokens
+        assertTrue(out.contains("begin_method\nINT|int\nMETHOD_DECLARATION_NAME|get\n"), out); // method opens after the multibyte
+        assertTrue(out.contains("end_method\nCLASS_BODY_RBRACE|}\nend_class\nend_unit\n"), out);
+    }
+
+    @Test
     public void testUnsupportedFileUnchanged() {
         // a file no tree-sitter language handles is returned untouched
         assertEquals("# hello\n", convert("README.md", "# hello\n"));
