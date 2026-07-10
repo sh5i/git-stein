@@ -73,7 +73,8 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
             nodes.put(e, content);
             e.setStartLine(content.getStartPoint().getRow() + 1);
             e.setEndLine(content.getEndPoint().getRow() + 1);
-            e.setFragment(contentFragment(content));
+            e.setCoreFragment(coreFragment(content));
+            e.setExtentFragment(extentFragment(content));
         }
         parent.addChild(e);
         return e;
@@ -92,7 +93,12 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
         endNodes.put(e, end);
         e.setStartLine(start.getStartPoint().getRow() + 1);
         e.setEndLine(end.getEndPoint().getRow() + 1);
-        e.setFragment(text.getFragmentOfLines(e.getStartLine(), e.getEndLine()));
+        final int coreStart = text.toCharIndex(start.getStartByte());
+        final int coreEnd = text.toCharIndex(end.getEndByte());
+        e.setCoreFragment(text.getFragment(coreStart, coreEnd));
+        e.setExtentFragment(text.getFragment(
+                Math.min(coreStart, text.toCharIndex(attachedStart(start))),
+                Math.max(coreEnd, text.toCharIndex(attachedEnd(end)))));
         parent.addChild(e);
         return e;
     }
@@ -376,13 +382,22 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
     }
 
     /**
-     * The source span an element renders as: the full source lines the node spans. A subclass narrows or
-     * widens it (e.g. attaching comments).
+     * The element's own source range: the node's exact span. A subclass narrows or widens it (e.g. C++'s
+     * declaration terminator, or Python's line-based body).
      */
-    protected Fragment contentFragment(final TSNode node) {
-        final int beginLine = node.getStartPoint().getRow() + 1;
-        final int endLine = node.getEndPoint().getRow() + 1;
-        return text.getFragmentOfLines(beginLine, endLine);
+    protected Fragment coreFragment(final TSNode node) {
+        return text.getFragment(text.toCharIndex(node.getStartByte()), text.toCharIndex(node.getEndByte()));
+    }
+
+    /**
+     * The element's source range extended over its attached leading and trailing comments, bounded by
+     * {@link #attachedStart} and {@link #attachedEnd}.
+     */
+    protected Fragment extentFragment(final TSNode node) {
+        final Fragment core = coreFragment(node);
+        final int start = Math.min(core.getBegin(), text.toCharIndex(attachedStart(node)));
+        final int end = Math.max(core.getEnd(), text.toCharIndex(attachedEnd(node)));
+        return text.getFragment(start, end);
     }
 
     /**

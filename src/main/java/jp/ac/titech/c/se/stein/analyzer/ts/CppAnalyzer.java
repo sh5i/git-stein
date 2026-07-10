@@ -114,11 +114,15 @@ public class CppAnalyzer extends QueryAnalyzer {
     }
 
     @Override
-    protected Fragment contentFragment(final TSNode node) {
+    protected Fragment coreFragment(final TSNode node) {
         final TSNode extent = extentOf(node);
-        final int beginLine = extent.getStartPoint().getRow() + 1;
-        final int endLine = extent.getEndPoint().getRow() + 1;
-        return text.getFragmentOfLines(beginLine, endLine);
+        int endByte = extent.getEndByte();
+        // a type specifier ends at '}', excluding the declaration's terminating ';'; include it
+        final TSNode next = extent.getNextSibling();
+        if (next != null && !next.isNull() && next.getType().equals(";")) {
+            endByte = next.getEndByte();
+        }
+        return text.getFragment(text.toCharIndex(extent.getStartByte()), text.toCharIndex(endByte));
     }
 
     /**

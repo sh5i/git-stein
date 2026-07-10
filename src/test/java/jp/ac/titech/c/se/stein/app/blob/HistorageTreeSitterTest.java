@@ -96,8 +96,10 @@ public class HistorageTreeSitterTest {
         // a field is the whole assignment statement
         assertEquals("VERSION = \"1.0\"\n", entries.get("sample!VERSION.fpy"));
 
-        // a top-level function includes its nested function; the nested one is not extracted
+        // a top-level function includes its nested function (the nested one is not extracted) and, with
+        // comments inline by default, its leading comment
         assertEquals("""
+                # あいさつ
                 def top(a, b=1, *args, **kw):
                     def inner():
                         pass
@@ -146,19 +148,23 @@ public class HistorageTreeSitterTest {
     public void testTrailingComments() {
         final Map<String, String> entries = rewrite("t.py", """
                 def f():
-                    return 1  # same-line comment: kept
-                    # trailing comment: not part of the definition
+                    return 1  # same-line comment: in the body
+                    # indented: still inside the block, part of the definition
 
-                # top-level comment
+                # dedented: a leading comment of the next definition
                 def g(x,  # a comment between parameters never joins the signature
                       y):
                     pass
                 """);
+        // an indented comment stays inside the block; only a dedented comment leaves the definition
         assertEquals("""
                 def f():
-                    return 1  # same-line comment: kept
+                    return 1  # same-line comment: in the body
+                    # indented: still inside the block, part of the definition
                 """, entries.get("t!f().mpy"));
+        // the dedented comment directly above g is its leading comment, included inline by default
         assertEquals("""
+                # dedented: a leading comment of the next definition
                 def g(x,  # a comment between parameters never joins the signature
                       y):
                     pass

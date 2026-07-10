@@ -10,7 +10,6 @@ import org.treesitter.TSNode;
 import org.treesitter.TreeSitterPython;
 
 import jp.ac.titech.c.se.stein.core.SourceText;
-import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 
 /**
  * A query-based reimplementation of the imperative Python visitor: detection is the declarative {@link #QUERY}
@@ -78,35 +77,5 @@ public class PythonAnalyzer extends QueryAnalyzer {
             }
         }
         return names;
-    }
-
-    /**
-     * The source span of the given definition: its full source lines. The extent ends at the last
-     * meaningful (non-comment) descendant, since tree-sitter blocks also hold the comments trailing
-     * after the last statement.
-     */
-    @Override
-    protected Fragment contentFragment(final TSNode node) {
-        final int beginLine = node.getStartPoint().getRow() + 1;
-        final int endLine = lastMeaningfulDescendant(node).getEndPoint().getRow() + 1;
-        return text.getFragmentOfLines(beginLine, endLine);
-    }
-
-    protected TSNode lastMeaningfulDescendant(final TSNode node) {
-        TSNode last = node;
-        while (true) {
-            TSNode next = null;
-            for (int i = last.getChildCount() - 1; i >= 0; i--) {
-                final TSNode child = last.getChild(i);
-                if (!child.isExtra() && !child.isMissing()) {
-                    next = child;
-                    break;
-                }
-            }
-            if (next == null) {
-                return last;
-            }
-            last = next;
-        }
     }
 }

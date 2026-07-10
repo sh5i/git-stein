@@ -107,7 +107,8 @@ public class CtagsAnalyzer implements SourceAnalyzer {
                 e.setRawKind(lo.kind);
                 e.setStartLine(lo.line);
                 e.setEndLine(lo.end);
-                e.setFragment(fragment);
+                e.setCoreFragment(fragment);
+                e.setExtentFragment(fragment);
                 parent.addChild(e);
             }
             extracted = true;

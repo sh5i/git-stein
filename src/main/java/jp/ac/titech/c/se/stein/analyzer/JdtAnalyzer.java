@@ -42,17 +42,14 @@ public class JdtAnalyzer implements SourceAnalyzer {
 
     private final CommentSet commentSet;
 
-    private final boolean separatesComments;
-
     private final boolean parsable;
 
     private boolean extracted;
 
     private JdtAnalyzer(final String filename, final SourceText text, final CompilationUnit unit,
-                        final boolean separatesComments, final boolean parsable) {
+                        final boolean parsable) {
         this.text = text;
         this.unit = unit;
-        this.separatesComments = separatesComments;
         this.parsable = parsable;
         this.root = new Element(Element.Kind.FILE, filename.substring(0, filename.lastIndexOf('.')));
         this.commentSet = new CommentSet(unit);
@@ -62,12 +59,10 @@ public class JdtAnalyzer implements SourceAnalyzer {
      * Parses the blob with JDT and returns a ready analyzer, or null when the file has any compile
      * problem (JDT extracts nothing from a file it cannot fully parse).
      */
-    public static JdtAnalyzer of(final String filename, final byte[] blob,
-                                 final boolean separatesComments, final boolean parsable) {
+    public static JdtAnalyzer of(final String filename, final byte[] blob, final boolean parsable) {
         final SourceText text = SourceText.ofNormalized(blob);
         final CompilationUnit unit = parse(text);
-        return unit == null ? null
-                : new JdtAnalyzer(filename, text, unit, separatesComments, parsable);
+        return unit == null ? null : new JdtAnalyzer(filename, text, unit, parsable);
     }
 
     /**
@@ -104,7 +99,12 @@ public class JdtAnalyzer implements SourceAnalyzer {
 
     @Override
     public String rawText(final Element e) {
-        return getContent(e.getFragment(), nodes.get(e), enclosingClass.get(e));
+        return getContent(e.getExtentFragment(), nodes.get(e), enclosingClass.get(e), true);
+    }
+
+    @Override
+    public String coreText(final Element e) {
+        return getContent(e.getExtentFragment(), nodes.get(e), enclosingClass.get(e), false);
     }
 
     @Override
@@ -124,7 +124,8 @@ public class JdtAnalyzer implements SourceAnalyzer {
             final Element e = new Element(kind, signature, f.getBegin(), f.getEnd());
             e.setStartLine(unit.getLineNumber(f.getBegin()));
             e.setEndLine(unit.getLineNumber(f.getEnd()));
-            e.setFragment(f);
+            e.setCoreFragment(getFragment(node));
+            e.setExtentFragment(f);
             stack.peek().addChild(e);
             nodes.put(e, node);
             if (kind != Element.Kind.CLASS) {
@@ -200,9 +201,10 @@ public class JdtAnalyzer implements SourceAnalyzer {
 
     // --- rendering ---
 
-    private String getContent(final Fragment fragment, final BodyDeclaration node, final String enclosingClass) {
+    private String getContent(final Fragment fragment, final BodyDeclaration node, final String enclosingClass,
+                              final boolean withComments) {
         if (!parsable) {
-            return getSource(fragment, node);
+            return getSource(fragment, node, withComments);
         }
         final StringBuilder sb = new StringBuilder();
         final PackageDeclaration pkg = unit.getPackage();
@@ -210,17 +212,17 @@ public class JdtAnalyzer implements SourceAnalyzer {
             sb.append("package ").append(pkg.getName().getFullyQualifiedName()).append(";\n");
         }
         if (node instanceof TypeDeclaration) {
-            sb.append(getSource(fragment, node));
+            sb.append(getSource(fragment, node, withComments));
         } else {
             sb.append("class ").append(enclosingClass).append(" {\n");
-            sb.append(getSource(fragment, node));
+            sb.append(getSource(fragment, node, withComments));
             sb.append("}\n");
         }
         return sb.toString();
     }
 
-    private String getSource(final Fragment fragment, final BodyDeclaration node) {
-        return separatesComments ? getSourceWithoutComments(fragment, node) : fragment.getWiderContent();
+    private String getSource(final Fragment fragment, final BodyDeclaration node, final boolean withComments) {
+        return withComments ? fragment.getWiderContent() : getSourceWithoutComments(fragment, node);
     }
 
     private String getSourceWithoutComments(final Fragment fragment, final BodyDeclaration node) {

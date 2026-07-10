@@ -282,7 +282,7 @@ public class Historage implements BlobTranslator {
         return switch (backend) {
             case ts -> new Engine(Languages::accepts, (e, c) -> Languages.of(e.getName(), e.getBlob()), null, true);
             case jdt -> new Engine(JdtAnalyzer::accepts,
-                    (e, c) -> JdtAnalyzer.of(e.getName(), e.getBlob(), separatesComments, parsable), null, false);
+                    (e, c) -> JdtAnalyzer.of(e.getName(), e.getBlob(), parsable), null, false);
             case srcml -> new Engine(whenAvailable(srcml, SrcmlAnalyzer::accepts),
                     (e, c) -> SrcmlAnalyzer.of(e.getName(), e.getBlob(), srcml, null, c), null, true);
             case ctags -> new Engine(whenAvailable(ctags, filter::accept),
@@ -336,7 +336,8 @@ public class Historage implements BlobTranslator {
             if (e.hasContent() && wants(e.getKind())) {
                 final String basename = naming.basename(e);
                 final String extension = naming.extension(e.getKind(), e.getRawKind(), filename);
-                final String content = tokens ? tokenSequence((TokenizingAnalyzer) source, e) : source.rawText(e);
+                final String content = tokens ? tokenSequence((TokenizingAnalyzer) source, e)
+                        : separatesComments || requiresComments ? source.coreText(e) : source.rawText(e);
                 out.add(new Generated(e, content, basename, extension));
             }
             collect(source, e, naming, filename, out);

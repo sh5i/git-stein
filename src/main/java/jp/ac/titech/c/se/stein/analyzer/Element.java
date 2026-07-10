@@ -12,11 +12,12 @@ import lombok.Setter;
  * {@link Kind#FILE} root. Elements nest into a tree mirroring the source's scope structure, which a
  * consumer walks to build its own model (e.g. Historage modules).
  *
- * <p>An element is a backend-neutral value: it carries the character range that locates its content and
- * a {@link Fragment} of the decoded text from which its raw source is rendered, not a tree-sitter node.
- * A scope such as a namespace, which structures names but is never rendered, has no content range
- * ({@link #hasContent} is false). A few grammars split a declaration into two adjacent nodes; such an
- * element carries a second, {@code span} range so the analyzer can render both parts.</p>
+ * <p>An element is a backend-neutral value: it carries the character range that locates its content and,
+ * as {@link Fragment}s of the decoded text, its source both without ({@link #coreFragment}) and with
+ * ({@link #extentFragment}) its attached comments, not a tree-sitter node. A scope such as a namespace,
+ * which structures names but is never rendered, has no content range ({@link #hasContent} is false). A
+ * few grammars split a declaration into two adjacent nodes; such an element carries a second,
+ * {@code span} range so the analyzer can render both parts.</p>
  */
 public class Element {
     /**
@@ -51,12 +52,20 @@ public class Element {
     final int spanEnd;
 
     /**
-     * The element's source span, from which its raw text is rendered, or null for a scope with no
-     * content.
+     * The element's own source span (its declaration, excluding attached comments), or null for a scope
+     * with no content.
      */
     @Getter
     @Setter
-    private Fragment fragment;
+    private Fragment coreFragment;
+
+    /**
+     * The element's source span extended over its attached leading and trailing comments, or null for a
+     * scope with no content. Equal to {@link #coreFragment} when the element has no attached comments.
+     */
+    @Getter
+    @Setter
+    private Fragment extentFragment;
 
     /**
      * The 1-based source line range of the element's content, or {@link #NONE} when the analyzer does

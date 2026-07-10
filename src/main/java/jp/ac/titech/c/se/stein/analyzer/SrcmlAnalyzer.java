@@ -175,7 +175,8 @@ public class SrcmlAnalyzer implements TokenizingAnalyzer {
             nodes.put(e, dom);
             e.setStartLine(startLine(dom));
             e.setEndLine(endLine(dom));
-            e.setFragment(text.getFragmentOfLines(startLine(dom), endLine(dom)));
+            e.setCoreFragment(text.getFragmentOfLines(startLine(dom), endLine(dom)));
+            e.setExtentFragment(e.getCoreFragment());
         }
         parent.addChild(e);
         return e;

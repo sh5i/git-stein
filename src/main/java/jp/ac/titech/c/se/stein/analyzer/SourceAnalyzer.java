@@ -14,12 +14,20 @@ public interface SourceAnalyzer {
     Element extract();
 
     /**
-     * The raw source text of an element, rendered from its source span ({@link Element#getFragment}). A
-     * backend that synthesizes text beyond the element's own source (e.g. wrapping a member so it parses
-     * standalone) overrides this.
+     * The raw source text of an element with its attached comments ({@link Element#getExtentFragment}),
+     * for a module rendered with comments inline. A backend that synthesizes text beyond the element's own
+     * source (e.g. wrapping a member so it parses standalone) overrides this.
      */
     default String rawText(final Element e) {
-        return e.getFragment().getWiderContent();
+        return e.getExtentFragment().getWiderContent();
+    }
+
+    /**
+     * The raw source text of an element without its attached comments ({@link Element#getCoreFragment}),
+     * for a module whose comments are separated into a side file.
+     */
+    default String coreText(final Element e) {
+        return e.getCoreFragment().getWiderContent();
     }
 
     /**
