@@ -75,6 +75,7 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
             e.setEndLine(content.getEndPoint().getRow() + 1);
             e.setCoreFragment(coreFragment(content));
             e.setExtentFragment(extentFragment(content));
+            e.setComments(commentFragments(content));
         }
         parent.addChild(e);
         return e;
@@ -99,6 +100,7 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
         e.setExtentFragment(text.getFragment(
                 Math.min(coreStart, text.toCharIndex(attachedStart(start))),
                 Math.max(coreEnd, text.toCharIndex(attachedEnd(end)))));
+        e.setComments(commentFragments(start));
         parent.addChild(e);
         return e;
     }
@@ -179,31 +181,36 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
     }
 
     /**
-     * The comments attached to an element's declaration, for a Historage comment side file: the leading
-     * run bound by {@link #attachedStart} and the trailing run bound by {@link #attachedEnd}, each
-     * comment on its own line. Returns the empty string when there are none.
+     * The comment nodes attached to a declaration, in source order: the leading run bound by
+     * {@link #attachedStart} and the trailing run bound by {@link #attachedEnd}.
      */
-    @Override
-    public String commentText(final Element e) {
-        final TSNode node = nodeOf(e);
+    protected List<TSNode> attachedComments(final TSNode node) {
         final int start = attachedStart(node);
         final int end = attachedEnd(node);
-        final StringBuilder sb = new StringBuilder();
         final List<TSNode> leading = new ArrayList<>();
         for (TSNode p = node.getPrevSibling(); !p.isNull() && p.getStartByte() >= start; p = p.getPrevSibling()) {
             if (isComment(p)) {
                 leading.add(p);
             }
         }
+        final List<TSNode> result = new ArrayList<>();
         for (int i = leading.size() - 1; i >= 0; i--) {
-            sb.append(textOf(leading.get(i))).append("\n");
+            result.add(leading.get(i));
         }
         for (TSNode n = node.getNextSibling(); !n.isNull() && n.getEndByte() <= end; n = n.getNextSibling()) {
             if (isComment(n)) {
-                sb.append(textOf(n)).append("\n");
+                result.add(n);
             }
         }
-        return sb.toString();
+        return result;
+    }
+
+    private List<Fragment> commentFragments(final TSNode node) {
+        final List<Fragment> result = new ArrayList<>();
+        for (final TSNode c : attachedComments(node)) {
+            result.add(text.getFragment(text.toCharIndex(c.getStartByte()), text.toCharIndex(c.getEndByte())));
+        }
+        return result;
     }
 
     /**

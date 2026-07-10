@@ -68,6 +68,14 @@ public class Element {
     private Fragment extentFragment;
 
     /**
+     * The comments attached to the element's declaration, as fragments of the decoded text in source
+     * order, or null when the analyzer has no notion of comments.
+     */
+    @Getter
+    @Setter
+    private List<Fragment> comments;
+
+    /**
      * The 1-based source line range of the element's content, or {@link #NONE} when the analyzer does
      * not track lines. The analyzer sets it to the same region its {@link SourceAnalyzer#render} covers,
      * so a Historage mapping file can record where each module came from.

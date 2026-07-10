@@ -1,5 +1,7 @@
 package jp.ac.titech.c.se.stein.analyzer;
 
+import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
+
 /**
  * The backend-neutral contract a consumer needs to decompose one source file into named elements and
  * recover each element's raw source text. This is the minimum an analyzer must provide; a
@@ -31,11 +33,20 @@ public interface SourceAnalyzer {
     }
 
     /**
-     * The comment text attached to the element's declaration, for a Historage comment side file, or
-     * null when this analyzer does not collect comments (the default). An empty string is a declaration
-     * that has no comment, distinct from null meaning the analyzer has no notion of comments.
+     * The comment text attached to the element's declaration, for a Historage comment side file: its
+     * attached comments ({@link Element#getComments}) each on its own line, or null when this analyzer
+     * has no notion of comments. An empty string is a declaration that has no comment, distinct from
+     * null. A backend that post-processes comment bodies (e.g. de-indenting block comments) overrides
+     * this.
      */
     default String commentText(final Element e) {
-        return null;
+        if (e.getComments() == null) {
+            return null;
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (final Fragment c : e.getComments()) {
+            sb.append(c.getExactContent()).append("\n");
+        }
+        return sb.toString();
     }
 }
