@@ -206,6 +206,22 @@ public class HistorageJdtTest {
     }
 
     @Test
+    public void testSyntaxErrorToleration() {
+        // JDT's error recovery still yields the valid method's module despite a broken declaration
+        BlobEntry entry = HotEntry.ofBlob("Broken.java", """
+                public class Broken {
+                    int @@@ broken;
+
+                    int ok() { return 1; }
+                }
+                """);
+        Set<String> names = new Historage().backends(Historage.BackendType.jdt)
+                .rewriteBlobEntry(entry, Context.init()).stream()
+                .map(HotEntry::getName).collect(Collectors.toSet());
+        assertTrue(names.contains("Broken#ok().mjava"), names.toString());
+    }
+
+    @Test
     public void testRequiresOriginals() {
         Historage historage = new Historage().backends(Historage.BackendType.jdt);
         historage.requiresOriginals = false;

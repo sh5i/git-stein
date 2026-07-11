@@ -13,7 +13,6 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.eclipse.jdt.core.JavaCore;
-import org.eclipse.jdt.core.compiler.IProblem;
 import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants;
 
@@ -55,13 +54,13 @@ public class JdtAnalyzer implements SourceAnalyzer {
     }
 
     /**
-     * Parses the blob with JDT and returns a ready analyzer, or null when the file has any compile
-     * problem (JDT extracts nothing from a file it cannot fully parse).
+     * Parses the blob with JDT and returns a ready analyzer. JDT recovers a (possibly partial) tree
+     * even for a file that does not fully parse, so a broken or mid-refactor file still yields whatever
+     * declarations JDT can recover.
      */
     public static JdtAnalyzer of(final String filename, final byte[] blob, final boolean parsable) {
         final SourceText text = SourceText.ofNormalized(blob);
-        final CompilationUnit unit = parse(text);
-        return unit == null ? null : new JdtAnalyzer(filename, text, unit, parsable);
+        return new JdtAnalyzer(filename, text, parse(text), parsable);
     }
 
     /**
@@ -82,9 +81,7 @@ public class JdtAnalyzer implements SourceAnalyzer {
         parser.setCompilerOptions(options);
         parser.setEnvironment(null, null, null, true);
         parser.setSource(text.getContent().toCharArray());
-        final CompilationUnit unit = (CompilationUnit) parser.createAST(null);
-        final IProblem[] problems = unit.getProblems();
-        return problems == null || problems.length > 0 ? null : unit;
+        return (CompilationUnit) parser.createAST(null);
     }
 
     @Override
