@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.compiler.IProblem;
 import org.eclipse.jdt.core.dom.*;
@@ -107,15 +106,6 @@ public class JdtAnalyzer implements SourceAnalyzer {
         return getContent(e.getExtentFragment(), nodes.get(e), enclosingClass.get(e), false);
     }
 
-    @Override
-    public String commentText(final Element e) {
-        final StringBuilder sb = new StringBuilder();
-        for (final Comment c : commentSet.getComments(nodes.get(e))) {
-            sb.append(getCommentBody(c)).append("\n");
-        }
-        return sb.toString();
-    }
-
     private final class Builder extends ASTVisitor {
         private final Deque<Element> stack = new ArrayDeque<>(List.of(root));
 
@@ -126,6 +116,7 @@ public class JdtAnalyzer implements SourceAnalyzer {
             e.setEndLine(unit.getLineNumber(f.getEnd()));
             e.setCoreFragment(getFragment(node));
             e.setExtentFragment(f);
+            e.setComments(commentSet.getComments(node).stream().map(c -> getFragment(c)).toList());
             stack.peek().addChild(e);
             nodes.put(e, node);
             if (kind != Element.Kind.CLASS) {
@@ -235,24 +226,6 @@ public class JdtAnalyzer implements SourceAnalyzer {
             source = source.substring(0, localStart) + source.substring(localEnd);
         }
         return source;
-    }
-
-    private String getCommentBody(final Comment c) {
-        final Fragment f = getFragment(c);
-        final String body = f.getExactContent();
-        if (c.isLineComment()) {
-            return body;
-        }
-        final int breaks = StringUtils.countMatches(body, "\n");
-        if (breaks == 0) {
-            return body; // single line
-        }
-        final String indent = f.getIndent();
-        if (!indent.isEmpty() && StringUtils.countMatches(body, "\n" + indent) == breaks) {
-            // if all lines have the same indents, then remove it.
-            return body.replace("\n" + indent, "\n");
-        }
-        return body;
     }
 
     // --- fragment helpers ---

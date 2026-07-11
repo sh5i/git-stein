@@ -139,6 +139,28 @@ public class HistorageTreeSitterTest {
     }
 
     @Test
+    public void testBlockCommentDedented() {
+        final Historage h = new Historage().backends(Historage.BackendType.ts);
+        h.requiresComments = true;
+        final AnyHotEntry result = h.rewriteBlobEntry(HotEntry.ofBlob("C.java", """
+                class C {
+                    /**
+                     * doc line
+                     */
+                    void m() {}
+                }
+                """), c);
+        final Map<String, String> entries = result.stream()
+                .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));
+        // an indented member's block comment is rendered flush against the margin in the comment file
+        assertEquals("""
+                /**
+                 * doc line
+                 */
+                """, entries.get("C#m().mjava.com"));
+    }
+
+    @Test
     public void testNonPythonBlobIsUntouched() {
         final BlobEntry in = HotEntry.ofBlob("README.md", "# hi\n");
         assertSame(in, app.rewriteBlobEntry(in, c));

@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.analyzer;
 
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
+import jp.ac.titech.c.se.stein.util.FormatUtils;
 
 /**
  * The backend-neutral contract a consumer needs to decompose one source file into named elements and
@@ -34,10 +35,9 @@ public interface SourceAnalyzer {
 
     /**
      * The comment text attached to the element's declaration, for a Historage comment side file: its
-     * attached comments ({@link Element#getComments}) each on its own line, or null when this analyzer
-     * has no notion of comments. An empty string is a declaration that has no comment, distinct from
-     * null. A backend that post-processes comment bodies (e.g. de-indenting block comments) overrides
-     * this.
+     * attached comments ({@link Element#getComments}), each rendered de-indented, or null when this
+     * analyzer has no notion of comments. An empty string is a declaration that has no comment, distinct
+     * from null.
      */
     default String commentText(final Element e) {
         if (e.getComments() == null) {
@@ -45,7 +45,7 @@ public interface SourceAnalyzer {
         }
         final StringBuilder sb = new StringBuilder();
         for (final Fragment c : e.getComments()) {
-            sb.append(c.getExactContent()).append("\n");
+            sb.append(FormatUtils.dedent(c.getWiderContent()));
         }
         return sb.toString();
     }
