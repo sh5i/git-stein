@@ -73,9 +73,11 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
             nodes.put(e, content);
             e.setStartLine(content.getStartPoint().getRow() + 1);
             e.setEndLine(content.getEndPoint().getRow() + 1);
-            e.setCoreFragment(coreFragment(content));
-            e.setExtentFragment(extentFragment(content));
-            e.setComments(commentFragments(content));
+            final Fragment core = coreFragment(content);
+            final List<CommentAttachment.Node> comments = CommentAttachment.attached(new Sibling(content));
+            e.setCoreFragment(core);
+            e.setComments(fragmentsOf(comments));
+            e.setExtentFragment(extentOf(core, comments));
         }
         parent.addChild(e);
         return e;
@@ -94,13 +96,11 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
         endNodes.put(e, end);
         e.setStartLine(start.getStartPoint().getRow() + 1);
         e.setEndLine(end.getEndPoint().getRow() + 1);
-        final int coreStart = text.toCharIndex(start.getStartByte());
-        final int coreEnd = text.toCharIndex(end.getEndByte());
-        e.setCoreFragment(text.getFragment(coreStart, coreEnd));
-        e.setExtentFragment(text.getFragment(
-                Math.min(coreStart, text.toCharIndex(attachedStart(start))),
-                Math.max(coreEnd, text.toCharIndex(attachedEnd(end)))));
-        e.setComments(commentFragments(start));
+        final Fragment core = text.getFragment(text.toCharIndex(start.getStartByte()), text.toCharIndex(end.getEndByte()));
+        final List<CommentAttachment.Node> comments = CommentAttachment.attached(new Sibling(start));
+        e.setCoreFragment(core);
+        e.setComments(fragmentsOf(comments));
+        e.setExtentFragment(extentOf(core, comments));
         parent.addChild(e);
         return e;
     }
@@ -181,36 +181,70 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
     }
 
     /**
-     * The comment nodes attached to a declaration, in source order: the leading run bound by
-     * {@link #attachedStart} and the trailing run bound by {@link #attachedEnd}.
+     * Adapts a tree-sitter node to the backend-neutral {@link CommentAttachment.Node} the attachment rule walks.
      */
-    protected List<TSNode> attachedComments(final TSNode node) {
-        final int start = attachedStart(node);
-        final int end = attachedEnd(node);
-        final List<TSNode> leading = new ArrayList<>();
-        for (TSNode p = node.getPrevSibling(); !p.isNull() && p.getStartByte() >= start; p = p.getPrevSibling()) {
-            if (isComment(p)) {
-                leading.add(p);
-            }
+    private final class Sibling implements CommentAttachment.Node {
+        private final TSNode node;
+
+        Sibling(final TSNode node) {
+            this.node = node;
         }
-        final List<TSNode> result = new ArrayList<>();
-        for (int i = leading.size() - 1; i >= 0; i--) {
-            result.add(leading.get(i));
+
+        @Override
+        public CommentAttachment.Node previous() {
+            final TSNode p = node.getPrevSibling();
+            return p.isNull() ? null : new Sibling(p);
         }
-        for (TSNode n = node.getNextSibling(); !n.isNull() && n.getEndByte() <= end; n = n.getNextSibling()) {
-            if (isComment(n)) {
-                result.add(n);
-            }
+
+        @Override
+        public CommentAttachment.Node next() {
+            final TSNode n = node.getNextSibling();
+            return n.isNull() ? null : new Sibling(n);
         }
-        return result;
+
+        @Override
+        public int startRow() {
+            return node.getStartPoint().getRow();
+        }
+
+        @Override
+        public int endRow() {
+            return node.getEndPoint().getRow();
+        }
+
+        @Override
+        public boolean isComment() {
+            return TreeSitterAnalyzer.this.isComment(node);
+        }
+
+        @Override
+        public boolean isDocComment() {
+            return TreeSitterAnalyzer.this.isDocComment(node);
+        }
+
+        @Override
+        public boolean isNamed() {
+            return node.isNamed();
+        }
+
+        @Override
+        public Fragment fragment() {
+            return text.getFragment(text.toCharIndex(node.getStartByte()), text.toCharIndex(node.getEndByte()));
+        }
     }
 
-    private List<Fragment> commentFragments(final TSNode node) {
-        final List<Fragment> result = new ArrayList<>();
-        for (final TSNode c : attachedComments(node)) {
-            result.add(text.getFragment(text.toCharIndex(c.getStartByte()), text.toCharIndex(c.getEndByte())));
+    private List<Fragment> fragmentsOf(final List<CommentAttachment.Node> comments) {
+        return comments.stream().map(CommentAttachment.Node::fragment).toList();
+    }
+
+    private Fragment extentOf(final Fragment core, final List<CommentAttachment.Node> comments) {
+        int start = core.getBegin();
+        int end = core.getEnd();
+        for (final CommentAttachment.Node c : comments) {
+            start = Math.min(start, c.fragment().getBegin());
+            end = Math.max(end, c.fragment().getEnd());
         }
-        return result;
+        return text.getFragment(start, end);
     }
 
     /**
@@ -223,86 +257,12 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
 
     /**
      * Whether the comment is a documentation comment, which binds to the declaration directly below it
-     * regardless of an intervening blank line. The generic answer is no; a language subclass overrides
-     * it (e.g. Java's {@code /**}).
+     * regardless of an intervening blank line. A {@code /**} block is a doc comment across the C family
+     * (Javadoc, Doxygen, KDoc, JSDoc, PHPDoc, ...); a language subclass may recognize more (e.g. a
+     * {@code ///} line comment in C#, Rust, Swift, or Dart).
      */
     protected boolean isDocComment(final TSNode node) {
-        return false;
-    }
-
-    /**
-     * The byte offset where a declaration begins once its leading comments are attached, following JDT: a
-     * doc comment directly above binds regardless of a blank line; above that, comments chain upward while
-     * no blank line intervenes; a comment on the same line as the previous sibling's end trails that
-     * sibling instead and stops the chain.
-     */
-    protected int attachedStart(final TSNode node) {
-        TSNode prev = node.getPrevSibling();
-        int start = node.getStartByte();
-        int startRow = node.getStartPoint().getRow();
-        if (!prev.isNull() && isComment(prev) && isDocComment(prev)) {
-            start = prev.getStartByte();
-            startRow = prev.getStartPoint().getRow();
-            prev = prev.getPrevSibling();
-        }
-        final int nodeStartRow = startRow;
-        int previousEndRow = 0;
-        {
-            TSNode p = prev;
-            while (!p.isNull() && isComment(p)) {
-                p = p.getPrevSibling();
-            }
-            if (!p.isNull()) {
-                previousEndRow = p.getEndPoint().getRow();
-            }
-        }
-        while (!prev.isNull() && isComment(prev)) {
-            final int commentRow = prev.getStartPoint().getRow();
-            if (startRow - prev.getEndPoint().getRow() > 1) {
-                break; // a blank line between the comment and what follows it
-            }
-            if (commentRow == previousEndRow && commentRow != nodeStartRow) {
-                break; // trails the previous sibling
-            }
-            start = prev.getStartByte();
-            startRow = commentRow;
-            prev = prev.getPrevSibling();
-        }
-        return start;
-    }
-
-    /**
-     * The byte offset where a declaration ends once its trailing comments are attached, following JDT's
-     * {@code DefaultCommentMapper}: comments chain downward until a blank line; unless the declaration is
-     * the last member, the run trails it only when a blank line separates it from the next declaration,
-     * otherwise only the comments on its own end line trail.
-     */
-    protected int attachedEnd(final TSNode node) {
-        final int nodeEndRow = node.getEndPoint().getRow();
-        int end = node.getEndByte();
-        int endRow = nodeEndRow;
-        int sameLineEnd = -1;
-        TSNode next = node.getNextSibling();
-        while (!next.isNull() && isComment(next)) {
-            if (next.getStartPoint().getRow() - endRow > 1) {
-                break; // a blank line between the previous end and the comment
-            }
-            end = next.getEndByte();
-            endRow = next.getEndPoint().getRow();
-            if (next.getStartPoint().getRow() == nodeEndRow) {
-                sameLineEnd = end;
-            }
-            next = next.getNextSibling();
-        }
-        if (end == node.getEndByte()) {
-            return end;
-        }
-        // unless this is the last member (followed by a closing token), the run trails this
-        // declaration only when a blank line separates it from the next declaration
-        if (!next.isNull() && next.isNamed() && next.getStartPoint().getRow() - endRow <= 1) {
-            return sameLineEnd != -1 ? sameLineEnd : node.getEndByte();
-        }
-        return end;
+        return textOf(node).startsWith("/**");
     }
 
     private void collectTokens(final TSNode node, final Frame frame, final boolean inComment, final List<Token> out) {
@@ -394,17 +354,6 @@ public abstract class TreeSitterAnalyzer implements TokenizingAnalyzer {
      */
     protected Fragment coreFragment(final TSNode node) {
         return text.getFragment(text.toCharIndex(node.getStartByte()), text.toCharIndex(node.getEndByte()));
-    }
-
-    /**
-     * The element's source range extended over its attached leading and trailing comments, bounded by
-     * {@link #attachedStart} and {@link #attachedEnd}.
-     */
-    protected Fragment extentFragment(final TSNode node) {
-        final Fragment core = coreFragment(node);
-        final int start = Math.min(core.getBegin(), text.toCharIndex(attachedStart(node)));
-        final int end = Math.max(core.getEnd(), text.toCharIndex(attachedEnd(node)));
-        return text.getFragment(start, end);
     }
 
     /**

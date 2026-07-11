@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein.util;
+package jp.ac.titech.c.se.stein.analyzer.util;
 
 /**
  * Text-formatting helpers for rendering extracted source.

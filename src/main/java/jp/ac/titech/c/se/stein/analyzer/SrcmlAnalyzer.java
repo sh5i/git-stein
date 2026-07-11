@@ -16,6 +16,7 @@ import org.w3c.dom.Node;
 
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import lombok.extern.slf4j.Slf4j;
 
@@ -176,10 +177,95 @@ public class SrcmlAnalyzer implements TokenizingAnalyzer {
             e.setStartLine(startLine(dom));
             e.setEndLine(endLine(dom));
             e.setCoreFragment(text.getFragmentOfLines(startLine(dom), endLine(dom)));
-            e.setExtentFragment(e.getCoreFragment());
+            final List<CommentAttachment.Node> comments = CommentAttachment.attached(new Sibling(dom));
+            e.setComments(comments.stream().map(CommentAttachment.Node::fragment).toList());
+            int extentStart = startLine(dom);
+            int extentEnd = endLine(dom);
+            for (final CommentAttachment.Node c : comments) {
+                extentStart = Math.min(extentStart, c.startRow());
+                extentEnd = Math.max(extentEnd, c.endRow());
+            }
+            e.setExtentFragment(text.getFragmentOfLines(extentStart, extentEnd));
         }
         parent.addChild(e);
         return e;
+    }
+
+    /**
+     * Adapts a srcML DOM element to the backend-neutral {@link CommentAttachment.Node} the attachment rule walks.
+     * Rows are srcML's 1-based lines; the rule only compares them, so the base is immaterial.
+     */
+    private final class Sibling implements CommentAttachment.Node {
+        private final org.w3c.dom.Element node;
+
+        Sibling(final org.w3c.dom.Element node) {
+            this.node = node;
+        }
+
+        @Override
+        public CommentAttachment.Node previous() {
+            final org.w3c.dom.Element p = prevElement(node);
+            return p == null ? null : new Sibling(p);
+        }
+
+        @Override
+        public CommentAttachment.Node next() {
+            final org.w3c.dom.Element n = nextElement(node);
+            return n == null ? null : new Sibling(n);
+        }
+
+        @Override
+        public int startRow() {
+            return startLine(node);
+        }
+
+        @Override
+        public int endRow() {
+            return endLine(node);
+        }
+
+        @Override
+        public boolean isComment() {
+            return SrcmlAnalyzer.this.isComment(node);
+        }
+
+        @Override
+        public boolean isDocComment() {
+            return node.getTextContent().trim().startsWith("/**");
+        }
+
+        @Override
+        public boolean isNamed() {
+            return !SrcmlAnalyzer.this.isComment(node);
+        }
+
+        @Override
+        public Fragment fragment() {
+            // srcML's end position is inclusive (the last character), so add one for an exclusive bound
+            return text.getFragment(offset(startLine(node), startCol(node)), offset(endLine(node), endCol(node) + 1));
+        }
+    }
+
+    private boolean isComment(final org.w3c.dom.Element e) {
+        return "comment".equals(e.getLocalName());
+    }
+
+    private org.w3c.dom.Element prevElement(final Node node) {
+        for (Node p = node.getPreviousSibling(); p != null; p = p.getPreviousSibling()) {
+            if (isElement(p)) {
+                return (org.w3c.dom.Element) p;
+            }
+        }
+        return null;
+    }
+
+    private org.w3c.dom.Element nextElement(final Node node) {
+        for (Node n = node.getNextSibling(); n != null; n = n.getNextSibling()) {
+            if (isElement(n)) {
+                return (org.w3c.dom.Element) n;
+            }
+        }
+        return null;
     }
 
     // --- tokens (historage token sequence, cregit) ---

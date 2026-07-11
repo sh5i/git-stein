@@ -1,4 +1,4 @@
-package jp.ac.titech.c.se.stein.util;
+package jp.ac.titech.c.se.stein.analyzer.util;
 
 import org.junit.jupiter.api.Test;
 

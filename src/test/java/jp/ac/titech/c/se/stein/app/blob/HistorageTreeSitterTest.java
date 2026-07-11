@@ -161,6 +161,24 @@ public class HistorageTreeSitterTest {
     }
 
     @Test
+    public void testDocCommentRecognizedBeyondJava() {
+        final Historage h = new Historage().backends(Historage.BackendType.ts);
+        h.requiresComments = true;
+        final AnyHotEntry result = h.rewriteBlobEntry(HotEntry.ofBlob("s.js", """
+                class C {
+                    /** doc */
+
+                    m() {}
+                }
+                """), c);
+        final Map<String, String> entries = result.stream()
+                .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));
+        // a /** */ block is a doc comment in JavaScript too, so it binds to m across the blank line
+        assertTrue(entries.entrySet().stream()
+                .anyMatch(en -> en.getKey().endsWith(".com") && en.getValue().equals("/** doc */\n")), entries.toString());
+    }
+
+    @Test
     public void testNonPythonBlobIsUntouched() {
         final BlobEntry in = HotEntry.ofBlob("README.md", "# hi\n");
         assertSame(in, app.rewriteBlobEntry(in, c));

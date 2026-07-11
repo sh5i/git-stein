@@ -342,9 +342,4 @@ public class JavaAnalyzer extends QueryAnalyzer {
     protected boolean isComment(final TSNode node) {
         return node.getType().equals("line_comment") || node.getType().equals("block_comment");
     }
-
-    @Override
-    protected boolean isDocComment(final TSNode node) {
-        return textOf(node).startsWith("/**");
-    }
 }

@@ -1,7 +1,7 @@
 package jp.ac.titech.c.se.stein.analyzer;
 
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
-import jp.ac.titech.c.se.stein.util.FormatUtils;
+import jp.ac.titech.c.se.stein.analyzer.util.FormatUtils;
 
 /**
  * The backend-neutral contract a consumer needs to decompose one source file into named elements and
