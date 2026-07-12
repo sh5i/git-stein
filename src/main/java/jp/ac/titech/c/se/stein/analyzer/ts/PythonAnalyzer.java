@@ -8,8 +8,6 @@ import java.util.List;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterPython;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for Python: detection is the declarative {@link #QUERY}
@@ -32,7 +30,7 @@ public class PythonAnalyzer extends QueryAnalyzer {
             """;
 
     public PythonAnalyzer() {
-        super("Python", new NameFilter(true, "*.py"), SourceEncoding::decodeWithMagicComment, TreeSitterPython::new, QUERY);
+        super(Language.PYTHON, TreeSitterPython::new, QUERY);
     }
 
     @Override

@@ -8,8 +8,6 @@ import java.util.List;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterDart;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for Dart: detection is the declarative {@link #QUERY}, and the signature and
@@ -51,7 +49,7 @@ public class DartAnalyzer extends QueryAnalyzer {
             """;
 
     public DartAnalyzer() {
-        super("Dart", new NameFilter(true, "*.dart"), SourceEncoding::decode, TreeSitterDart::new, QUERY);
+        super(Language.DART, TreeSitterDart::new, QUERY);
     }
 
     @Override

@@ -7,7 +7,6 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -39,12 +38,12 @@ public class JdtAnalyzer implements Analyzer {
 
     @Override
     public boolean accepts(final String filename) {
-        return filename.toLowerCase(Locale.ROOT).endsWith(".java");
+        return Language.of(filename) == Language.JAVA;
     }
 
     @Override
-    public String languageName(final String filename) {
-        return "Java";
+    public Language languageOf(final String filename) {
+        return Language.JAVA;
     }
 
     @Override

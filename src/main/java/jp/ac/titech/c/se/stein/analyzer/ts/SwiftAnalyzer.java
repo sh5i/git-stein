@@ -8,8 +8,6 @@ import java.util.List;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterSwift;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for Swift: detection is the declarative {@link #QUERY}
@@ -30,7 +28,7 @@ public class SwiftAnalyzer extends QueryAnalyzer {
             """;
 
     public SwiftAnalyzer() {
-        super("Swift", new NameFilter(true, "*.swift"), SourceEncoding::decode, TreeSitterSwift::new, QUERY);
+        super(Language.SWIFT, TreeSitterSwift::new, QUERY);
     }
 
     @Override

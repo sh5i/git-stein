@@ -8,8 +8,6 @@ import java.util.List;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterCSharp;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for C#: detection is the declarative {@link #QUERY} (types, methods, and data
@@ -36,7 +34,7 @@ public class CSharpAnalyzer extends QueryAnalyzer {
             """;
 
     public CSharpAnalyzer() {
-        super("C#", new NameFilter(true, "*.cs"), SourceEncoding::decode, TreeSitterCSharp::new, QUERY);
+        super(Language.CSHARP, TreeSitterCSharp::new, QUERY);
     }
 
     @Override

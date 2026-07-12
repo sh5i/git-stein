@@ -8,8 +8,6 @@ import java.util.List;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterGo;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for Go: detection is the declarative {@link #QUERY},
@@ -28,7 +26,7 @@ public class GoAnalyzer extends QueryAnalyzer {
             """;
 
     public GoAnalyzer() {
-        super("Go", new NameFilter(true, "*.go"), SourceEncoding::decode, TreeSitterGo::new, QUERY);
+        super(Language.GO, TreeSitterGo::new, QUERY);
     }
 
     /**

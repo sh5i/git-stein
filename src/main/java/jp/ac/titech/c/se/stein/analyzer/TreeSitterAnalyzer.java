@@ -6,9 +6,9 @@ import jp.ac.titech.c.se.stein.analyzer.ts.*;
 import jp.ac.titech.c.se.stein.core.Context;
 
 /**
- * The tree-sitter analyzer: a registry of per-language {@link QueryAnalyzer}s, tried in order; the
- * first whose filename filter accepts the file handles it. It has no options; adding a language is a
- * matter of registering one more entry.
+ * The tree-sitter analyzer: a registry of per-language {@link QueryAnalyzer}s; the one whose
+ * {@link Language} claims the file handles it. It has no options; adding a language is a matter of
+ * registering one more entry.
  */
 public class TreeSitterAnalyzer implements Analyzer.Tokenizing {
     private static final List<QueryAnalyzer> LANGUAGES = List.of(
@@ -44,8 +44,8 @@ public class TreeSitterAnalyzer implements Analyzer.Tokenizing {
     }
 
     @Override
-    public String languageName(final String filename) {
+    public Language languageOf(final String filename) {
         final QueryAnalyzer language = Analyzer.pick(LANGUAGES, filename);
-        return language == null ? null : language.languageName(filename);
+        return language == null ? null : language.languageOf(filename);
     }
 }

@@ -8,8 +8,6 @@ import java.util.List;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterRust;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for Rust: detection is the declarative {@link #QUERY} and only naming
@@ -45,7 +43,7 @@ public class RustAnalyzer extends QueryAnalyzer {
             """;
 
     public RustAnalyzer() {
-        super("Rust", new NameFilter(true, "*.rs"), SourceEncoding::decode, TreeSitterRust::new, QUERY);
+        super(Language.RUST, TreeSitterRust::new, QUERY);
     }
 
     @Override

@@ -8,7 +8,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.treesitter.TSLanguage;
@@ -22,14 +21,14 @@ import org.treesitter.TSQueryMatch;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * One language's tree-sitter analyzer: it owns the grammar, the element-detection query written
- * against it, the filename filter, the source decoder, and the language's interpretation rules
- * (naming, kind refinement, comment recognition, ...). Analyzing a file parses it, runs the
- * <em>detection engine</em> over the tree, and returns the populated {@link TreeSitterModel}.
+ * against it, and the language's interpretation rules (naming, kind refinement, comment recognition,
+ * ...); which files it claims and how they are decoded come from its {@link Language}. Analyzing a
+ * file parses it, runs the <em>detection engine</em> over the tree, and returns the populated
+ * {@link TreeSitterModel}.
  *
  * <p>Detection is declarative: the query captures each element node (tagged {@code @class},
  * {@code @method}, {@code @field}, or {@code @scope}) together with naming handles ({@code @name},
@@ -48,13 +47,9 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public abstract class QueryAnalyzer implements Analyzer.Tokenizing {
-    private final String name;
+    private final Language language;
 
-    private final NameFilter filter;
-
-    private final Function<byte[], String> decoder;
-
-    private final Supplier<TSLanguage> language;
+    private final Supplier<TSLanguage> grammar;
 
     private final String queryString;
 
@@ -62,33 +57,30 @@ public abstract class QueryAnalyzer implements Analyzer.Tokenizing {
 
     private TSQuery query;
 
-    protected QueryAnalyzer(final String name, final NameFilter filter, final Function<byte[], String> decoder,
-                            final Supplier<TSLanguage> language, final String queryString) {
-        this.name = name;
-        this.filter = filter;
-        this.decoder = decoder;
+    protected QueryAnalyzer(final Language language, final Supplier<TSLanguage> grammar, final String queryString) {
         this.language = language;
+        this.grammar = grammar;
         this.queryString = queryString;
         this.parser = ThreadLocal.withInitial(() -> {
             final TSParser p = new TSParser();
-            p.setLanguage(language.get());
+            p.setLanguage(grammar.get());
             return p;
         });
     }
 
     @Override
     public boolean accepts(final String filename) {
-        return filter.accept(filename);
+        return language == Language.of(filename);
     }
 
     @Override
-    public String languageName(final String filename) {
-        return name;
+    public Language languageOf(final String filename) {
+        return language;
     }
 
     @Override
     public TokenizingModel analyze(final String filename, final byte[] blob, final Context c) {
-        final SourceText text = SourceText.ofNormalized(blob, decoder);
+        final SourceText text = SourceText.ofNormalized(blob, language::decode);
         final TSNode treeRoot = parser.get().parseString(null, text.getContent()).getRootNode();
         if (treeRoot.hasError()) {
             log.debug("Syntax errors found; extracting the elements that parsed");
@@ -103,7 +95,7 @@ public abstract class QueryAnalyzer implements Analyzer.Tokenizing {
      */
     protected synchronized TSQuery query() {
         if (query == null) {
-            query = new TSQuery(language.get(), queryString);
+            query = new TSQuery(grammar.get(), queryString);
         }
         return query;
     }

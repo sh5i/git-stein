@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
+import jp.ac.titech.c.se.stein.analyzer.Language;
 import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.TokenizingModel;
 import jp.ac.titech.c.se.stein.analyzer.Token;
@@ -55,13 +56,15 @@ public class CregitTest {
     // --- Static tests (no srcml required) ---
 
     @Test
-    public void testGuessLanguage() {
-        assertEquals("Java", SrcmlAnalyzer.languageOf("Hello.java"));
-        assertEquals("C", SrcmlAnalyzer.languageOf("hello.c"));
-        assertEquals("C++", SrcmlAnalyzer.languageOf("hello.cpp"));
-        assertEquals("C#", SrcmlAnalyzer.languageOf("hello.cs"));
+    public void testSrcmlLanguageDispatch() {
+        // the srcml analyzer answers only for the languages srcML handles
+        final SrcmlAnalyzer srcml = new SrcmlAnalyzer();
+        assertEquals(Language.JAVA, srcml.languageOf("Hello.java"));
+        assertEquals(Language.C, srcml.languageOf("hello.c"));
+        assertEquals(Language.CPP, srcml.languageOf("hello.cpp"));
+        assertEquals(Language.CSHARP, srcml.languageOf("hello.cs"));
 
-        assertNull(SrcmlAnalyzer.languageOf("hello.py"));
+        assertNull(srcml.languageOf("hello.py"));
     }
 
     @Test

@@ -5,7 +5,6 @@ import jp.ac.titech.c.se.stein.analyzer.*;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterTypescript;
 
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for TypeScript. TypeScript is a superset of JavaScript, so this reuses
@@ -39,7 +38,7 @@ public class TypeScriptAnalyzer extends JavaScriptAnalyzer {
             """;
 
     public TypeScriptAnalyzer() {
-        super("TypeScript", new NameFilter(true, "*.ts", "*.mts", "*.cts"), TreeSitterTypescript::new, QUERY);
+        super(Language.TYPESCRIPT, TreeSitterTypescript::new, QUERY);
     }
 
     @Override

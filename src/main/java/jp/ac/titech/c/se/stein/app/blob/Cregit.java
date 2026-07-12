@@ -3,12 +3,12 @@ package jp.ac.titech.c.se.stein.app.blob;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Stream;
 
 import jp.ac.titech.c.se.stein.analyzer.Analyzer;
 import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.TreeSitterAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.Element;
+import jp.ac.titech.c.se.stein.analyzer.Language;
 import jp.ac.titech.c.se.stein.analyzer.Token;
 import jp.ac.titech.c.se.stein.analyzer.TokenizingModel;
 import jp.ac.titech.c.se.stein.core.Context;
@@ -73,21 +73,16 @@ public class Cregit implements BlobTranslator {
      * processing to that language's file extensions.
      */
     @Option(names = {"-l", "--lang"}, description = "force the srcML language: C, C++, C#, or Java")
-    protected void setLanguage(final String language) {
+    protected void setLanguage(final String name) {
+        final Language language = Language.ofName(name);
+        if (language == null) {
+            log.error("Unknown language: {}", name);
+            return;
+        }
         srcmlAnalyzer.setLanguage(language);
         if (filter.isDefault()) {
-            switch (language) {
-                case "C" -> filter.setPatterns(globs(SrcmlAnalyzer.C_EXT));
-                case "C++" -> filter.setPatterns(globs(SrcmlAnalyzer.CXX_EXT));
-                case "C#" -> filter.setPatterns(globs(SrcmlAnalyzer.CSHARP_EXT));
-                case "Java" -> filter.setPatterns(globs(SrcmlAnalyzer.JAVA_EXT));
-                default -> log.error("Unknown language: {}", language);
-            }
+            filter.setPatterns(language.getExtensions().stream().map(s -> "*" + s).toArray(String[]::new));
         }
-    }
-
-    private static String[] globs(final String[] suffixes) {
-        return Stream.of(suffixes).map(s -> "*" + s).toArray(String[]::new);
     }
 
     /**
@@ -120,7 +115,7 @@ public class Cregit implements BlobTranslator {
         }
         log.debug("Generate cregit module for {} {}", entry, c);
         final TokenizingModel model = analyzer.analyze(entry.getName(), entry.getBlob(), c);
-        return model == null ? entry : entry.update(convert(model, analyzer.languageName(entry.getName())));
+        return model == null ? entry : entry.update(convert(model, analyzer.languageOf(entry.getName())));
     }
 
     /**
@@ -128,9 +123,9 @@ public class Cregit implements BlobTranslator {
      * class/method/field wrapped in {@code begin_}/{@code end_}, the whole file in {@code begin_unit}/
      * {@code end_unit}.
      */
-    private byte[] convert(final TokenizingModel model, final String language) {
+    private byte[] convert(final TokenizingModel model, final Language language) {
         final StringBuilder sb = new StringBuilder();
-        marker(sb, "begin_unit|language:" + language + ";cregit-version:" + VERSION);
+        marker(sb, "begin_unit|language:" + language.getName() + ";cregit-version:" + VERSION);
         model.walkTokens(new TokenizingModel.TokenVisitor() {
             @Override
             public void begin(final Element.Kind kind) {

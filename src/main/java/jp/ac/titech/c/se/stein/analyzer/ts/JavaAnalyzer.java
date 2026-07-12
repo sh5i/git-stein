@@ -10,8 +10,6 @@ import java.util.regex.Pattern;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterJava;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for Java: detection is the declarative {@link #QUERY} (class-like
@@ -36,7 +34,7 @@ public class JavaAnalyzer extends QueryAnalyzer {
             """;
 
     public JavaAnalyzer() {
-        super("Java", new NameFilter(true, "*.java"), SourceEncoding::decode, TreeSitterJava::new, QUERY);
+        super(Language.JAVA, TreeSitterJava::new, QUERY);
     }
 
     /**

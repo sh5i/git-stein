@@ -8,8 +8,6 @@ import java.util.List;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterR;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for R: detection is the declarative {@link #QUERY} (all
@@ -25,7 +23,7 @@ public class RAnalyzer extends QueryAnalyzer {
             """;
 
     public RAnalyzer() {
-        super("R", new NameFilter(true, "*.r"), SourceEncoding::decode, TreeSitterR::new, QUERY);
+        super(Language.R, TreeSitterR::new, QUERY);
     }
 
     /**

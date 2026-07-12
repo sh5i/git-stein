@@ -7,8 +7,6 @@ import jp.ac.titech.c.se.stein.analyzer.*;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterSql;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for SQL: {@code CREATE TABLE} and {@code CREATE VIEW}
@@ -24,7 +22,7 @@ public class SqlAnalyzer extends QueryAnalyzer {
             """;
 
     public SqlAnalyzer() {
-        super("SQL", new NameFilter(true, "*.sql"), SourceEncoding::decode, TreeSitterSql::new, QUERY);
+        super(Language.SQL, TreeSitterSql::new, QUERY);
     }
 
     @Override

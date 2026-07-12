@@ -10,8 +10,6 @@ import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterJavascript;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for JavaScript: detection is the declarative {@link #QUERY} (class
@@ -35,12 +33,12 @@ public class JavaScriptAnalyzer extends QueryAnalyzer {
             """;
 
     public JavaScriptAnalyzer() {
-        super("JavaScript", new NameFilter(true, "*.js", "*.mjs", "*.cjs", "*.jsx"), SourceEncoding::decode, TreeSitterJavascript::new, QUERY);
+        super(Language.JAVASCRIPT, TreeSitterJavascript::new, QUERY);
     }
 
-    protected JavaScriptAnalyzer(final String name, final NameFilter filter, final Supplier<TSLanguage> language,
-                         final String queryString) {
-        super(name, filter, SourceEncoding::decode, language, queryString);
+    protected JavaScriptAnalyzer(final Language language, final Supplier<TSLanguage> grammar,
+                                 final String queryString) {
+        super(language, grammar, queryString);
     }
 
     /**

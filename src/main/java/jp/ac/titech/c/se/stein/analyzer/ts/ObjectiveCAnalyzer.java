@@ -5,8 +5,6 @@ import jp.ac.titech.c.se.stein.analyzer.*;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterObjc;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for Objective-C: detection is the declarative {@link #QUERY}
@@ -37,7 +35,7 @@ public class ObjectiveCAnalyzer extends QueryAnalyzer {
             """;
 
     public ObjectiveCAnalyzer() {
-        super("Objective-C", new NameFilter(true, "*.m", "*.mm"), SourceEncoding::decode, TreeSitterObjc::new, QUERY);
+        super(Language.OBJC, TreeSitterObjc::new, QUERY);
     }
 
     @Override

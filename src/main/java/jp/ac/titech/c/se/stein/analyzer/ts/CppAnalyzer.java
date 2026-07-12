@@ -9,9 +9,7 @@ import org.treesitter.TSNode;
 import org.treesitter.TreeSitterC;
 import org.treesitter.TreeSitterCpp;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
 import jp.ac.titech.c.se.stein.core.SourceText;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 
 /**
@@ -52,10 +50,7 @@ public class CppAnalyzer extends QueryAnalyzer {
             """;
 
     public CppAnalyzer(final boolean c) {
-        super(c ? "C" : "C++",
-                c ? new NameFilter(true, "*.c")
-                  : new NameFilter(true, "*.cpp", "*.cc", "*.cxx", "*.hpp", "*.hh", "*.hxx", "*.h"),
-                SourceEncoding::decode,
+        super(c ? Language.C : Language.CPP,
                 c ? TreeSitterC::new : TreeSitterCpp::new,
                 c ? C_QUERY : CPP_QUERY);
     }

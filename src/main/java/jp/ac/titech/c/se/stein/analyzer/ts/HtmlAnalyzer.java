@@ -5,8 +5,6 @@ import jp.ac.titech.c.se.stein.analyzer.*;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterHtml;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for HTML: HTML is markup with no class/method/field
@@ -15,7 +13,7 @@ import jp.ac.titech.c.se.stein.rewriter.NameFilter;
  */
 public class HtmlAnalyzer extends QueryAnalyzer {
     public HtmlAnalyzer() {
-        super("HTML", new NameFilter(true, "*.html", "*.htm"), SourceEncoding::decode, TreeSitterHtml::new, "");
+        super(Language.HTML, TreeSitterHtml::new, "");
     }
 
     @Override

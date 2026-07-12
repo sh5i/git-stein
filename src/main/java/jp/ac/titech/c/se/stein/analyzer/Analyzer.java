@@ -15,10 +15,10 @@ public interface Analyzer {
     boolean accepts(String filename);
 
     /**
-     * The human-readable source language name this analyzer assigns to the given file (for example a
-     * cregit header), or null when it cannot name it.
+     * The source language this analyzer assigns to the given file, or null when it cannot name one
+     * (e.g. ctags, which detects languages internally).
      */
-    default String languageName(final String filename) {
+    default Language languageOf(final String filename) {
         return null;
     }
 

@@ -8,8 +8,6 @@ import java.util.List;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterPhp;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for PHP: detection is the declarative {@link #QUERY}
@@ -33,7 +31,7 @@ public class PhpAnalyzer extends QueryAnalyzer {
             """;
 
     public PhpAnalyzer() {
-        super("PHP", new NameFilter(true, "*.php", "*.phtml"), SourceEncoding::decode, TreeSitterPhp::new, QUERY);
+        super(Language.PHP, TreeSitterPhp::new, QUERY);
     }
 
     @Override

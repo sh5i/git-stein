@@ -4,9 +4,11 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -31,47 +33,22 @@ import picocli.CommandLine.Option;
  */
 @Slf4j
 public class SrcmlAnalyzer implements Analyzer.Tokenizing {
-    public static final String[] JAVA_EXT = {".java", ".aj", ".mjava", ".fjava", ".cjava"};
-    public static final String[] C_EXT = {".c", ".h", ".i"};
-    public static final String[] CXX_EXT = {".cpp", ".CPP", ".cp", ".hpp", ".cxx", ".hxx", ".cc", ".hh", ".c++", ".h++", ".C", ".H", ".tcc", ".ii"};
-    public static final String[] CSHARP_EXT = {".cs"};
+    /**
+     * The languages srcML handles.
+     */
+    private static final Set<Language> SUPPORTED = EnumSet.of(Language.JAVA, Language.C, Language.CPP, Language.CSHARP);
 
     @Getter
     @Setter
     @Option(names = "--srcml-cmd", description = "srcml command path")
     private String command = "srcml";
 
-    @Setter
-    private String language;
-
     /**
-     * The srcML language for the given file name, or null when srcML does not handle it. Extension
-     * lists follow srcML's own registry.
+     * The forced source language, for file names srcML would not map; when null, the language is
+     * dispatched from the file name.
      */
-    public static String languageOf(final String filename) {
-        if (endsWithAny(filename, JAVA_EXT)) {
-            return "Java";
-        }
-        if (endsWithAny(filename, C_EXT)) {
-            return "C";
-        }
-        if (endsWithAny(filename, CXX_EXT)) {
-            return "C++";
-        }
-        if (endsWithAny(filename, CSHARP_EXT)) {
-            return "C#";
-        }
-        return null;
-    }
-
-    private static boolean endsWithAny(final String filename, final String[] extensions) {
-        for (final String ext : extensions) {
-            if (filename.endsWith(ext)) {
-                return true;
-            }
-        }
-        return false;
-    }
+    @Setter
+    private Language language;
 
     private Boolean available;
 
@@ -88,12 +65,21 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
 
     @Override
     public boolean accepts(final String filename) {
-        return available() && (language != null || languageOf(filename) != null);
+        return available() && languageOf(filename) != null;
+    }
+
+    @Override
+    public Language languageOf(final String filename) {
+        if (language != null) {
+            return language;
+        }
+        final Language dispatched = Language.of(filename);
+        return SUPPORTED.contains(dispatched) ? dispatched : null;
     }
 
     @Override
     public TokenizingModel analyze(final String filename, final byte[] blob, final Context c) {
-        final String lang = language != null ? language : languageOf(filename);
+        final Language lang = languageOf(filename);
         if (lang == null) {
             return null;
         }
@@ -102,13 +88,8 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
         return unit == null ? null : new Model(filename, text, unit);
     }
 
-    @Override
-    public String languageName(final String filename) {
-        return language != null ? language : languageOf(filename);
-    }
-
-    private org.w3c.dom.Element parse(final String source, final String lang, final Context c) {
-        final String[] cmd = { command, "--language", lang, "--src-encoding", "UTF-8", "--position" };
+    private org.w3c.dom.Element parse(final String source, final Language lang, final Context c) {
+        final String[] cmd = { command, "--language", lang.getName(), "--src-encoding", "UTF-8", "--position" };
         try (final ProcessRunner proc = new ProcessRunner(cmd, source.getBytes(StandardCharsets.UTF_8), c)) {
             final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);

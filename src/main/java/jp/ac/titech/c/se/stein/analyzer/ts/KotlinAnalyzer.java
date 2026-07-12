@@ -8,8 +8,6 @@ import java.util.List;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterKotlin;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for Kotlin: detection is the declarative {@link #QUERY}
@@ -27,7 +25,7 @@ public class KotlinAnalyzer extends QueryAnalyzer {
             """;
 
     public KotlinAnalyzer() {
-        super("Kotlin", new NameFilter(true, "*.kt", "*.kts"), SourceEncoding::decode, TreeSitterKotlin::new, QUERY);
+        super(Language.KOTLIN, TreeSitterKotlin::new, QUERY);
     }
 
     @Override

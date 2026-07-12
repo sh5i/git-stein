@@ -7,8 +7,6 @@ import jp.ac.titech.c.se.stein.analyzer.*;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterBash;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for shell scripts: function definitions become methods and
@@ -23,7 +21,7 @@ public class BashAnalyzer extends QueryAnalyzer {
             """;
 
     public BashAnalyzer() {
-        super("Shell", new NameFilter(true, "*.sh", "*.bash", "*.zsh"), SourceEncoding::decode, TreeSitterBash::new, QUERY);
+        super(Language.SHELL, TreeSitterBash::new, QUERY);
     }
 
     @Override

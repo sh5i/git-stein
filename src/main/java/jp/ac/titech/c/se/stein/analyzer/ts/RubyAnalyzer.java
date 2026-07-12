@@ -8,8 +8,6 @@ import java.util.List;
 import org.treesitter.TSNode;
 import org.treesitter.TreeSitterRuby;
 
-import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for Ruby: detection is the declarative {@link #QUERY}
@@ -33,7 +31,7 @@ public class RubyAnalyzer extends QueryAnalyzer {
             """;
 
     public RubyAnalyzer() {
-        super("Ruby", new NameFilter(true, "*.rb"), SourceEncoding::decodeWithMagicComment, TreeSitterRuby::new, QUERY);
+        super(Language.RUBY, TreeSitterRuby::new, QUERY);
     }
 
     @Override
