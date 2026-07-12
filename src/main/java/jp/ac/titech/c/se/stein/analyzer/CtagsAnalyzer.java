@@ -4,6 +4,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import com.google.gson.reflect.TypeToken;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
+import jp.ac.titech.c.se.stein.util.Names;
 import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import jp.ac.titech.c.se.stein.util.TemporaryFile;
 import lombok.Getter;
@@ -44,15 +46,6 @@ public class CtagsAnalyzer implements Analyzer {
             arity = "0..*", split = ",")
     private Set<String> moduleKinds;
 
-    /**
-     * Whether a module file keeps the original source file's extension rather than a kind-derived
-     * one.
-     */
-    @Getter
-    @Option(names = "--ctags-original-ext", negatable = true,
-            description = "keep original file extension in module names")
-    private boolean requiresOriginalExtension = true;
-
     private Boolean available;
 
     /**
@@ -75,7 +68,7 @@ public class CtagsAnalyzer implements Analyzer {
     public SourceModel analyze(final String filename, final byte[] blob, final Context c) {
         final SourceText text = SourceText.ofNormalized(blob);
         final List<Model.LanguageObject> objects = runCtags(filename, text, c);
-        return objects == null ? null : new Model(filename, text, objects, requiresOriginalExtension);
+        return objects == null ? null : new Model(filename, text, objects);
     }
 
     private List<Model.LanguageObject> runCtags(final String filename, final SourceText text, final Context c) {
@@ -109,15 +102,14 @@ public class CtagsAnalyzer implements Analyzer {
      * naming-scope element under the file root, and every tag a leaf under its scope. A tag's ctags kind
      * (richer than the neutral {@link Element.Kind}) is carried as {@link Element#getRawKind}, and its
      * signature and line range as the element's {@link Signature} and line range; {@link Element#rawText}
-     * covers the tag's source lines. Pair it with {@link jp.ac.titech.c.se.stein.app.blob.Historage.NamingStrategy.Ctags}.
+     * covers the tag's source lines.
      */
     public static class Model implements SourceModel {
         private final Element root;
 
-        Model(final String filename, final SourceText text, final List<LanguageObject> objects,
-                   final boolean requiresOriginalExtension) {
+        Model(final String filename, final SourceText text, final List<LanguageObject> objects) {
             final int index = filename.lastIndexOf('.');
-            final String basename = requiresOriginalExtension && index > 0 ? filename.substring(0, index) : filename;
+            final String basename = index > 0 ? filename.substring(0, index) : filename;
             this.root = new Element(Element.Kind.FILE, basename);
             final Map<String, Element> scopes = new HashMap<>();
             for (final LanguageObject lo : objects) {
@@ -146,27 +138,32 @@ public class CtagsAnalyzer implements Analyzer {
         }
 
         /**
-         * Collapses whitespace and strips the enclosing parentheses of a ctags signature, leaving the
-         * comma normalization and digesting to the naming strategy.
+         * Renders a ctags signature as an escaped file-name-safe parameter string: collapses
+         * whitespace, strips the enclosing parentheses and the spaces around separators, and escapes
+         * the rest, so the naming strategy receives it like any analyzer-supplied signature part.
          */
         private static String normalize(final String signature) {
-            final String s = signature.replaceAll("\\s+", " ").trim();
-            return s.startsWith("(") && s.endsWith(")") ? s.substring(1, s.length() - 1) : s;
+            String s = signature.replaceAll("\\s+", " ").trim();
+            s = s.startsWith("(") && s.endsWith(")") ? s.substring(1, s.length() - 1) : s;
+            return Names.escape(s.replaceAll(" ?([,;:]) ?", "$1"));
         }
 
         /**
-         * Maps a ctags kind to the neutral role used by the emit filter: method-like kinds to
-         * {@link Element.Kind#METHOD}, type-like kinds to {@link Element.Kind#CLASS}, and the rest to
-         * {@link Element.Kind#FIELD}. The original ctags kind is kept on the element for naming.
+         * Maps a ctags kind to a neutral kind where the vocabulary allows it (case-insensitively):
+         * method-like kinds to {@link Element.Kind#METHOD} and type-like kinds to
+         * {@link Element.Kind#CLASS} and field-like kinds to {@link Element.Kind#FIELD}; anything else
+         * is {@link Element.Kind#RAW}. The original ctags kind is kept on the element for naming.
          */
         private static Element.Kind role(final String kind) {
-            return switch (kind) {
+            return switch (kind.toLowerCase(Locale.ROOT)) {
                 case "function", "method", "constructor", "destructor", "prototype", "subroutine", "operator" ->
                         Element.Kind.METHOD;
                 case "class", "interface", "enum", "struct", "union", "namespace", "package", "module",
                      "trait", "annotation", "typedef", "record" ->
                         Element.Kind.CLASS;
-                default -> Element.Kind.FIELD;
+                case "field", "member", "variable", "constant", "property" ->
+                        Element.Kind.FIELD;
+                default -> Element.Kind.RAW;
             };
         }
 

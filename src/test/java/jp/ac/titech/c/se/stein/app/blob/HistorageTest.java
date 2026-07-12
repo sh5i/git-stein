@@ -48,25 +48,28 @@ public class HistorageTest {
     // --- Static tests (no ctags required) ---
 
     @Test
-    public void testCtagsNaming() {
-        final Historage.NamingStrategy.Ctags digest = new Historage.NamingStrategy.Ctags(true, true);
-        final Historage.NamingStrategy.Ctags plain = new Historage.NamingStrategy.Ctags(false, true);
+    public void testNaming() {
+        final Historage.NamingStrategy plain = new Historage.NamingStrategy(false, false);
+        final Historage.NamingStrategy digest = new Historage.NamingStrategy(false, true);
+        final Historage.NamingStrategy unqualify = new Historage.NamingStrategy(true, false);
 
-        // a name with no signature has no parentheses
-        assertEquals("greet", digest.leafName(Signature.of("greet")));
+        // a name with no signature has no parentheses; an empty parameter list keeps them
+        assertEquals("greet", plain.leafName(Signature.of("greet")));
+        assertEquals("greet()", plain.leafName(new Signature("greet", null, List.of())));
 
-        // signature digested: "(int, String)" normalizes to "int,String", then a 6-char hash
-        assertEquals("greet(~f3299f)", digest.leafName(new Signature("greet", null, List.of("int, String"))));
+        // parameters are joined with commas; digesting turns the non-empty list into a 6-char hash
+        assertEquals("greet(int,String)", plain.leafName(new Signature("greet", null, List.of("int", "String"))));
+        assertEquals("greet(~f3299f)", digest.leafName(new Signature("greet", null, List.of("int", "String"))));
+        assertEquals("greet()", digest.leafName(new Signature("greet", null, List.of())));
 
-        // signature not digested: comma-adjacent spaces are removed, other spaces become ~
-        assertEquals("greet(int)", plain.leafName(new Signature("greet", null, List.of("int"))));
-        assertEquals("greet(int,String~name)", plain.leafName(new Signature("greet", null, List.of("int, String name"))));
-        assertEquals("getValue(Map[String,Object])",
-                plain.leafName(new Signature("getValue", null, List.of("Map<String, Object>"))));
+        // unqualifying strips the package qualification from each type name
+        assertEquals("f(String)", unqualify.leafName(new Signature("f", null, List.of("java.lang.String"))));
 
-        // the extension is the ctags kind, plus the source extension when requiresOriginalExtension
-        assertEquals(".method.java", digest.extension(Element.Kind.METHOD, "method", "Hello.java"));
-        assertEquals(".method", new Historage.NamingStrategy.Ctags(true, false).extension(Element.Kind.METHOD, "method", "Hello.java"));
+        // the extension is a kind marker plus the source extension: a single letter for a neutral
+        // kind, the raw kind for a RAW element, and no extension part for an extensionless file
+        assertEquals(".mjava", plain.extension(Element.Kind.METHOD, "method", "Hello.java"));
+        assertEquals(".chaptermd", plain.extension(Element.Kind.RAW, "chapter", "README.md"));
+        assertEquals(".target", plain.extension(Element.Kind.RAW, "target", "Makefile"));
     }
 
     // --- Integration tests (ctags required) ---
@@ -85,49 +88,51 @@ public class HistorageTest {
                 // originals
                 "Hello.java",
                 "README.md",
-                "README!Hello.chapter.md",
-                // class/interface/enum
-                "Hello!Hello.class.java",
-                "Hello!Hello$Color.enum.java",
-                "Hello!Hello$Greeter.interface.java",
-                "Hello!Hello$Formatter.class.java",
-                "Hello!Hello$Rect.interface.java",
+                // a Markdown chapter has no neutral kind: RAW, so its ctags kind is the marker
+                "README!Hello.chaptermd",
+                // class/interface/enum; the top-level class matches the file base, so the "Hello!"
+                // prefix is elided (FinerGit's Java convention, generalized)
+                "Hello.cjava",
+                "Hello.Color.cjava",
+                "Hello.Greeter.cjava",
+                "Hello.Formatter.cjava",
+                "Hello.Rect.cjava",
                 // package
-                "Hello!com.example.package.java",
+                "Hello!com.example.cjava",
                 // fields
-                "Hello!Hello$name.field.java",
-                "Hello!Hello$count.field.java",
-                "Hello!Hello$SEPARATOR.field.java",
-                "Hello!Hello$VERSION.field.java",
-                "Hello!Hello.Color$rgb.field.java",
-                "Hello!Hello.Formatter$prefix.field.java",
-                // enum constants
-                "Hello!Hello.Color$RED.enumConstant.java",
-                "Hello!Hello.Color$GREEN.enumConstant.java",
-                "Hello!Hello.Color$BLUE.enumConstant.java",
-                // constructors
-                "Hello!Hello$Hello(~da39a3).method.java",
-                "Hello!Hello$Hello(~523327).method.java",
-                "Hello!Hello.Color$Color(~bf7093).method.java",
-                "Hello!Hello.Formatter$Formatter(~76a057).method.java",
+                "Hello#name.fjava",
+                "Hello#count.fjava",
+                "Hello#SEPARATOR.fjava",
+                "Hello#VERSION.fjava",
+                "Hello!Hello.Color#rgb.fjava",
+                "Hello!Hello.Formatter#prefix.fjava",
+                // enum constants are RAW too
+                "Hello!Hello.Color#RED.enumConstantjava",
+                "Hello!Hello.Color#GREEN.enumConstantjava",
+                "Hello!Hello.Color#BLUE.enumConstantjava",
+                // constructors; signatures are spelled out escaped (digesting is opt-in)
+                "Hello#Hello().mjava",
+                "Hello#Hello(String~name).mjava",
+                "Hello!Hello.Color#Color(int~rgb).mjava",
+                "Hello!Hello.Formatter#Formatter(String~prefix).mjava",
                 // methods
-                "Hello!Hello$greet(~da39a3).method.java",
-                "Hello!Hello$greet(~ea7b37).method.java",
-                "Hello!Hello$greetMany(~f8808a).method.java",
-                "Hello!Hello$getCount(~da39a3).method.java",
-                "Hello!Hello$stringify(~b00d43).method.java",
-                "Hello!Hello$toArray(~9633b1).method.java",
-                "Hello!Hello$process(~22cda2).method.java",
-                "Hello!Hello$processUpper(~da39a3).method.java",
-                "Hello!Hello$isLongName(~da39a3).method.java",
-                "Hello!Hello$describeColor(~5621eb).method.java",
-                "Hello!Hello$getVersion(~da39a3).method.java",
-                "Hello!Hello$Pair(~b7f68c).method.java",
-                "Hello!Hello.Greeter$greet(~da39a3).method.java",
-                "Hello!Hello.Greeter$greetLoud(~da39a3).method.java",
-                "Hello!Hello.Color$toHex(~da39a3).method.java",
-                "Hello!Hello.Rect$area(~da39a3).method.java",
-                "Hello!Hello.Formatter$format(~187b49).method.java"
+                "Hello#greet().mjava",
+                "Hello#greet(boolean~formal).mjava",
+                "Hello#greetMany(int~times).mjava",
+                "Hello#getCount().mjava",
+                "Hello#stringify(T~value).mjava",
+                "Hello#toArray(List[String]~list).mjava",
+                "Hello#process(Function[String,String]~transform).mjava",
+                "Hello#processUpper().mjava",
+                "Hello#isLongName().mjava",
+                "Hello#describeColor(Color~color).mjava",
+                "Hello#getVersion().mjava",
+                "Hello#Pair(String~first,String~second).mjava",
+                "Hello!Hello.Greeter#greet().mjava",
+                "Hello!Hello.Greeter#greetLoud().mjava",
+                "Hello!Hello.Color#toHex().mjava",
+                "Hello!Hello.Rect#area().mjava",
+                "Hello!Hello.Formatter#format(String~text).mjava"
         ), names);
     }
 
@@ -148,7 +153,7 @@ public class HistorageTest {
 
         // getCount() method module: exact content check
         final Entry getCountModule = files.stream()
-                .filter(e -> e.getName().equals("Hello!Hello$getCount(~da39a3).method.java"))
+                .filter(e -> e.getName().equals("Hello#getCount().mjava"))
                 .findFirst().orElseThrow();
         assertEquals("    public int getCount() {\n        return count;\n    }\n",
                 new String(getResult().readBlob(getCountModule.getId())));

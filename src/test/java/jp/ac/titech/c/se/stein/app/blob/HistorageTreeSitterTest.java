@@ -611,23 +611,24 @@ public class HistorageTreeSitterTest {
         final Map<String, String> entries = rewrite("App.ts", TS_SOURCE);
         assertEquals(Set.of(
                 "App.ts",  // original
-                // the namespace is a naming scope; parameter types are dropped, leaving names
-                "App!App#PI.fts",
-                "App!App#greet(name,n).mts",       // default value dropped
-                "App!App#add(a,b).mts",            // arrow bound to a variable
-                "App!App#Alias.fts",               // a type alias is a field
-                "App!App.Color.cts",               // enum
-                "App!App.IThing.cts",              // interface
-                "App!App.IThing#id.fts",           // property signature
-                "App!App.IThing#do(x).mts",        // method signature
-                "App!App.Widget.cts",              // abstract class
-                "App!App.Widget#id.fts",
-                "App!App.Widget#name.fts",         // a readonly field
-                "App!App.Widget#constructor(id).mts",
-                "App!App.Widget#getId().mts",
-                "App!App.Widget#do(x).mts",
-                "App!App.Widget#create().mts",     // static method
-                "App!App.Widget#method(a,...rest).mts",  // optional and rest parameters
+                // the namespace matches the file base, so the "App!" prefix is elided; parameter
+                // types are dropped, leaving names
+                "App#PI.fts",
+                "App#greet(name,n).mts",       // default value dropped
+                "App#add(a,b).mts",            // arrow bound to a variable
+                "App#Alias.fts",               // a type alias is a field
+                "App.Color.cts",               // enum
+                "App.IThing.cts",              // interface
+                "App.IThing#id.fts",           // property signature
+                "App.IThing#do(x).mts",        // method signature
+                "App.Widget.cts",              // abstract class
+                "App.Widget#id.fts",
+                "App.Widget#name.fts",         // a readonly field
+                "App.Widget#constructor(id).mts",
+                "App.Widget#getId().mts",
+                "App.Widget#do(x).mts",
+                "App.Widget#create().mts",     // static method
+                "App.Widget#method(a,...rest).mts",  // optional and rest parameters
                 "App!Top.cts"), entries.keySet());
     }
 
@@ -636,10 +637,10 @@ public class HistorageTreeSitterTest {
         final Map<String, String> entries = rewrite("App.ts", TS_SOURCE);
 
         // an enum keeps its (namespace-indented) declaration
-        assertEquals("  enum Color { Red, Green }\n", entries.get("App!App.Color.cts"));
+        assertEquals("  enum Color { Red, Green }\n", entries.get("App.Color.cts"));
 
         // a member keeps its indentation
-        assertEquals("    getId(): number { return this.id; }\n", entries.get("App!App.Widget#getId().mts"));
+        assertEquals("    getId(): number { return this.id; }\n", entries.get("App.Widget#getId().mts"));
     }
 
     // --- C (reuses the C++ generator with the C grammar) ---

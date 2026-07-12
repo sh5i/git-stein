@@ -25,7 +25,6 @@ import jp.ac.titech.c.se.stein.entry.HotEntry;
 import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.HashUtils;
-import jp.ac.titech.c.se.stein.util.Names;
 import lombok.ToString;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -143,15 +142,15 @@ public class Historage implements BlobTranslator {
 
     /**
      * Whether a method module's name digests its parameter list into a short fixed-length hash instead
-     * of spelling the parameters out, keeping the file name short (Java naming).
+     * of spelling the parameters out, keeping the file name short.
      */
-    @Option(names = "--digest-params", description = "digest parameters (Java naming)")
+    @Option(names = "--digest-params", description = "digest parameters in module names")
     protected boolean digestParameters = false;
 
     /**
-     * Whether the type names in a method module's name drop their package qualification (Java naming).
+     * Whether the type names in a method module's name drop their qualification.
      */
-    @Option(names = "--unqualify", description = "unqualify typenames (Java naming)")
+    @Option(names = "--unqualify", description = "unqualify typenames in module names")
     protected boolean unqualifyTypename = false;
 
     @Mixin
@@ -165,14 +164,6 @@ public class Historage implements BlobTranslator {
 
     @Mixin
     private final CtagsAnalyzer ctagsAnalyzer = new CtagsAnalyzer();
-
-    /**
-     * Whether a module's name digests the declaration signature into a short fixed-length hash (ctags
-     * backend).
-     */
-    @Option(names = "--ctags-digest-sig", negatable = true,
-            description = "digest declaration signatures in module names")
-    protected boolean digestSignature = true;
 
     @Mixin
     private final NameFilter filter = new NameFilter();
@@ -257,25 +248,13 @@ public class Historage implements BlobTranslator {
         return analyzer.accepts(filename);
     }
 
-    /**
-     * The naming strategy for a file's modules: the ctags convention for the ctags analyzer, the
-     * FinerGit convention for Java, and plain scoped names otherwise.
-     */
-    private NamingStrategy naming(final Analyzer analyzer, final String filename) {
-        if (analyzer == ctagsAnalyzer) {
-            return new NamingStrategy.Ctags(digestSignature, ctagsAnalyzer.isRequiresOriginalExtension());
-        }
-        return filename.endsWith(".java")
-                ? new NamingStrategy.FinerGit(unqualifyTypename, digestParameters) : NamingStrategy.Scoped.INSTANCE;
-    }
-
     private List<? extends HotEntry> generateModules(final Analyzer analyzer, final BlobEntry entry, final Context c) {
         final SourceModel source = analyzer.analyze(entry.getName(), entry.getBlob(), c);
         if (source == null) {
             return List.of();
         }
         final Element root = source.getRoot();
-        final NamingStrategy naming = naming(analyzer, entry.getName());
+        final NamingStrategy naming = new NamingStrategy(unqualifyTypename, digestParameters);
 
         // collect the elements that become modules, then assign each a file name, appending @2, @3,
         // ... to the second and later occurrences of the same name
@@ -346,6 +325,7 @@ public class Historage implements BlobTranslator {
             case CLASS -> requiresClasses && !tokens;  // in token mode classes are naming scopes only
             case METHOD -> requiresMethods;
             case FIELD -> requiresFields;
+            case RAW -> true;  // outside the neutral kinds; narrowed by the analyzer (--ctags-kind)
             case FILE -> false;
         };
     }
@@ -383,19 +363,46 @@ public class Historage implements BlobTranslator {
      * extension. The concrete conventions are the nested {@link FinerGit}, {@link Scoped}, and
      * {@link Ctags}.
      */
-    interface NamingStrategy {
-        String basename(Element element);
+    /**
+     * The naming convention for Historage modules, shared by every backend. A module's base name is
+     * the path from the file root joined with separators that encode each edge: {@code !} separates
+     * the file base from a top-level declaration and is elided when the declaration's name equals the
+     * file base (FinerGit's Java convention, generalized), {@code .} nests a type in a type, and
+     * {@code #} attaches anything else (a member, or a raw-kind tag) to its scope. The extension is a
+     * kind marker followed by the source extension: the marker is {@code c}/{@code m}/{@code f} for
+     * the neutral kinds and the analyzer-specific raw kind for a {@link Element.Kind#RAW} element.
+     */
+    static class NamingStrategy {
+        private final boolean unqualifyTypename;
+
+        private final boolean digestParameters;
+
+        NamingStrategy(final boolean unqualifyTypename, final boolean digestParameters) {
+            this.unqualifyTypename = unqualifyTypename;
+            this.digestParameters = digestParameters;
+        }
+
+        String basename(final Element e) {
+            final String leaf = leafName(e.getSignature());
+            if (e.getKind() == Element.Kind.FILE) {
+                return leaf;
+            }
+            final Element parent = e.getParent();
+            if (parent.getKind() == Element.Kind.FILE) {
+                final String base = basename(parent);
+                return base.equals(leaf) ? leaf : base + "!" + leaf;
+            }
+            return basename(parent) + (e.getKind() == Element.Kind.CLASS ? "." : "#") + leaf;
+        }
 
         /**
          * Assembles an element's leaf name from the raw {@link Signature} the analyzer extracted:
          * prefixes the type parameters as {@code [..]_}, appends the name, and wraps the parameter list
          * in parentheses when the signature has one (an empty list yields {@code ()}). The analyzer
          * supplies each part already escaped for file names; since the assembled punctuation
-         * ({@code []()_,}) is not itself a reserved character, no further escaping is needed here. A
-         * strategy that transforms the parameters (FinerGit's digesting or unqualifying) overrides
-         * {@link #formatParameters}.
+         * ({@code []()_,}) is not itself a reserved character, no further escaping is needed here.
          */
-        default String leafName(final Signature signature) {
+        String leafName(final Signature signature) {
             final StringBuilder sb = new StringBuilder();
             if (signature.typeParameters() != null && !signature.typeParameters().isEmpty()) {
                 sb.append("[").append(String.join(",", signature.typeParameters())).append("]_");
@@ -408,132 +415,35 @@ public class Historage implements BlobTranslator {
         }
 
         /**
-         * Transforms the comma-joined parameter list before it is wrapped in parentheses. The default
-         * keeps it unchanged; FinerGit overrides it to optionally unqualify type names and digest it.
+         * Transforms the comma-joined parameter list before it is wrapped in parentheses: optionally
+         * unqualifies type names, and optionally digests the whole list into a short hash.
          */
-        default String formatParameters(final String parameters) {
-            return parameters;
+        String formatParameters(final String parameters) {
+            String result = parameters;
+            if (unqualifyTypename) {
+                result = result.replaceAll("[a-zA-Z0-9_$]+\\.", "");
+            }
+            if (digestParameters && !result.isEmpty()) {
+                result = "~" + HashUtils.digest(result, 6);
+            }
+            return result;
         }
 
         /**
-         * The module file extension for an element's kind, its analyzer-specific raw kind (or null), and
-         * the source file name. The default marks a class, method, or field with a single letter before
-         * the source extension (e.g. {@code .mjava}); a strategy for a tag-based analyzer may use the
-         * raw kind.
+         * The module file extension: a kind marker followed by the source file's extension (which may
+         * be absent). The marker is a single letter for a neutral kind and the analyzer-specific raw
+         * kind for a RAW element.
          */
-        default String extension(final Element.Kind kind, final String rawKind, final String filename) {
-            final String letter = switch (kind) {
+        String extension(final Element.Kind kind, final String rawKind, final String filename) {
+            final String marker = switch (kind) {
                 case CLASS -> "c";
                 case METHOD -> "m";
                 case FIELD -> "f";
+                case RAW -> rawKind;
                 case FILE -> "";
             };
-            return "." + letter + filename.substring(filename.lastIndexOf('.') + 1);
-        }
-
-        /**
-         * The FinerGit naming convention used by the Java Historage generators. Nested classes join with
-         * {@code .} and members with {@code #}; a top-level class whose name differs from the file base
-         * is written as {@code Name[FileBase]}. As a naming policy it also transforms a method's
-         * parameter list: optionally unqualifying type names and digesting the whole list into a hash.
-         */
-        class FinerGit implements NamingStrategy {
-            private final boolean unqualifyTypename;
-
-            private final boolean digestParameters;
-
-            public FinerGit(final boolean unqualifyTypename, final boolean digestParameters) {
-                this.unqualifyTypename = unqualifyTypename;
-                this.digestParameters = digestParameters;
-            }
-
-            @Override
-            public String basename(final Element e) {
-                final String leaf = leafName(e.getSignature());
-                return switch (e.getKind()) {
-                    case FILE -> leaf;
-                    case CLASS -> e.getParent().getKind() == Element.Kind.CLASS
-                            ? basename(e.getParent()) + "." + leaf
-                            : basename(e.getParent()).equals(leaf) ? leaf : leaf + "[" + basename(e.getParent()) + "]";
-                    case METHOD, FIELD -> basename(e.getParent()) + "#" + leaf;
-                };
-            }
-
-            @Override
-            public String formatParameters(final String parameters) {
-                String result = parameters;
-                if (unqualifyTypename) {
-                    result = result.replaceAll("[a-zA-Z0-9_$]+\\.", "");
-                }
-                if (digestParameters && !result.isEmpty()) {
-                    result = "~" + HashUtils.digest(result, 6);
-                }
-                return result;
-            }
-        }
-
-        /**
-         * The scoped naming convention shared by languages with explicit namespaces or packages:
-         * namespaces and classes nest with {@code .} and members with {@code #}, and a top-level
-         * definition is separated from the file base with {@code !}. It stays portable across file
-         * systems by using no reserved characters. Used by the Python, C++, and C# generators.
-         */
-        class Scoped implements NamingStrategy {
-            public static final Scoped INSTANCE = new Scoped();
-
-            @Override
-            public String basename(final Element e) {
-                final String leaf = leafName(e.getSignature());
-                return switch (e.getKind()) {
-                    case FILE -> leaf;
-                    case CLASS -> basename(e.getParent()) + (e.getParent().getKind() == Element.Kind.FILE ? "!" : ".") + leaf;
-                    case METHOD, FIELD -> basename(e.getParent()) + (e.getParent().getKind() == Element.Kind.FILE ? "!" : "#") + leaf;
-                };
-            }
-        }
-
-        /**
-         * The naming convention for the ctags-based Historage generator: a leaf's file name is
-         * {@code <fileBase>!<scope>$<name>(<signature>).<ctagsKind>}, where the enclosing scope (which
-         * ctags reports as a dotted string) is a single element under the file root. The signature is
-         * normalized and either digested to a short hash or made file-name-safe; the extension is the
-         * ctags kind, optionally followed by the source file's own extension.
-         */
-        class Ctags implements NamingStrategy {
-            private final boolean digestSignature;
-
-            private final boolean requiresOriginalExtension;
-
-            public Ctags(final boolean digestSignature, final boolean requiresOriginalExtension) {
-                this.digestSignature = digestSignature;
-                this.requiresOriginalExtension = requiresOriginalExtension;
-            }
-
-            @Override
-            public String basename(final Element e) {
-                final String leaf = leafName(e.getSignature());
-                if (e.getKind() == Element.Kind.FILE) {
-                    return leaf;
-                }
-                return e.getParent().getKind() == Element.Kind.FILE
-                        ? basename(e.getParent()) + "!" + leaf
-                        : basename(e.getParent()) + "$" + leaf;
-            }
-
-            @Override
-            public String formatParameters(final String parameters) {
-                final String signature = parameters.replaceAll(" ?([,;:]) ?", "$1");
-                return digestSignature ? "~" + HashUtils.digest(signature, 6) : Names.escape(signature);
-            }
-
-            @Override
-            public String extension(final Element.Kind kind, final String rawKind, final String filename) {
-                if (requiresOriginalExtension) {
-                    final int index = filename.lastIndexOf('.');
-                    return "." + rawKind + (index > 0 ? filename.substring(index) : "");
-                }
-                return "." + rawKind;
-            }
+            final int index = filename.lastIndexOf('.');
+            return "." + marker + (index > 0 ? filename.substring(index + 1) : "");
         }
     }
 }

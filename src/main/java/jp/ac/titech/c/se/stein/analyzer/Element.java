@@ -23,10 +23,12 @@ import lombok.Setter;
 public class Element {
     /**
      * The category of a source element: the virtual file root, a class-like scope, a method, or a
-     * field. It is deliberately language-neutral; a consumer maps it to its own model.
+     * field. It is deliberately language-neutral; a consumer maps it to its own model. {@link #RAW}
+     * marks an element whose kind does not fit the neutral three; its backend-specific kind is carried
+     * in {@link #getRawKind} instead.
      */
     public enum Kind {
-        FILE, CLASS, METHOD, FIELD
+        FILE, CLASS, METHOD, FIELD, RAW
     }
 
     static final int NONE = -1;

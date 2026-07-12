@@ -137,10 +137,9 @@ Generates a [Historage](https://github.com/hideakihata/git2historage)-like repos
 Options:
 - `--ctags-cmd=<cmd>`: Location of executable `ctags` command. _Default: ctags_.
 - `--no-original`: Exclude original files.
-- `--no-ctags-original-ext`: Disuse original file extension.
-- `--no-sig`: Stop using signature (parameters) for generating filenames.
-- `--no-ctags-digest-sig`: Stop digesting signature.
-- `--module=<kind>,...`: Specify module kinds to include.
+- `--digest-params`: Digest parameters into a short hash in module names.
+- `--unqualify`: Unqualify typenames in module names.
+- `--ctags-kind=<kind>,...`: Specify ctags module kinds to include.
 - `--pattern=<glob>`: Specify the target files as a wildcard glob.
 - `-i`, `--ignore-case`: Perform case-insensitive matching for the given pattern.
 - `-V`, `--invert-match`: Select non-matching items for targets.
