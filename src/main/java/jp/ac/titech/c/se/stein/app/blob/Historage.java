@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import com.google.gson.Gson;
@@ -153,6 +154,18 @@ public class Historage implements BlobTranslator {
     @Option(names = "--unqualify", description = "unqualify typenames in module names")
     protected boolean unqualifyTypename = false;
 
+    /**
+     * The format of a module's file extension. {@code %k} is the short kind (the letter {@code c},
+     * {@code m}, or {@code f}; a RAW element, which has no short kind, falls back to its long kind),
+     * {@code %K} is the long kind (the analyzer's raw kind when it has one, e.g. a ctags
+     * {@code function}, otherwise {@code class}/{@code method}/{@code field}), and {@code %e} is the
+     * source file's extension without its dot (empty for an extensionless file).
+     */
+    @Option(names = "--ext-format", paramLabel = "<fmt>",
+            description = "module extension format: %%k=short kind (raw kind when unclassified),"
+                    + " %%K=long kind, %%e=source extension (default: ${DEFAULT-VALUE})")
+    protected String extensionFormat = NamingStrategy.DEFAULT_EXTENSION_FORMAT;
+
     @Mixin
     final SrcmlAnalyzer srcmlAnalyzer = new SrcmlAnalyzer();
 
@@ -254,7 +267,7 @@ public class Historage implements BlobTranslator {
             return List.of();
         }
         final Element root = source.getRoot();
-        final NamingStrategy naming = new NamingStrategy(unqualifyTypename, digestParameters);
+        final NamingStrategy naming = new NamingStrategy(unqualifyTypename, digestParameters, extensionFormat);
 
         // collect the elements that become modules, then assign each a file name, appending @2, @3,
         // ... to the second and later occurrences of the same name
@@ -368,18 +381,24 @@ public class Historage implements BlobTranslator {
      * the path from the file root joined with separators that encode each edge: {@code !} separates
      * the file base from a top-level declaration and is elided when the declaration's name equals the
      * file base (FinerGit's Java convention, generalized), {@code .} nests a type in a type, and
-     * {@code #} attaches anything else (a member, or a raw-kind tag) to its scope. The extension is a
-     * kind marker followed by the source extension: the marker is {@code c}/{@code m}/{@code f} for
-     * the neutral kinds and the analyzer-specific raw kind for a {@link Element.Kind#RAW} element.
+     * {@code #} attaches anything else (a member, or a raw-kind tag) to its scope. The extension is
+     * expanded from a {@code %x}-style format (see {@link #extension}); its default {@code .%k%e} is a
+     * kind marker followed by the source extension, {@code c}/{@code m}/{@code f} for the neutral
+     * kinds and the analyzer-specific raw kind for a {@link Element.Kind#RAW} element.
      */
     static class NamingStrategy {
+        static final String DEFAULT_EXTENSION_FORMAT = ".%k%e";
+
         private final boolean unqualifyTypename;
 
         private final boolean digestParameters;
 
-        NamingStrategy(final boolean unqualifyTypename, final boolean digestParameters) {
+        private final String extensionFormat;
+
+        NamingStrategy(final boolean unqualifyTypename, final boolean digestParameters, final String extensionFormat) {
             this.unqualifyTypename = unqualifyTypename;
             this.digestParameters = digestParameters;
+            this.extensionFormat = extensionFormat;
         }
 
         String basename(final Element e) {
@@ -430,20 +449,43 @@ public class Historage implements BlobTranslator {
         }
 
         /**
-         * The module file extension: a kind marker followed by the source file's extension (which may
-         * be absent). The marker is a single letter for a neutral kind and the analyzer-specific raw
-         * kind for a RAW element.
+         * The module file extension, expanded from the extension format: {@code %k} is the short kind
+         * (the letter {@code c}/{@code m}/{@code f}; a RAW element, which has no short kind, falls back
+         * to its long kind), {@code %K} the long kind (the analyzer's raw kind when it has one,
+         * otherwise the neutral kind's name), {@code %e} the source file's extension without its dot,
+         * and {@code %%} a literal percent. Anything else is kept as is.
          */
         String extension(final Element.Kind kind, final String rawKind, final String filename) {
-            final String marker = switch (kind) {
+            final String longKind = rawKind != null ? rawKind : kind.name().toLowerCase(Locale.ROOT);
+            final String shortKind = switch (kind) {
                 case CLASS -> "c";
                 case METHOD -> "m";
                 case FIELD -> "f";
-                case RAW -> rawKind;
+                case RAW -> longKind;
                 case FILE -> "";
             };
             final int index = filename.lastIndexOf('.');
-            return "." + marker + (index > 0 ? filename.substring(index + 1) : "");
+            final String ext = index > 0 ? filename.substring(index + 1) : "";
+            if (extensionFormat.equals(DEFAULT_EXTENSION_FORMAT)) {
+                return "." + shortKind + ext;  // shortcut for the default format
+            }
+            final StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < extensionFormat.length(); i++) {
+                final char c = extensionFormat.charAt(i);
+                if (c != '%' || i + 1 == extensionFormat.length()) {
+                    sb.append(c);
+                    continue;
+                }
+                final char specifier = extensionFormat.charAt(++i);
+                switch (specifier) {
+                    case 'k' -> sb.append(shortKind);
+                    case 'K' -> sb.append(longKind);
+                    case 'e' -> sb.append(ext);
+                    case '%' -> sb.append('%');
+                    default -> sb.append('%').append(specifier);
+                }
+            }
+            return sb.toString();
         }
     }
 }

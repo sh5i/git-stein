@@ -139,6 +139,7 @@ Options:
 - `--no-original`: Exclude original files.
 - `--digest-params`: Digest parameters into a short hash in module names.
 - `--unqualify`: Unqualify typenames in module names.
+- `--ext-format=<fmt>`: Module extension format: `%k` = short kind (`c`/`m`/`f`, or the raw kind when unclassified), `%K` = long kind (e.g. `function`), `%e` = source extension. _Default: .%k%e_.
 - `--ctags-kind=<kind>,...`: Specify ctags module kinds to include.
 - `--pattern=<glob>`: Specify the target files as a wildcard glob.
 - `-i`, `--ignore-case`: Perform case-insensitive matching for the given pattern.

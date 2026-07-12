@@ -49,9 +49,9 @@ public class HistorageTest {
 
     @Test
     public void testNaming() {
-        final Historage.NamingStrategy plain = new Historage.NamingStrategy(false, false);
-        final Historage.NamingStrategy digest = new Historage.NamingStrategy(false, true);
-        final Historage.NamingStrategy unqualify = new Historage.NamingStrategy(true, false);
+        final Historage.NamingStrategy plain = new Historage.NamingStrategy(false, false, ".%k%e");
+        final Historage.NamingStrategy digest = new Historage.NamingStrategy(false, true, ".%k%e");
+        final Historage.NamingStrategy unqualify = new Historage.NamingStrategy(true, false, ".%k%e");
 
         // a name with no signature has no parentheses; an empty parameter list keeps them
         assertEquals("greet", plain.leafName(Signature.of("greet")));
@@ -65,11 +65,26 @@ public class HistorageTest {
         // unqualifying strips the package qualification from each type name
         assertEquals("f(String)", unqualify.leafName(new Signature("f", null, List.of("java.lang.String"))));
 
-        // the extension is a kind marker plus the source extension: a single letter for a neutral
-        // kind, the raw kind for a RAW element, and no extension part for an extensionless file
+        // default format: the short kind plus the source extension; a RAW element has no short kind
+        // and falls back to its raw kind, and an extensionless file contributes no extension part
         assertEquals(".mjava", plain.extension(Element.Kind.METHOD, "method", "Hello.java"));
         assertEquals(".chaptermd", plain.extension(Element.Kind.RAW, "chapter", "README.md"));
         assertEquals(".target", plain.extension(Element.Kind.RAW, "target", "Makefile"));
+    }
+
+    @Test
+    public void testExtensionFormat() {
+        // %K is the long kind: the raw kind when the analyzer has one, the neutral kind's name otherwise
+        final Historage.NamingStrategy dotted = new Historage.NamingStrategy(false, false, ".%K.%e");
+        assertEquals(".function.py", dotted.extension(Element.Kind.METHOD, "function", "util.py"));
+        assertEquals(".method.java", dotted.extension(Element.Kind.METHOD, null, "Hello.java"));
+        assertEquals(".chapter.md", dotted.extension(Element.Kind.RAW, "chapter", "README.md"));
+
+        // an extension-free format, and a literal percent
+        assertEquals(".method", new Historage.NamingStrategy(false, false, ".%K")
+                .extension(Element.Kind.METHOD, null, "Hello.java"));
+        assertEquals("%mjava", new Historage.NamingStrategy(false, false, "%%%k%e")
+                .extension(Element.Kind.METHOD, null, "Hello.java"));
     }
 
     // --- Integration tests (ctags required) ---
