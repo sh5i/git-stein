@@ -4,11 +4,13 @@ import java.util.List;
 
 import jp.ac.titech.c.se.stein.analyzer.*;
 
-import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TSQuery;
 import org.treesitter.TreeSitterSql;
 
+import jp.ac.titech.c.se.stein.core.SourceEncoding;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based reimplementation of the imperative Sql visitor: {@code CREATE TABLE} and {@code CREATE VIEW}
@@ -23,23 +25,24 @@ public class SqlAnalyzer extends QueryAnalyzer {
             (create_function (object_reference name: (_) @name)) @method
             """;
 
-    public SqlAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
-        super(filename, text, treeRoot);
+    public SqlAnalyzer() {
+        super("SQL", new NameFilter(true, "*.sql"), SourceEncoding::decode, TreeSitterSql::new, QUERY);
     }
 
     @Override
-    protected TSLanguage grammar() {
-        return new TreeSitterSql();
+    protected TreeSitterModel createModel(final String filename, final SourceText text, final TSNode treeRoot) {
+        return new Model(filename, text, treeRoot, query());
     }
 
-    @Override
-    protected String queryString() {
-        return QUERY;
-    }
+    static class Model extends QueryModel {
+        Model(final String filename, final SourceText text, final TSNode treeRoot, final TSQuery query) {
+            super(filename, text, treeRoot, query);
+        }
 
-    @Override
-    protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
-        final String base = flatten(textOf(captures.get("name")));
-        return kind == Element.Kind.METHOD ? new Signature(base, null, List.of()) : Signature.of(base);
+        @Override
+        protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
+            final String base = flatten(textOf(captures.get("name")));
+            return kind == Element.Kind.METHOD ? new Signature(base, null, List.of()) : Signature.of(base);
+        }
     }
 }

@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -13,14 +12,14 @@ import java.util.function.Predicate;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import jp.ac.titech.c.se.stein.analyzer.CtagsAnalyzer;
-import jp.ac.titech.c.se.stein.analyzer.Element;
 import jp.ac.titech.c.se.stein.analyzer.JdtAnalyzer;
-import jp.ac.titech.c.se.stein.analyzer.Languages;
-import jp.ac.titech.c.se.stein.analyzer.Signature;
-import jp.ac.titech.c.se.stein.analyzer.SourceAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.TreeSitterAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.Element;
+import jp.ac.titech.c.se.stein.analyzer.Signature;
+import jp.ac.titech.c.se.stein.analyzer.SourceModel;
 import jp.ac.titech.c.se.stein.analyzer.Token;
-import jp.ac.titech.c.se.stein.analyzer.TokenizingAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.TokenizingModel;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
@@ -116,21 +115,21 @@ public class Historage implements BlobTranslator {
     /**
      * Whether to emit, beside each module, a side file holding the comments attached to its declaration.
      */
-    @Option(names = "--comments", description = "extract comment files (tree-sitter, jdt)")
+    @Option(names = "--comments", description = "extract comment files (ts, jdt, srcml)")
     protected boolean requiresComments = false;
 
     /**
      * Whether a module's own content excludes the comments attached to its declaration, leaving them
      * only in the comment side file (tree-sitter, jdt).
      */
-    @Option(names = "--separate-comments", description = "exclude comments from modules (tree-sitter, jdt)")
+    @Option(names = "--separate-comments", description = "exclude comments from modules (ts, jdt, srcml)")
     protected boolean separatesComments = false;
 
     /**
      * Whether to emit a mapping side file: one JSON record per module giving its file name and its line
      * range in the original source.
      */
-    @Option(names = "--mapping", description = "extract mapping file (jdt)")
+    @Option(names = "--mapping", description = "extract mapping file")
     protected boolean requiresMapping = false;
 
     /**
@@ -149,53 +148,34 @@ public class Historage implements BlobTranslator {
      * Whether a method module's name digests its parameter list into a short fixed-length hash instead
      * of spelling the parameters out, keeping the file name short (Java naming).
      */
-    @Option(names = "--digest-params", description = "digest parameters (jdt)")
+    @Option(names = "--digest-params", description = "digest parameters (Java naming)")
     protected boolean digestParameters = false;
 
     /**
      * Whether the type names in a method module's name drop their package qualification (Java naming).
      */
-    @Option(names = "--unqualify", description = "unqualify typenames (jdt)")
+    @Option(names = "--unqualify", description = "unqualify typenames (Java naming)")
     protected boolean unqualifyTypename = false;
 
-    /**
-     * Whether to emit each module in a form that is more likely to parse on its own (jdt backend).
-     */
-    @Option(names = "--parsable", description = "generate more parsable files (jdt)")
-    protected boolean parsable = false;
+    @Mixin
+    final SrcmlAnalyzer srcmlAnalyzer = new SrcmlAnalyzer();
 
-    /**
-     * The {@code srcml} executable to invoke (srcml backend).
-     */
-    @Option(names = "--srcml", description = "srcml command used (srcml)")
-    protected String srcml = "srcml";
+    // no options of its own, so a plain field rather than a mixin
+    private final TreeSitterAnalyzer tsAnalyzer = new TreeSitterAnalyzer();
 
-    /**
-     * The {@code ctags} executable to invoke (ctags backend).
-     */
-    @Option(names = "--ctags", description = "ctags command used (ctags)")
-    protected String ctags = "ctags";
+    @Mixin
+    private final JdtAnalyzer jdtAnalyzer = new JdtAnalyzer();
 
-    /**
-     * Whether a module file keeps the original source file's extension rather than a kind-derived one
-     * (ctags backend).
-     */
-    @Option(names = "--no-original-ext", negatable = true, description = "disuse original file extension (ctags)")
-    protected boolean requiresOriginalExtension = true;
+    @Mixin
+    private final CtagsAnalyzer ctagsAnalyzer = new CtagsAnalyzer();
 
     /**
      * Whether a module's name digests the declaration signature into a short fixed-length hash (ctags
      * backend).
      */
-    @Option(names = "--no-digest-sig", negatable = true, description = "stop digesting signature (ctags)")
+    @Option(names = "--ctags-digest-sig", negatable = true,
+            description = "digest declaration signatures in module names")
     protected boolean digestSignature = true;
-
-    /**
-     * The ctags kinds to emit as modules; when unset, every kind is included (ctags backend).
-     */
-    @Option(names = "--kind", paramLabel = "<k>", description = "module kinds to include (ctags)",
-            arity = "0..*", split = ",")
-    protected Set<String> moduleKinds;
 
     @Mixin
     private final NameFilter filter = new NameFilter();
@@ -254,7 +234,7 @@ public class Historage implements BlobTranslator {
      * How one backend analyses a file: whether it handles the blob, the analyzer over it, and (when it
      * has its own convention such as ctags) the naming strategy to use instead of the default.
      */
-    private record Engine(Predicate<String> accepts, BiFunction<BlobEntry, Context, SourceAnalyzer> analyzer,
+    private record Engine(Predicate<String> accepts, BiFunction<BlobEntry, Context, SourceModel> analyzer,
                           Function<String, NamingStrategy> naming, boolean tokenizes) {
     }
 
@@ -280,19 +260,20 @@ public class Historage implements BlobTranslator {
 
     private Engine engine(final BackendType backend) {
         return switch (backend) {
-            case ts -> new Engine(Languages::accepts, (e, c) -> Languages.of(e.getName(), e.getBlob()), null, true);
-            case jdt -> new Engine(JdtAnalyzer::accepts,
-                    (e, c) -> JdtAnalyzer.of(e.getName(), e.getBlob(), parsable), null, false);
-            case srcml -> new Engine(whenAvailable(srcml, SrcmlAnalyzer::accepts),
-                    (e, c) -> SrcmlAnalyzer.of(e.getName(), e.getBlob(), srcml, null, c), null, true);
-            case ctags -> new Engine(whenAvailable(ctags, filter::accept),
-                    (e, c) -> CtagsAnalyzer.of(e.getName(), e.getBlob(), ctags, moduleKinds, requiresOriginalExtension, c),
-                    f -> new NamingStrategy.Ctags(digestSignature, requiresOriginalExtension), false);
+            case ts -> new Engine(tsAnalyzer::accepts,
+                    (e, c) -> tsAnalyzer.analyze(e.getName(), e.getBlob(), c), null, true);
+            case jdt -> new Engine(jdtAnalyzer::accepts,
+                    (e, c) -> jdtAnalyzer.analyze(e.getName(), e.getBlob(), c), null, false);
+            case srcml -> new Engine(whenAvailable(srcmlAnalyzer.getCommand(), srcmlAnalyzer::accepts),
+                    (e, c) -> srcmlAnalyzer.analyze(e.getName(), e.getBlob(), c), null, true);
+            case ctags -> new Engine(whenAvailable(ctagsAnalyzer.getCommand(), filter::accept),
+                    (e, c) -> ctagsAnalyzer.analyze(e.getName(), e.getBlob(), c),
+                    f -> new NamingStrategy.Ctags(digestSignature, ctagsAnalyzer.isRequiresOriginalExtension()), false);
         };
     }
 
     private List<? extends HotEntry> generateModules(final Engine engine, final BlobEntry entry, final Context c) {
-        final SourceAnalyzer source = engine.analyzer().apply(entry, c);
+        final SourceModel source = engine.analyzer().apply(entry, c);
         if (source == null) {
             return List.of();
         }
@@ -330,13 +311,13 @@ public class Historage implements BlobTranslator {
         return out;
     }
 
-    private void collect(final SourceAnalyzer source, final Element parent, final NamingStrategy naming,
+    private void collect(final SourceModel source, final Element parent, final NamingStrategy naming,
                          final String filename, final List<Generated> out) {
         for (final Element e : parent.getChildren()) {
             if (e.hasContent() && wants(e.getKind())) {
                 final String basename = naming.basename(e);
                 final String extension = naming.extension(e.getKind(), e.getRawKind(), filename);
-                final String content = tokens ? tokenSequence((TokenizingAnalyzer) source, e)
+                final String content = tokens ? tokenSequence((TokenizingModel) source, e)
                         : separatesComments || requiresComments ? source.coreText(e) : source.rawText(e);
                 out.add(new Generated(e, content, basename, extension));
             }
@@ -350,7 +331,7 @@ public class Historage implements BlobTranslator {
      * is set. Assembled here from the analyzer's neutral token stream, so the FinerGit rendering policy
      * stays with this consumer.
      */
-    private String tokenSequence(final TokenizingAnalyzer analyzer, final Element e) {
+    private String tokenSequence(final TokenizingModel analyzer, final Element e) {
         final StringBuilder sb = new StringBuilder();
         for (final Token t : analyzer.tokens(e)) {
             if (t.comment() || (omitsFrame && t.frame())) {

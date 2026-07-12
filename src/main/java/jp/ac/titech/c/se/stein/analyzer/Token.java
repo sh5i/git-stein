@@ -7,8 +7,8 @@ package jp.ac.titech.c.se.stein.analyzer;
  * token (cregit keeps them; a FinerGit sequence skips them). {@code frame} marks one of the enclosing
  * declaration's frame delimiters -- the parentheses of its parameter list, the braces of its body, or
  * a bodyless declaration's terminating semicolon -- which a FinerGit sequence drops under Heuristic 2.
- * The {@code frame} flag is meaningful only in the element-scoped {@link TokenizingAnalyzer#tokens};
- * the whole-file {@link TokenizingAnalyzer#walkTokens} leaves it false.
+ * The {@code frame} flag is meaningful only in the element-scoped {@link TokenizingModel#tokens};
+ * the whole-file {@link TokenizingModel#walkTokens} leaves it false.
  */
 public record Token(String text, String type, int line, int column, int start, boolean comment, boolean frame) {
     /**

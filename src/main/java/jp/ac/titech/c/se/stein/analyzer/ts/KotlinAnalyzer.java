@@ -5,11 +5,13 @@ import jp.ac.titech.c.se.stein.analyzer.*;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TSQuery;
 import org.treesitter.TreeSitterKotlin;
 
+import jp.ac.titech.c.se.stein.core.SourceEncoding;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based reimplementation of the imperative Kotlin visitor: detection is the declarative {@link #QUERY}
@@ -26,61 +28,62 @@ public class KotlinAnalyzer extends QueryAnalyzer {
             (property_declaration (variable_declaration (simple_identifier) @name)) @field
             """;
 
-    public KotlinAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
-        super(filename, text, treeRoot);
+    public KotlinAnalyzer() {
+        super("Kotlin", new NameFilter(true, "*.kt", "*.kts"), SourceEncoding::decode, TreeSitterKotlin::new, QUERY);
     }
 
     @Override
-    protected TSLanguage grammar() {
-        return new TreeSitterKotlin();
+    protected TreeSitterModel createModel(final String filename, final SourceText text, final TSNode treeRoot) {
+        return new Model(filename, text, treeRoot, query());
     }
 
-    @Override
-    protected String queryString() {
-        return QUERY;
-    }
-
-    @Override
-    protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
-        if (kind == Element.Kind.METHOD) {
-            return new Signature(flatten(textOf(firstChildOfType(node, "simple_identifier"))), null, signature(node));
+    static class Model extends QueryModel {
+        Model(final String filename, final SourceText text, final TSNode treeRoot, final TSQuery query) {
+            super(filename, text, treeRoot, query);
         }
-        return Signature.of(flatten(textOf(captures.get("name"))));
-    }
 
-    /**
-     * Prunes the members that a query captures inside an enum body: the visitor descends into a class
-     * only through its {@code class_body}, so a class whose body is an {@code enum_class_body} (or which
-     * has no body at all) exposes no members.
-     */
-    @Override
-    protected void postProcess() {
-        prune(root);
-    }
+        @Override
+        protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
+            if (kind == Element.Kind.METHOD) {
+                return new Signature(flatten(textOf(firstChildOfType(node, "simple_identifier"))), null, signature(node));
+            }
+            return Signature.of(flatten(textOf(captures.get("name"))));
+        }
 
-    private void prune(final Element element) {
-        for (final Element child : element.getChildren()) {
-            prune(child);
+        /**
+         * Prunes the members that a query captures inside an enum body: the visitor descends into a class
+         * only through its {@code class_body}, so a class whose body is an {@code enum_class_body} (or which
+         * has no body at all) exposes no members.
+         */
+        @Override
+        protected void postProcess() {
+            prune(root);
         }
-        if (element.getKind() == Element.Kind.CLASS && element.hasContent()
-                && firstChildOfType(nodeOf(element), "class_body") == null) {
-            element.getChildren().clear();
-        }
-    }
 
-    protected List<String> signature(final TSNode node) {
-        final TSNode params = firstChildOfType(node, "function_value_parameters");
-        if (params == null) {
-            return List.of();
-        }
-        final List<String> types = new ArrayList<>();
-        for (int i = 0; i < params.getNamedChildCount(); i++) {
-            final TSNode p = params.getNamedChild(i);
-            if (p.getType().equals("parameter")) {
-                final TSNode type = firstChildOfType(p, "user_type");
-                types.add(escape(textOf(type != null ? type : p).replaceAll("\\s+", "")));
+        private void prune(final Element element) {
+            for (final Element child : element.getChildren()) {
+                prune(child);
+            }
+            if (element.getKind() == Element.Kind.CLASS && element.hasContent()
+                    && firstChildOfType(nodeOf(element), "class_body") == null) {
+                element.getChildren().clear();
             }
         }
-        return types;
+
+        protected List<String> signature(final TSNode node) {
+            final TSNode params = firstChildOfType(node, "function_value_parameters");
+            if (params == null) {
+                return List.of();
+            }
+            final List<String> types = new ArrayList<>();
+            for (int i = 0; i < params.getNamedChildCount(); i++) {
+                final TSNode p = params.getNamedChild(i);
+                if (p.getType().equals("parameter")) {
+                    final TSNode type = firstChildOfType(p, "user_type");
+                    types.add(escape(textOf(type != null ? type : p).replaceAll("\\s+", "")));
+                }
+            }
+            return types;
+        }
     }
 }

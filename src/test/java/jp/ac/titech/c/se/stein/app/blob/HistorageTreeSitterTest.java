@@ -310,7 +310,7 @@ public class HistorageTreeSitterTest {
         // srcml would claim the Java file, but with its command missing the srcml backend accepts
         // nothing, so @historage defers to the next backend (tree-sitter) and produces the same output
         final Historage fallback = new Historage().backends(Historage.BackendType.srcml, Historage.BackendType.ts);
-        fallback.srcml = "stein-no-such-command";
+        fallback.srcmlAnalyzer.setCommand("stein-no-such-command");
         final AnyHotEntry out = fallback.rewriteBlobEntry(HotEntry.ofBlob("Hello.java", JAVA_SOURCE), c);
         final Map<String, String> viaFallback = out.stream()
                 .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));

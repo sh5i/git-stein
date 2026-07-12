@@ -1,8 +1,8 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
-import jp.ac.titech.c.se.stein.analyzer.Languages;
+import jp.ac.titech.c.se.stein.analyzer.TreeSitterAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.Token;
-import jp.ac.titech.c.se.stein.analyzer.TokenizingAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.TokenizingModel;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ public class CommentClassificationTest {
     public void testCommentTokensAreFlaggedInEveryLanguage() {
         final List<String> leaks = new ArrayList<>();
         for (final Case c : CASES) {
-            final TokenizingAnalyzer a = Languages.of(c.file, c.source.getBytes());
+            final TokenizingModel a = new TreeSitterAnalyzer().analyze(c.file, c.source.getBytes(), null);
             assertNotNull(a, c.file);
             final List<Token> tokens = a.tokens(a.extract());
             for (final Token t : tokens) {

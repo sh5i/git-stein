@@ -16,58 +16,36 @@ import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants;
 
+import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
+import lombok.Getter;
+import lombok.Setter;
+import picocli.CommandLine.Option;
 
 /**
- * A {@link SourceAnalyzer} backed by Eclipse JDT, for Java. It parses the file to a JDT AST and
- * extracts an {@link Element} tree of classes, methods, and fields with FinerGit-compatible names
- * (using JDT's resolved bindings to optionally digest parameter types or unqualify type names), and
- * renders each element's source (optionally excluding its comments or wrapping a member so it parses
- * standalone). Comment text and line numbers, which a Historage consumer needs for comment and mapping
- * side files, are exposed beyond the {@link SourceAnalyzer} contract.
+ * The Eclipse JDT analyzer, for Java. It parses each file with JDT's error-recovering parser and
+ * wraps the compilation unit in a {@link Model}, so a broken or mid-refactor file still yields
+ * whatever declarations JDT can recover.
  */
-public class JdtAnalyzer implements SourceAnalyzer {
-    private final SourceText text;
-
-    private final CompilationUnit unit;
-
-    private final Element root;
-
-    private final Map<Element, BodyDeclaration> nodes = new HashMap<>();
-
-    private final Map<Element, String> enclosingClass = new HashMap<>();
-
-    private final CommentSet commentSet;
-
-    private final boolean parsable;
-
-    private boolean extracted;
-
-    private JdtAnalyzer(final String filename, final SourceText text, final CompilationUnit unit,
-                        final boolean parsable) {
-        this.text = text;
-        this.unit = unit;
-        this.parsable = parsable;
-        this.root = new Element(Element.Kind.FILE, filename.substring(0, filename.lastIndexOf('.')));
-        this.commentSet = new CommentSet(unit);
-    }
-
+public class JdtAnalyzer implements Analyzer {
     /**
-     * Parses the blob with JDT and returns a ready analyzer. JDT recovers a (possibly partial) tree
-     * even for a file that does not fully parse, so a broken or mid-refactor file still yields whatever
-     * declarations JDT can recover.
+     * Whether a model renders each module in a form that is more likely to parse on its own.
      */
-    public static JdtAnalyzer of(final String filename, final byte[] blob, final boolean parsable) {
-        final SourceText text = SourceText.ofNormalized(blob);
-        return new JdtAnalyzer(filename, text, parse(text), parsable);
-    }
+    @Getter
+    @Setter
+    @Option(names = "--jdt-parsable", description = "generate more parsable files")
+    private boolean parsable = false;
 
-    /**
-     * Whether this analyzer handles the given file (Java, matched case-insensitively by extension).
-     */
-    public static boolean accepts(final String filename) {
+    @Override
+    public boolean accepts(final String filename) {
         return filename.toLowerCase(Locale.ROOT).endsWith(".java");
+    }
+
+    @Override
+    public SourceModel analyze(final String filename, final byte[] blob, final Context c) {
+        final SourceText text = SourceText.ofNormalized(blob);
+        return new Model(filename, text, parse(text), parsable);
     }
 
     private static CompilationUnit parse(final SourceText text) {
@@ -84,268 +62,303 @@ public class JdtAnalyzer implements SourceAnalyzer {
         return (CompilationUnit) parser.createAST(null);
     }
 
-    @Override
-    public Element extract() {
-        if (!extracted) {
-            unit.accept(new Builder());
-            extracted = true;
+    /**
+     * A {@link SourceModel} backed by Eclipse JDT, for Java. It parses the file to a JDT AST and
+     * extracts an {@link Element} tree of classes, methods, and fields with FinerGit-compatible names
+     * (using JDT's resolved bindings to optionally digest parameter types or unqualify type names), and
+     * renders each element's source (optionally excluding its comments or wrapping a member so it parses
+     * standalone). Comment text and line numbers, which a Historage consumer needs for comment and mapping
+     * side files, are exposed beyond the {@link SourceModel} contract.
+     */
+    public static class Model implements SourceModel {
+        private final SourceText text;
+
+        private final CompilationUnit unit;
+
+        private final Element root;
+
+        private final Map<Element, BodyDeclaration> nodes = new HashMap<>();
+
+        private final Map<Element, String> enclosingClass = new HashMap<>();
+
+        private final CommentSet commentSet;
+
+        private final boolean parsable;
+
+        private boolean extracted;
+
+        Model(final String filename, final SourceText text, final CompilationUnit unit,
+                 final boolean parsable) {
+            this.text = text;
+            this.unit = unit;
+            this.parsable = parsable;
+            this.root = new Element(Element.Kind.FILE, filename.substring(0, filename.lastIndexOf('.')));
+            this.commentSet = new CommentSet(unit);
         }
-        return root;
-    }
 
-    @Override
-    public String rawText(final Element e) {
-        return getContent(e.getExtentFragment(), nodes.get(e), enclosingClass.get(e), true);
-    }
-
-    @Override
-    public String coreText(final Element e) {
-        return getContent(e.getExtentFragment(), nodes.get(e), enclosingClass.get(e), false);
-    }
-
-    private final class Builder extends ASTVisitor {
-        private final Deque<Element> stack = new ArrayDeque<>(List.of(root));
-
-        private Element add(final Element.Kind kind, final Signature signature, final BodyDeclaration node) {
-            final Fragment f = getFragmentWithSurroundingComments(node);
-            final Element e = new Element(kind, signature, f.getBegin(), f.getEnd());
-            e.setStartLine(unit.getLineNumber(f.getBegin()));
-            e.setEndLine(unit.getLineNumber(f.getEnd()));
-            e.setCoreFragment(getFragment(node));
-            e.setExtentFragment(f);
-            e.setComments(commentSet.getComments(node).stream().map(c -> getFragment(c)).toList());
-            stack.peek().addChild(e);
-            nodes.put(e, node);
-            if (kind != Element.Kind.CLASS) {
-                enclosingClass.put(e, stack.peek().getName());
+        @Override
+        public Element extract() {
+            if (!extracted) {
+                unit.accept(new Builder());
+                extracted = true;
             }
-            return e;
+            return root;
         }
 
         @Override
-        public boolean visit(final TypeDeclaration node) {
-            return visitType(node);
+        public String rawText(final Element e) {
+            return getContent(e.getExtentFragment(), nodes.get(e), enclosingClass.get(e), true);
         }
 
         @Override
-        public boolean visit(final EnumDeclaration node) {
-            return visitType(node);
+        public String coreText(final Element e) {
+            return getContent(e.getExtentFragment(), nodes.get(e), enclosingClass.get(e), false);
         }
 
-        @Override
-        public boolean visit(final AnnotationTypeDeclaration node) {
-            return visitType(node);
-        }
+        private final class Builder extends ASTVisitor {
+            private final Deque<Element> stack = new ArrayDeque<>(List.of(root));
 
-        @Override
-        public boolean visit(final RecordDeclaration node) {
-            return visitType(node);
-        }
-
-        private boolean visitType(final AbstractTypeDeclaration node) {
-            stack.push(add(Element.Kind.CLASS, Signature.of(node.getName().getIdentifier()), node));
-            return true;
-        }
-
-        @Override
-        public void endVisit(final TypeDeclaration node) {
-            stack.pop();
-        }
-
-        @Override
-        public void endVisit(final EnumDeclaration node) {
-            stack.pop();
-        }
-
-        @Override
-        public void endVisit(final AnnotationTypeDeclaration node) {
-            stack.pop();
-        }
-
-        @Override
-        public void endVisit(final RecordDeclaration node) {
-            stack.pop();
-        }
-
-        @Override
-        public boolean visit(final AnonymousClassDeclaration node) {
-            return false;
-        }
-
-        @Override
-        public boolean visit(final MethodDeclaration node) {
-            add(Element.Kind.METHOD, methodSignature(node), node);
-            return false;
-        }
-
-        @Override
-        public boolean visit(final FieldDeclaration node) {
-            for (final Object f : node.fragments()) {
-                add(Element.Kind.FIELD, Signature.of(((VariableDeclarationFragment) f).getName().toString()), node);
+            private Element add(final Element.Kind kind, final Signature signature, final BodyDeclaration node) {
+                final Fragment f = getFragmentWithSurroundingComments(node);
+                final Element e = new Element(kind, signature, f.getBegin(), f.getEnd());
+                e.setStartLine(unit.getLineNumber(f.getBegin()));
+                e.setEndLine(unit.getLineNumber(f.getEnd()));
+                e.setCoreFragment(getFragment(node));
+                e.setExtentFragment(f);
+                e.setComments(commentSet.getComments(node).stream().map(c -> getFragment(c)).toList());
+                stack.peek().addChild(e);
+                nodes.put(e, node);
+                if (kind != Element.Kind.CLASS) {
+                    enclosingClass.put(e, stack.peek().getName());
+                }
+                return e;
             }
-            return false;
-        }
-    }
-
-    // --- rendering ---
-
-    private String getContent(final Fragment fragment, final BodyDeclaration node, final String enclosingClass,
-                              final boolean withComments) {
-        if (!parsable) {
-            return getSource(fragment, node, withComments);
-        }
-        final StringBuilder sb = new StringBuilder();
-        final PackageDeclaration pkg = unit.getPackage();
-        if (pkg != null) {
-            sb.append("package ").append(pkg.getName().getFullyQualifiedName()).append(";\n");
-        }
-        if (node instanceof TypeDeclaration) {
-            sb.append(getSource(fragment, node, withComments));
-        } else {
-            sb.append("class ").append(enclosingClass).append(" {\n");
-            sb.append(getSource(fragment, node, withComments));
-            sb.append("}\n");
-        }
-        return sb.toString();
-    }
-
-    private String getSource(final Fragment fragment, final BodyDeclaration node, final boolean withComments) {
-        return withComments ? fragment.getWiderContent() : getSourceWithoutComments(fragment, node);
-    }
-
-    private String getSourceWithoutComments(final Fragment fragment, final BodyDeclaration node) {
-        String source = fragment.getWiderContent();
-        final List<Comment> comments = commentSet.getComments(node);
-        for (int i = comments.size() - 1; i >= 0; i--) {
-            final Fragment c = getFragment(comments.get(i));
-            final int localStart = c.getWiderBegin() - fragment.getWiderBegin();
-            final int localEnd = c.getWiderEnd() - fragment.getWiderBegin();
-            source = source.substring(0, localStart) + source.substring(localEnd);
-        }
-        return source;
-    }
-
-    // --- fragment helpers ---
-
-    private Fragment getFragment(final int start, final int end) {
-        return text.getFragment(start, end);
-    }
-
-    private Fragment getFragment(final ASTNode node) {
-        return getFragment(node.getStartPosition(), node.getStartPosition() + node.getLength());
-    }
-
-    private Fragment getFragment(final ASTNode startNode, final ASTNode endNode) {
-        return getFragment(startNode.getStartPosition(), endNode.getStartPosition() + endNode.getLength());
-    }
-
-    private Fragment getFragmentWithSurroundingComments(final BodyDeclaration node) {
-        final int leading = unit.firstLeadingCommentIndex(node);
-        final int trailing = unit.lastTrailingCommentIndex(node);
-        if (leading == -1 && trailing == -1) {
-            return getFragment(node);
-        }
-        final List<?> comments = unit.getCommentList();
-        final ASTNode startNode = leading != -1 ? (Comment) comments.get(leading) : node;
-        final ASTNode endNode = trailing != -1 ? (Comment) comments.get(trailing) : node;
-        return getFragment(startNode, endNode);
-    }
-
-    @SuppressWarnings("unused")
-    private Fragment getFragmentWithoutJavadoc(final BodyDeclaration node) {
-        final Optional<Integer> start = findChildNodes(node).stream()
-                .filter(n -> !(n instanceof Javadoc))
-                .map(ASTNode::getStartPosition)
-                .min(Comparator.naturalOrder());
-        if (start.isPresent() && start.get() > node.getStartPosition()) {
-            return getFragment(start.get(), node.getStartPosition() + node.getLength());
-        } else {
-            return getFragment(node);
-        }
-    }
-
-    private List<ASTNode> findChildNodes(final ASTNode node) {
-        final List<ASTNode> result = new ArrayList<>();
-        node.accept(new ASTVisitor() {
-            boolean isRoot = true;
 
             @Override
-            public boolean preVisit2(final ASTNode node) {
-                if (isRoot) {
-                    isRoot = false;
-                    return true;
-                }
-                result.add(node);
+            public boolean visit(final TypeDeclaration node) {
+                return visitType(node);
+            }
+
+            @Override
+            public boolean visit(final EnumDeclaration node) {
+                return visitType(node);
+            }
+
+            @Override
+            public boolean visit(final AnnotationTypeDeclaration node) {
+                return visitType(node);
+            }
+
+            @Override
+            public boolean visit(final RecordDeclaration node) {
+                return visitType(node);
+            }
+
+            private boolean visitType(final AbstractTypeDeclaration node) {
+                stack.push(add(Element.Kind.CLASS, Signature.of(node.getName().getIdentifier()), node));
+                return true;
+            }
+
+            @Override
+            public void endVisit(final TypeDeclaration node) {
+                stack.pop();
+            }
+
+            @Override
+            public void endVisit(final EnumDeclaration node) {
+                stack.pop();
+            }
+
+            @Override
+            public void endVisit(final AnnotationTypeDeclaration node) {
+                stack.pop();
+            }
+
+            @Override
+            public void endVisit(final RecordDeclaration node) {
+                stack.pop();
+            }
+
+            @Override
+            public boolean visit(final AnonymousClassDeclaration node) {
                 return false;
             }
-        });
-        return result;
-    }
 
-    // --- naming material ---
+            @Override
+            public boolean visit(final MethodDeclaration node) {
+                add(Element.Kind.METHOD, methodSignature(node), node);
+                return false;
+            }
 
-    /**
-     * The naming material of a method: its name, its escaped type parameters (or null when it has
-     * none), and its escaped parameter types. Unqualifying and digesting are the naming strategy's job.
-     */
-    private Signature methodSignature(final MethodDeclaration node) {
-        @SuppressWarnings("unchecked")
-        final List<Object> types = node.typeParameters();
-        final List<String> typeParameters = types == null || types.isEmpty() ? null
-                : types.stream().map(o -> escape(o.toString())).toList();
-        @SuppressWarnings("unchecked")
-        final List<Object> params = node.parameters();
-        final List<String> parameters = params.stream()
-                .map(o -> typeName((SingleVariableDeclaration) o)).toList();
-        return new Signature(node.getName().getIdentifier(), typeParameters, parameters);
-    }
-
-    private String typeName(final SingleVariableDeclaration v) {
-        final StringBuilder sb = new StringBuilder();
-        sb.append(escape(v.getType().toString()));
-        sb.append("[]".repeat(Math.max(0, v.getExtraDimensions())));
-        if (v.isVarargs()) {
-            sb.append("...");
-        }
-        return sb.toString();
-    }
-
-    private String escape(final String s) {
-        return s.replace(' ', '-').replace('?', '#').replace('<', '[').replace('>', ']');
-    }
-
-    /**
-     * The comments attached to each declaration, resolved lazily by leading/trailing index.
-     */
-    private static final class CommentSet {
-        private final CompilationUnit unit;
-        private final List<Comment> comments;
-        private final List<Integer> offsets;
-        private final Map<ASTNode, List<Comment>> cache = new HashMap<>();
-
-        CommentSet(final CompilationUnit unit) {
-            this.unit = unit;
-            @SuppressWarnings("unchecked")
-            final List<Comment> comments = unit != null ? unit.getCommentList() : Collections.emptyList();
-            this.comments = comments;
-            this.offsets = comments.stream().map(ASTNode::getStartPosition).collect(Collectors.toList());
+            @Override
+            public boolean visit(final FieldDeclaration node) {
+                for (final Object f : node.fragments()) {
+                    add(Element.Kind.FIELD, Signature.of(((VariableDeclarationFragment) f).getName().toString()), node);
+                }
+                return false;
+            }
         }
 
-        List<Comment> getComments(final ASTNode node) {
-            return cache.computeIfAbsent(node, this::extractComments);
+        // --- rendering ---
+
+        private String getContent(final Fragment fragment, final BodyDeclaration node, final String enclosingClass,
+                                  final boolean withComments) {
+            if (!parsable) {
+                return getSource(fragment, node, withComments);
+            }
+            final StringBuilder sb = new StringBuilder();
+            final PackageDeclaration pkg = unit.getPackage();
+            if (pkg != null) {
+                sb.append("package ").append(pkg.getName().getFullyQualifiedName()).append(";\n");
+            }
+            if (node instanceof TypeDeclaration) {
+                sb.append(getSource(fragment, node, withComments));
+            } else {
+                sb.append("class ").append(enclosingClass).append(" {\n");
+                sb.append(getSource(fragment, node, withComments));
+                sb.append("}\n");
+            }
+            return sb.toString();
         }
 
-        private List<Comment> extractComments(final ASTNode node) {
+        private String getSource(final Fragment fragment, final BodyDeclaration node, final boolean withComments) {
+            return withComments ? fragment.getWiderContent() : getSourceWithoutComments(fragment, node);
+        }
+
+        private String getSourceWithoutComments(final Fragment fragment, final BodyDeclaration node) {
+            String source = fragment.getWiderContent();
+            final List<Comment> comments = commentSet.getComments(node);
+            for (int i = comments.size() - 1; i >= 0; i--) {
+                final Fragment c = getFragment(comments.get(i));
+                final int localStart = c.getWiderBegin() - fragment.getWiderBegin();
+                final int localEnd = c.getWiderEnd() - fragment.getWiderBegin();
+                source = source.substring(0, localStart) + source.substring(localEnd);
+            }
+            return source;
+        }
+
+        // --- fragment helpers ---
+
+        private Fragment getFragment(final int start, final int end) {
+            return text.getFragment(start, end);
+        }
+
+        private Fragment getFragment(final ASTNode node) {
+            return getFragment(node.getStartPosition(), node.getStartPosition() + node.getLength());
+        }
+
+        private Fragment getFragment(final ASTNode startNode, final ASTNode endNode) {
+            return getFragment(startNode.getStartPosition(), endNode.getStartPosition() + endNode.getLength());
+        }
+
+        private Fragment getFragmentWithSurroundingComments(final BodyDeclaration node) {
             final int leading = unit.firstLeadingCommentIndex(node);
-            final int start = leading != -1 ? leading : lookup(node.getStartPosition());
             final int trailing = unit.lastTrailingCommentIndex(node);
-            final int end = trailing != -1 ? trailing + 1 : lookup(node.getStartPosition() + node.getLength());
-            return comments.subList(start, end); // [start, end)
+            if (leading == -1 && trailing == -1) {
+                return getFragment(node);
+            }
+            final List<?> comments = unit.getCommentList();
+            final ASTNode startNode = leading != -1 ? (Comment) comments.get(leading) : node;
+            final ASTNode endNode = trailing != -1 ? (Comment) comments.get(trailing) : node;
+            return getFragment(startNode, endNode);
         }
 
-        private int lookup(final int offset) {
-            final int index = Collections.binarySearch(offsets, offset);
-            return index >= 0 ? index : ~index;
+        @SuppressWarnings("unused")
+        private Fragment getFragmentWithoutJavadoc(final BodyDeclaration node) {
+            final Optional<Integer> start = findChildNodes(node).stream()
+                    .filter(n -> !(n instanceof Javadoc))
+                    .map(ASTNode::getStartPosition)
+                    .min(Comparator.naturalOrder());
+            if (start.isPresent() && start.get() > node.getStartPosition()) {
+                return getFragment(start.get(), node.getStartPosition() + node.getLength());
+            } else {
+                return getFragment(node);
+            }
+        }
+
+        private List<ASTNode> findChildNodes(final ASTNode node) {
+            final List<ASTNode> result = new ArrayList<>();
+            node.accept(new ASTVisitor() {
+                boolean isRoot = true;
+
+                @Override
+                public boolean preVisit2(final ASTNode node) {
+                    if (isRoot) {
+                        isRoot = false;
+                        return true;
+                    }
+                    result.add(node);
+                    return false;
+                }
+            });
+            return result;
+        }
+
+        // --- naming material ---
+
+        /**
+         * The naming material of a method: its name, its escaped type parameters (or null when it has
+         * none), and its escaped parameter types. Unqualifying and digesting are the naming strategy's job.
+         */
+        private Signature methodSignature(final MethodDeclaration node) {
+            @SuppressWarnings("unchecked")
+            final List<Object> types = node.typeParameters();
+            final List<String> typeParameters = types == null || types.isEmpty() ? null
+                    : types.stream().map(o -> escape(o.toString())).toList();
+            @SuppressWarnings("unchecked")
+            final List<Object> params = node.parameters();
+            final List<String> parameters = params.stream()
+                    .map(o -> typeName((SingleVariableDeclaration) o)).toList();
+            return new Signature(node.getName().getIdentifier(), typeParameters, parameters);
+        }
+
+        private String typeName(final SingleVariableDeclaration v) {
+            final StringBuilder sb = new StringBuilder();
+            sb.append(escape(v.getType().toString()));
+            sb.append("[]".repeat(Math.max(0, v.getExtraDimensions())));
+            if (v.isVarargs()) {
+                sb.append("...");
+            }
+            return sb.toString();
+        }
+
+        private String escape(final String s) {
+            return s.replace(' ', '-').replace('?', '#').replace('<', '[').replace('>', ']');
+        }
+
+        /**
+         * The comments attached to each declaration, resolved lazily by leading/trailing index.
+         */
+        private static final class CommentSet {
+            private final CompilationUnit unit;
+            private final List<Comment> comments;
+            private final List<Integer> offsets;
+            private final Map<ASTNode, List<Comment>> cache = new HashMap<>();
+
+            CommentSet(final CompilationUnit unit) {
+                this.unit = unit;
+                @SuppressWarnings("unchecked")
+                final List<Comment> comments = unit != null ? unit.getCommentList() : Collections.emptyList();
+                this.comments = comments;
+                this.offsets = comments.stream().map(ASTNode::getStartPosition).collect(Collectors.toList());
+            }
+
+            List<Comment> getComments(final ASTNode node) {
+                return cache.computeIfAbsent(node, this::extractComments);
+            }
+
+            private List<Comment> extractComments(final ASTNode node) {
+                final int leading = unit.firstLeadingCommentIndex(node);
+                final int start = leading != -1 ? leading : lookup(node.getStartPosition());
+                final int trailing = unit.lastTrailingCommentIndex(node);
+                final int end = trailing != -1 ? trailing + 1 : lookup(node.getStartPosition() + node.getLength());
+                return comments.subList(start, end); // [start, end)
+            }
+
+            private int lookup(final int offset) {
+                final int index = Collections.binarySearch(offsets, offset);
+                return index >= 0 ? index : ~index;
+            }
         }
     }
 }

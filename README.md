@@ -135,11 +135,11 @@ _Blob translators_ provide a blob-to-blob(s) translations.
 #### @historage
 Generates a [Historage](https://github.com/hideakihata/git2historage)-like repository using [Universal Ctags](https://ctags.io/).
 Options:
-- `--ctags=<cmd>`: Location of executable `ctags` command. _Default: ctags_.
+- `--ctags-cmd=<cmd>`: Location of executable `ctags` command. _Default: ctags_.
 - `--no-original`: Exclude original files.
-- `--no-original-ext`: Disuse original file extension.
+- `--no-ctags-original-ext`: Disuse original file extension.
 - `--no-sig`: Stop using signature (parameters) for generating filenames.
-- `--no-digest-sig`: Stop digesting signature.
+- `--no-ctags-digest-sig`: Stop digesting signature.
 - `--module=<kind>,...`: Specify module kinds to include.
 - `--pattern=<glob>`: Specify the target files as a wildcard glob.
 - `-i`, `--ignore-case`: Perform case-insensitive matching for the given pattern.
@@ -160,7 +160,7 @@ Options:
 - `--comment-ext=<ext>`: Comment file extension. _Default: .com_.
 - `--digest-params`: Digest parameters.
 - `--unqualify`: Unqualify typenames.
-- `--parsable`: Generate more parsable files. Specifically, this option adds a package name declaration and a class declaration for method files.
+- `--jdt-parsable`: Generate more parsable files. Specifically, this option adds a package name declaration and a class declaration for method files.
 
 #### @tokenize
 Splits lines in input files so that each line contains mostly one token using a simple regular expression.
@@ -198,7 +198,7 @@ Options:
 #### @cregit
 Converts source files to [cregit](https://github.com/dmgerman/tokenizers) format via [srcML](https://www.srcml.org/).
 Options:
-- `--srcml=<cmd>`: Location of executable `srcml` command. _Default: srcml_.
+- `--srcml-cmd=<cmd>`: Location of executable `srcml` command. _Default: srcml_.
 - `-l`, `--lang=<language>`: Target language (`C`, `C++`, `C#`, `Java`).
 
 Options to limit the target:

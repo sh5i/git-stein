@@ -8,7 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * A source element a {@link SourceAnalyzer} extracts: a named class, method, or field, or the virtual
+ * A source element a {@link SourceModel} extracts: a named class, method, or field, or the virtual
  * {@link Kind#FILE} root. Elements nest into a tree mirroring the source's scope structure, which a
  * consumer walks to build its own model (e.g. Historage modules).
  *
@@ -76,9 +76,9 @@ public class Element {
     private List<Fragment> comments;
 
     /**
-     * The 1-based source line range of the element's content, or {@link #NONE} when the analyzer does
-     * not track lines. The analyzer sets it to the same region its {@link SourceAnalyzer#render} covers,
-     * so a Historage mapping file can record where each module came from.
+     * The 1-based source line range of the element's content, or {@link #NONE} when the backend does
+     * not track lines. It covers the same region as {@link SourceModel#rawText}, so a Historage
+     * mapping file can record where each module came from.
      */
     @Getter
     @Setter

@@ -5,11 +5,13 @@ import jp.ac.titech.c.se.stein.analyzer.*;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TSQuery;
 import org.treesitter.TreeSitterPhp;
 
+import jp.ac.titech.c.se.stein.core.SourceEncoding;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for PHP: detection is the declarative {@link #QUERY}
@@ -32,66 +34,67 @@ public class PhpAnalyzer extends QueryAnalyzer {
             (enum_case name: (name) @name) @field
             """;
 
-    public PhpAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
-        super(filename, text, treeRoot);
+    public PhpAnalyzer() {
+        super("PHP", new NameFilter(true, "*.php", "*.phtml"), SourceEncoding::decode, TreeSitterPhp::new, QUERY);
     }
 
     @Override
-    protected TSLanguage grammar() {
-        return new TreeSitterPhp();
+    protected TreeSitterModel createModel(final String filename, final SourceText text, final TSNode treeRoot) {
+        return new Model(filename, text, treeRoot, query());
     }
 
-    @Override
-    protected String queryString() {
-        return QUERY;
-    }
+    static class Model extends QueryModel {
+        Model(final String filename, final SourceText text, final TSNode treeRoot, final TSQuery query) {
+            super(filename, text, treeRoot, query);
+        }
 
-    @Override
-    protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
-        if (kind == Element.Kind.METHOD) {
-            return new Signature(flatten(textOf(captures.get("name"))), null, signature(captures.get("params")));
+        @Override
+        protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
+            if (kind == Element.Kind.METHOD) {
+                return new Signature(flatten(textOf(captures.get("name"))), null, signature(captures.get("params")));
+            }
+            final String raw = textOf(captures.get("name"));
+            if (node.getType().equals("namespace_definition")) {
+                return Signature.of(flatten(raw.replace("\\", ".")));
+            }
+            return Signature.of(flatten(raw));
         }
-        final String raw = textOf(captures.get("name"));
-        if (node.getType().equals("namespace_definition")) {
-            return Signature.of(flatten(raw.replace("\\", ".")));
-        }
-        return Signature.of(flatten(raw));
-    }
 
-    /**
-     * A statement namespace ({@code namespace N;}) scopes the siblings that follow its declaration;
-     * move them under it. Several such namespaces in one file chain, each scoping under the previous.
-     */
-    @Override
-    protected void postProcess() {
-        Element current = root;
-        for (int i = 0; i < treeRoot.getNamedChildCount(); i++) {
-            final TSNode child = treeRoot.getNamedChild(i);
-            if (!child.getType().equals("namespace_definition")) {
-                continue;
+        /**
+         * A statement namespace ({@code namespace N;}) scopes the siblings that follow its declaration;
+         * move them under it. Several such namespaces in one file chain, each scoping under the previous.
+         */
+        @Override
+        protected void postProcess() {
+            Element current = root;
+            for (int i = 0; i < treeRoot.getNamedChildCount(); i++) {
+                final TSNode child = treeRoot.getNamedChild(i);
+                if (!child.getType().equals("namespace_definition")) {
+                    continue;
+                }
+                if (!child.getChildByFieldName("body").isNull()) {
+                    continue; // a block namespace is handled by containment
+                }
+                final TSNode name = child.getChildByFieldName("name");
+                if (name.isNull()) {
+                    continue;
+                }
+                current = reparentAfter(current, flatten(textOf(name).replace("\\", ".")), text.toCharIndex(child.getEndByte()));
             }
-            if (!child.getChildByFieldName("body").isNull()) {
-                continue; // a block namespace is handled by containment
-            }
-            final TSNode name = child.getChildByFieldName("name");
-            if (name.isNull()) {
-                continue;
-            }
-            current = reparentAfter(current, flatten(textOf(name).replace("\\", ".")), text.toCharIndex(child.getEndByte()));
         }
-    }
 
-    protected List<String> signature(final TSNode parameters) {
-        if (parameters.isNull()) {
-            return List.of();
-        }
-        final List<String> names = new ArrayList<>();
-        for (int i = 0; i < parameters.getNamedChildCount(); i++) {
-            final TSNode name = parameters.getNamedChild(i).getChildByFieldName("name");
-            if (!name.isNull()) {
-                names.add(escape(textOf(name).replaceAll("\\s+", "")));
+        protected List<String> signature(final TSNode parameters) {
+            if (parameters.isNull()) {
+                return List.of();
             }
+            final List<String> names = new ArrayList<>();
+            for (int i = 0; i < parameters.getNamedChildCount(); i++) {
+                final TSNode name = parameters.getNamedChild(i).getChildByFieldName("name");
+                if (!name.isNull()) {
+                    names.add(escape(textOf(name).replaceAll("\\s+", "")));
+                }
+            }
+            return names;
         }
-        return names;
     }
 }

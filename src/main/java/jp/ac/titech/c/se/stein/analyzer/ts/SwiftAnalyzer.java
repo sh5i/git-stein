@@ -5,11 +5,13 @@ import jp.ac.titech.c.se.stein.analyzer.*;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TSQuery;
 import org.treesitter.TreeSitterSwift;
 
+import jp.ac.titech.c.se.stein.core.SourceEncoding;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based reimplementation of the imperative Swift visitor: detection is the declarative {@link #QUERY}
@@ -29,67 +31,68 @@ public class SwiftAnalyzer extends QueryAnalyzer {
             (property_declaration name: (pattern bound_identifier: (simple_identifier) @name)) @field
             """;
 
-    public SwiftAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
-        super(filename, text, treeRoot);
+    public SwiftAnalyzer() {
+        super("Swift", new NameFilter(true, "*.swift"), SourceEncoding::decode, TreeSitterSwift::new, QUERY);
     }
 
     @Override
-    protected TSLanguage grammar() {
-        return new TreeSitterSwift();
+    protected TreeSitterModel createModel(final String filename, final SourceText text, final TSNode treeRoot) {
+        return new Model(filename, text, treeRoot, query());
     }
 
-    @Override
-    protected String queryString() {
-        return QUERY;
-    }
-
-    @Override
-    protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
-        if (kind == Element.Kind.METHOD) {
-            final String leaf = node.getType().equals("init_declaration") ? "init"
-                    : flatten(textOf(captures.get("name")));
-            return new Signature(leaf, null, signature(node));
+    static class Model extends QueryModel {
+        Model(final String filename, final SourceText text, final TSNode treeRoot, final TSQuery query) {
+            super(filename, text, treeRoot, query);
         }
-        return Signature.of(flatten(textOf(captures.get("name"))));
-    }
 
-    /**
-     * Drops any element nested inside a type the visitor never entered (a {@code class_declaration} or
-     * {@code protocol_declaration} without a direct {@code type_identifier} name, i.e. an extension), so
-     * that members a query captured there are not orphaned to the file root.
-     */
-    @Override
-    protected void postProcess() {
-        prune(root);
-    }
-
-    private void prune(final Element element) {
-        element.getChildren().removeIf(c -> c.hasContent() && insideUnenteredType(nodeOf(c)));
-        for (final Element child : element.getChildren()) {
-            prune(child);
+        @Override
+        protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
+            if (kind == Element.Kind.METHOD) {
+                final String leaf = node.getType().equals("init_declaration") ? "init"
+                        : flatten(textOf(captures.get("name")));
+                return new Signature(leaf, null, signature(node));
+            }
+            return Signature.of(flatten(textOf(captures.get("name"))));
         }
-    }
 
-    private boolean insideUnenteredType(final TSNode node) {
-        for (TSNode p = node.getParent(); p != null && !p.isNull(); p = p.getParent()) {
-            final String type = p.getType();
-            if ((type.equals("class_declaration") || type.equals("protocol_declaration"))
-                    && firstChildOfType(p, "type_identifier") == null) {
-                return true;
+        /**
+         * Drops any element nested inside a type the visitor never entered (a {@code class_declaration} or
+         * {@code protocol_declaration} without a direct {@code type_identifier} name, i.e. an extension), so
+         * that members a query captured there are not orphaned to the file root.
+         */
+        @Override
+        protected void postProcess() {
+            prune(root);
+        }
+
+        private void prune(final Element element) {
+            element.getChildren().removeIf(c -> c.hasContent() && insideUnenteredType(nodeOf(c)));
+            for (final Element child : element.getChildren()) {
+                prune(child);
             }
         }
-        return false;
-    }
 
-    protected List<String> signature(final TSNode node) {
-        final List<String> names = new ArrayList<>();
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode p = node.getNamedChild(i);
-            if (p.getType().equals("parameter")) {
-                final TSNode name = firstChildOfType(p, "simple_identifier");
-                names.add(escape(textOf(name != null ? name : p).replaceAll("\\s+", "")));
+        private boolean insideUnenteredType(final TSNode node) {
+            for (TSNode p = node.getParent(); p != null && !p.isNull(); p = p.getParent()) {
+                final String type = p.getType();
+                if ((type.equals("class_declaration") || type.equals("protocol_declaration"))
+                        && firstChildOfType(p, "type_identifier") == null) {
+                    return true;
+                }
             }
+            return false;
         }
-        return names;
+
+        protected List<String> signature(final TSNode node) {
+            final List<String> names = new ArrayList<>();
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode p = node.getNamedChild(i);
+                if (p.getType().equals("parameter")) {
+                    final TSNode name = firstChildOfType(p, "simple_identifier");
+                    names.add(escape(textOf(name != null ? name : p).replaceAll("\\s+", "")));
+                }
+            }
+            return names;
+        }
     }
 }

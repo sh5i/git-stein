@@ -5,11 +5,13 @@ import jp.ac.titech.c.se.stein.analyzer.*;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
+import org.treesitter.TSQuery;
 import org.treesitter.TreeSitterDart;
 
+import jp.ac.titech.c.se.stein.core.SourceEncoding;
 import jp.ac.titech.c.se.stein.core.SourceText;
+import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for Dart: detection is the declarative {@link #QUERY}, and the signature and
@@ -51,119 +53,120 @@ public class DartAnalyzer extends QueryAnalyzer {
             (lambda_expression parameters: (function_signature) @method body: (function_body) @body)
             """;
 
-    public DartAnalyzer(final String filename, final SourceText text, final TSNode treeRoot) {
-        super(filename, text, treeRoot);
+    public DartAnalyzer() {
+        super("Dart", new NameFilter(true, "*.dart"), SourceEncoding::decode, TreeSitterDart::new, QUERY);
     }
 
     @Override
-    protected TSLanguage grammar() {
-        return new TreeSitterDart();
+    protected TreeSitterModel createModel(final String filename, final SourceText text, final TSNode treeRoot) {
+        return new Model(filename, text, treeRoot, query());
     }
 
-    @Override
-    protected String queryString() {
-        return QUERY;
-    }
-
-    @Override
-    protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
-        if (kind != Element.Kind.METHOD) {
-            return Signature.of(flatten(textOf(captures.get("name"))));
+    static class Model extends QueryModel {
+        Model(final String filename, final SourceText text, final TSNode treeRoot, final TSQuery query) {
+            super(filename, text, treeRoot, query);
         }
-        if (node.getType().equals("declaration")) {
-            final TSNode constructor = firstChildOfType(node, "constructor_signature");
-            final TSNode name = lastChildOfType(constructor, "identifier");
-            return new Signature(flatten(textOf(name)), null, signature(constructor));
-        }
-        final TSNode sig = node.getType().equals("method_signature") ? firstSignature(node) : node;
-        final TSNode name = signatureName(sig);
-        return new Signature(flatten(textOf(name)), null, signature(sig));
-    }
 
-    /**
-     * The visitor extracts a named local function only from a top-level function's body; it never
-     * recurses the body of a class, mixin, extension, or enum member (a mixin and an unnamed extension
-     * it skips wholesale). A local function captured inside any of those is therefore spurious: it is a
-     * {@code function_signature} whose node has such an enclosing type — a top-level function, by
-     * contrast, has none — so prune it wherever it landed (under its class, or, for a mixin or unnamed
-     * extension that is not itself an element, floated to the file root).
-     */
-    @Override
-    protected void postProcess() {
-        prune(root);
-    }
-
-    private void prune(final Element element) {
-        element.getChildren().removeIf(c -> {
-            if (!c.hasContent()) {
-                return false;
+        @Override
+        protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
+            if (kind != Element.Kind.METHOD) {
+                return Signature.of(flatten(textOf(captures.get("name"))));
             }
-            final TSNode node = nodeOf(c);
-            return node.getType().equals("function_signature") && hasEnclosingType(node);
-        });
-        for (final Element child : element.getChildren()) {
-            prune(child);
+            if (node.getType().equals("declaration")) {
+                final TSNode constructor = firstChildOfType(node, "constructor_signature");
+                final TSNode name = lastChildOfType(constructor, "identifier");
+                return new Signature(flatten(textOf(name)), null, signature(constructor));
+            }
+            final TSNode sig = node.getType().equals("method_signature") ? firstSignature(node) : node;
+            final TSNode name = signatureName(sig);
+            return new Signature(flatten(textOf(name)), null, signature(sig));
         }
-    }
 
-    private boolean hasEnclosingType(final TSNode node) {
-        for (TSNode p = node.getParent(); p != null && !p.isNull(); p = p.getParent()) {
-            switch (p.getType()) {
-                case "class_definition", "mixin_declaration", "extension_declaration", "enum_declaration" -> {
-                    return true;
+        /**
+         * The visitor extracts a named local function only from a top-level function's body; it never
+         * recurses the body of a class, mixin, extension, or enum member (a mixin and an unnamed extension
+         * it skips wholesale). A local function captured inside any of those is therefore spurious: it is a
+         * {@code function_signature} whose node has such an enclosing type — a top-level function, by
+         * contrast, has none — so prune it wherever it landed (under its class, or, for a mixin or unnamed
+         * extension that is not itself an element, floated to the file root).
+         */
+        @Override
+        protected void postProcess() {
+            prune(root);
+        }
+
+        private void prune(final Element element) {
+            element.getChildren().removeIf(c -> {
+                if (!c.hasContent()) {
+                    return false;
                 }
-                default -> {
+                final TSNode node = nodeOf(c);
+                return node.getType().equals("function_signature") && hasEnclosingType(node);
+            });
+            for (final Element child : element.getChildren()) {
+                prune(child);
+            }
+        }
+
+        private boolean hasEnclosingType(final TSNode node) {
+            for (TSNode p = node.getParent(); p != null && !p.isNull(); p = p.getParent()) {
+                switch (p.getType()) {
+                    case "class_definition", "mixin_declaration", "extension_declaration", "enum_declaration" -> {
+                        return true;
+                    }
+                    default -> {
+                    }
                 }
             }
+            return false;
         }
-        return false;
-    }
 
-    /**
-     * The signature node inside a method signature: a function, getter, setter, or factory constructor.
-     */
-    protected TSNode firstSignature(final TSNode methodSignature) {
-        for (int i = 0; i < methodSignature.getNamedChildCount(); i++) {
-            final TSNode child = methodSignature.getNamedChild(i);
-            if (child.getType().endsWith("_signature")) {
-                return child;
+        /**
+         * The signature node inside a method signature: a function, getter, setter, or factory constructor.
+         */
+        protected TSNode firstSignature(final TSNode methodSignature) {
+            for (int i = 0; i < methodSignature.getNamedChildCount(); i++) {
+                final TSNode child = methodSignature.getNamedChild(i);
+                if (child.getType().endsWith("_signature")) {
+                    return child;
+                }
             }
+            return null;
         }
-        return null;
-    }
 
-    /**
-     * The declared name of a signature. A factory constructor names the factory (its last identifier);
-     * every other signature carries a {@code name} field.
-     */
-    protected TSNode signatureName(final TSNode sig) {
-        final TSNode name = sig.getChildByFieldName("name");
-        return name.isNull() ? lastChildOfType(sig, "identifier") : name;
-    }
+        /**
+         * The declared name of a signature. A factory constructor names the factory (its last identifier);
+         * every other signature carries a {@code name} field.
+         */
+        protected TSNode signatureName(final TSNode sig) {
+            final TSNode name = sig.getChildByFieldName("name");
+            return name.isNull() ? lastChildOfType(sig, "identifier") : name;
+        }
 
-    protected TSNode lastChildOfType(final TSNode node, final String type) {
-        TSNode found = null;
-        for (int i = 0; i < node.getNamedChildCount(); i++) {
-            final TSNode child = node.getNamedChild(i);
-            if (child.getType().equals(type)) {
-                found = child;
+        protected TSNode lastChildOfType(final TSNode node, final String type) {
+            TSNode found = null;
+            for (int i = 0; i < node.getNamedChildCount(); i++) {
+                final TSNode child = node.getNamedChild(i);
+                if (child.getType().equals(type)) {
+                    found = child;
+                }
             }
+            return found;
         }
-        return found;
-    }
 
-    protected List<String> signature(final TSNode functionSignature) {
-        final TSNode params = firstChildOfType(functionSignature, "formal_parameter_list");
-        if (params == null) {
-            return List.of();
-        }
-        final List<String> names = new ArrayList<>();
-        for (int i = 0; i < params.getNamedChildCount(); i++) {
-            final TSNode name = params.getNamedChild(i).getChildByFieldName("name");
-            if (!name.isNull()) {
-                names.add(escape(textOf(name).replaceAll("\\s+", "")));
+        protected List<String> signature(final TSNode functionSignature) {
+            final TSNode params = firstChildOfType(functionSignature, "formal_parameter_list");
+            if (params == null) {
+                return List.of();
             }
+            final List<String> names = new ArrayList<>();
+            for (int i = 0; i < params.getNamedChildCount(); i++) {
+                final TSNode name = params.getNamedChild(i).getChildByFieldName("name");
+                if (!name.isNull()) {
+                    names.add(escape(textOf(name).replaceAll("\\s+", "")));
+                }
+            }
+            return names;
         }
-        return names;
     }
 }

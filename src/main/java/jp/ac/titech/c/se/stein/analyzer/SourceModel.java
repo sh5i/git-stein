@@ -4,13 +4,13 @@ import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import jp.ac.titech.c.se.stein.analyzer.util.FormatUtils;
 
 /**
- * The backend-neutral contract a consumer needs to decompose one source file into named elements and
- * recover each element's raw source text. This is the minimum an analyzer must provide; a
- * structure-only backend (for example one driven by a tag extractor) implements just this. A backend
- * that can also produce a typed token stream implements {@link TokenizingAnalyzer}, from which a
- * consumer builds its own token output (a FinerGit sequence, cregit's token-per-line format).
+ * The backend-neutral result of analyzing one source file: its named elements, with each element's
+ * raw source text recoverable. This is the minimum an analysis produces; a structure-only backend
+ * (for example one driven by a tag extractor) yields just this. A backend that can also produce a
+ * typed token stream yields a {@link TokenizingModel}, from which a consumer builds its own token
+ * output (a FinerGit sequence, cregit's token-per-line format).
  */
-public interface SourceAnalyzer {
+public interface SourceModel {
     /**
      * Extracts the element tree: a {@link Element.Kind#FILE} root holding the file's declarations.
      */

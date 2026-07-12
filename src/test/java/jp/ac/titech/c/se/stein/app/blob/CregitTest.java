@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.app.blob;
 
 import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.TokenizingModel;
 import jp.ac.titech.c.se.stein.analyzer.Token;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.RepositoryAccess;
@@ -73,7 +74,7 @@ public class CregitTest {
         // the blob is valid UTF-8; srcml must be told so (--src-encoding UTF-8), else it mis-decodes it
         // and the token text (and positions) are mangled
         final byte[] blob = ("class A { String s = \"caf" + eacute + "\"; }").getBytes(StandardCharsets.UTF_8);
-        final SrcmlAnalyzer a = SrcmlAnalyzer.of("A.java", blob, "srcml", null, Context.init());
+        final TokenizingModel a = new SrcmlAnalyzer().analyze("A.java", blob, Context.init());
         assertNotNull(a);
         final String text = a.tokens(a.extract()).stream().map(Token::text).collect(Collectors.joining(" "));
         assertTrue(text.contains("caf" + eacute), text);   // U+00E9 intact
