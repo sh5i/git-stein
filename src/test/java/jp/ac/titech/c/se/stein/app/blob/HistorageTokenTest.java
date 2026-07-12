@@ -52,6 +52,31 @@ public class HistorageTokenTest {
     }
 
     @Test
+    public void testCppTemplateHeaderIsPartOfTheMethodTokens() {
+        // the C++ core range widens over the template header, and the token stream follows it, so the
+        // token module and the raw module agree on the element's boundary
+        final Map<String, String> entries = rewrite("t.cpp", """
+                template<class T> T id(T x) { return x; }
+                """);
+        assertEquals("""
+                template TEMPLATE
+                < TEMPLATE_PARAMETER_LIST_LT
+                class CLASS
+                T TYPE_NAME
+                > TEMPLATE_PARAMETER_LIST_GT
+                T TYPE_NAME
+                id VARIABLE_NAME
+                ( PARAMETER_LIST_LPAREN
+                T TYPE_NAME
+                x VARIABLE_NAME
+                ) PARAMETER_LIST_RPAREN
+                return RETURN
+                x VARIABLE_NAME
+                ; RETURN_STATEMENT_SEMICOLON
+                """, entries.get("t!id(T).mcpp"));
+    }
+
+    @Test
     public void testMethodTokenSequence() {
         // the FinerGit token sequence with Heuristic 1 (context-refined structural tokens) and the
         // default Heuristic 2 (the method's parameter parentheses and body braces are omitted); note

@@ -153,7 +153,7 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
             this.lineStart = lineStarts(text.getContent());
             final int index = filename.lastIndexOf('.');
             final String basename = index > 0 ? filename.substring(0, index) : filename;
-            this.root = new Element(Element.Kind.FILE, basename, 0, text.getContent().length());
+            this.root = new Element(Element.Kind.FILE, basename);
             walk(unit, root);
         }
 
@@ -197,12 +197,9 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
         }
 
         private Element element(final Element.Kind kind, final Signature signature, final Element parent, final org.w3c.dom.Element dom) {
-            final Element e = dom == null ? new Element(kind, signature)
-                    : new Element(kind, signature, offset(startLine(dom), startCol(dom)), offset(endLine(dom), endCol(dom)));
+            final Element e = new Element(kind, signature);
             if (dom != null) {
                 nodes.put(e, dom);
-                e.setStartLine(startLine(dom));
-                e.setEndLine(endLine(dom));
                 e.setCoreFragment(text.getFragmentOfLines(startLine(dom), endLine(dom)));
                 final List<CommentAttachment.Node> comments = CommentAttachment.attached(new Sibling(dom));
                 e.setComments(comments.stream().map(CommentAttachment.Node::fragment).toList());
@@ -213,6 +210,9 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
                     extentEnd = Math.max(extentEnd, c.endRow());
                 }
                 e.setExtentFragment(text.getFragmentOfLines(extentStart, extentEnd));
+                // the line range covers the extent, matching Element#rawText
+                e.setStartLine(extentStart);
+                e.setEndLine(extentEnd);
             }
             parent.addChild(e);
             return e;

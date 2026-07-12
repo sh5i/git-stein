@@ -13,12 +13,11 @@ import lombok.Setter;
  * {@link Kind#FILE} root. Elements nest into a tree mirroring the source's scope structure, which a
  * consumer walks to build its own model (e.g. Historage modules).
  *
- * <p>An element is a backend-neutral value: it carries the character range that locates its content and,
- * as {@link Fragment}s of the decoded text, its source both without ({@link #coreFragment}) and with
- * ({@link #extentFragment}) its attached comments, not a tree-sitter node. A scope such as a namespace,
- * which structures names but is never rendered, has no content range ({@link #hasContent} is false). A
- * few grammars split a declaration into two adjacent nodes; such an element carries a second,
- * {@code span} range so the analyzer can render both parts.</p>
+ * <p>An element is a backend-neutral value: its location in the source is carried entirely as
+ * {@link Fragment}s of the decoded text — its own declaration ({@link #coreFragment}) and the same
+ * extended over its attached comments ({@link #extentFragment}) — never as a backend node. A scope
+ * such as a namespace, which structures names but is never rendered, has no content
+ * ({@link #hasContent} is false).</p>
  */
 public class Element {
     /**
@@ -38,21 +37,6 @@ public class Element {
 
     @Getter
     private final Signature signature;
-
-    /**
-     * The character range (indices into the decoded content) of the element's content, or
-     * {@link #NONE} for a naming scope with no content.
-     */
-    final int start;
-    final int end;
-
-    /**
-     * When set (not {@link #NONE}), the character range of the second node this element spans, adjacent
-     * to its content; used for grammars that split a declaration into separate sibling nodes (e.g.
-     * Dart's method signature and body).
-     */
-    final int spanStart;
-    final int spanEnd;
 
     /**
      * The element's own source span (its declaration, excluding attached comments), or null for a scope
@@ -142,26 +126,9 @@ public class Element {
         this(kind, Signature.of(name));
     }
 
-    Element(final Kind kind, final String name, final int start, final int end) {
-        this(kind, Signature.of(name), start, end);
-    }
-
     Element(final Kind kind, final Signature signature) {
-        this(kind, signature, NONE, NONE, NONE, NONE);
-    }
-
-    Element(final Kind kind, final Signature signature, final int start, final int end) {
-        this(kind, signature, start, end, NONE, NONE);
-    }
-
-    Element(final Kind kind, final Signature signature, final int start, final int end,
-            final int spanStart, final int spanEnd) {
         this.kind = kind;
         this.signature = signature;
-        this.start = start;
-        this.end = end;
-        this.spanStart = spanStart;
-        this.spanEnd = spanEnd;
     }
 
     void addChild(final Element child) {
@@ -180,29 +147,6 @@ public class Element {
      * Whether this element has renderable content, as opposed to being a naming scope only.
      */
     public boolean hasContent() {
-        return start != NONE;
-    }
-
-    boolean hasSpan() {
-        return spanStart != NONE;
-    }
-
-    /**
-     * The character offset where this element's source begins, or -1 for a scope with no source of its
-     * own.
-     */
-    public int getStart() {
-        return start;
-    }
-
-    /**
-     * The character offset where this element's source ends (past its spanned body, if any), or -1 for
-     * a scope.
-     */
-    public int getEnd() {
-        if (start == NONE) {
-            return NONE;
-        }
-        return spanStart != NONE ? spanEnd : end;
+        return coreFragment != null;
     }
 }

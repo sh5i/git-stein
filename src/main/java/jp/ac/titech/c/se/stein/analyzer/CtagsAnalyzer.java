@@ -122,7 +122,7 @@ public class CtagsAnalyzer implements Analyzer {
                 final Fragment fragment = text.getFragmentOfLines(lo.line, lo.end);
                 final Signature signature = lo.signature == null ? Signature.of(lo.name)
                         : new Signature(lo.name, null, List.of(normalize(lo.signature)));
-                final Element e = new Element(role(lo.kind), signature, fragment.getBegin(), fragment.getEnd());
+                final Element e = new Element(role(lo.kind), signature);
                 e.setRawKind(lo.kind);
                 e.setStartLine(lo.line);
                 e.setEndLine(lo.end);

@@ -115,7 +115,7 @@ public class JdtAnalyzer implements Analyzer {
 
             private Element add(final Element.Kind kind, final Signature signature, final BodyDeclaration node) {
                 final Fragment f = getFragmentWithSurroundingComments(node);
-                final Element e = new Element(kind, signature, f.getBegin(), f.getEnd());
+                final Element e = new Element(kind, signature);
                 e.setStartLine(unit.getLineNumber(f.getBegin()));
                 e.setEndLine(unit.getLineNumber(f.getEnd()));
                 e.setCoreFragment(getFragment(node));

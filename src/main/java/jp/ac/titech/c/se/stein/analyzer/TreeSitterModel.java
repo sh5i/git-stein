@@ -33,17 +33,17 @@ public final class TreeSitterModel implements TokenizingModel {
     private final Element root;
 
     // the native node each element was extracted from, kept off the (backend-neutral) Element itself;
-    // resolved on demand by nodeOf/endNodeOf for rendering and tokenizing
+    // resolved on demand by nodeOf for tokenizing and language rules
     private final Map<Element, TSNode> nodes = new HashMap<>();
-
-    private final Map<Element, TSNode> endNodes = new HashMap<>();
 
     TreeSitterModel(final QueryAnalyzer language, final String filename, final SourceText text,
                     final TSNode treeRoot) {
         this.language = language;
         this.text = text;
-        this.root = new Element(Element.Kind.FILE, baseName(filename),
-                text.toCharIndex(treeRoot.getStartByte()), text.toCharIndex(treeRoot.getEndByte()));
+        this.root = new Element(Element.Kind.FILE, baseName(filename));
+        final Fragment whole = exactFragment(treeRoot);
+        root.setCoreFragment(whole);
+        root.setExtentFragment(whole);
         nodes.put(root, treeRoot);
     }
 
@@ -57,17 +57,15 @@ public final class TreeSitterModel implements TokenizingModel {
      * nest members under it). A null {@code content} node marks a naming scope that is never rendered.
      */
     Element element(final Element.Kind kind, final Signature signature, final Element parent, final TSNode content) {
-        final Element e = content == null ? new Element(kind, signature)
-                : new Element(kind, signature, text.toCharIndex(content.getStartByte()), text.toCharIndex(content.getEndByte()));
+        final Element e = new Element(kind, signature);
         if (content != null) {
             nodes.put(e, content);
-            e.setStartLine(content.getStartPoint().getRow() + 1);
-            e.setEndLine(content.getEndPoint().getRow() + 1);
             final Fragment core = language.coreFragment(this, content);
             final List<CommentAttachment.Node> comments = CommentAttachment.attached(new Sibling(content));
             e.setCoreFragment(core);
             e.setComments(fragmentsOf(comments));
             e.setExtentFragment(extentOf(core, comments));
+            setLines(e, content.getStartPoint().getRow(), content.getEndPoint().getRow(), comments);
         }
         parent.addChild(e);
         return e;
@@ -79,20 +77,32 @@ public final class TreeSitterModel implements TokenizingModel {
      */
     Element element(final Element.Kind kind, final Signature signature, final Element parent,
                     final TSNode start, final TSNode end) {
-        final Element e = new Element(kind, signature,
-                text.toCharIndex(start.getStartByte()), text.toCharIndex(start.getEndByte()),
-                text.toCharIndex(end.getStartByte()), text.toCharIndex(end.getEndByte()));
+        final Element e = new Element(kind, signature);
         nodes.put(e, start);
-        endNodes.put(e, end);
-        e.setStartLine(start.getStartPoint().getRow() + 1);
-        e.setEndLine(end.getEndPoint().getRow() + 1);
         final Fragment core = text.getFragment(text.toCharIndex(start.getStartByte()), text.toCharIndex(end.getEndByte()));
         final List<CommentAttachment.Node> comments = CommentAttachment.attached(new Sibling(start));
         e.setCoreFragment(core);
         e.setComments(fragmentsOf(comments));
         e.setExtentFragment(extentOf(core, comments));
+        setLines(e, start.getStartPoint().getRow(), end.getEndPoint().getRow(), comments);
         parent.addChild(e);
         return e;
+    }
+
+    /**
+     * Sets the element's 1-based line range to its extent: its own rows widened over its attached
+     * comments, matching {@link Element#rawText}.
+     */
+    private void setLines(final Element e, final int startRow, final int endRow,
+                          final List<CommentAttachment.Node> comments) {
+        int first = startRow;
+        int last = endRow;
+        for (final CommentAttachment.Node c : comments) {
+            first = Math.min(first, c.startRow());
+            last = Math.max(last, c.endRow());
+        }
+        e.setStartLine(first + 1);
+        e.setEndLine(last + 1);
     }
 
     /**
@@ -101,10 +111,6 @@ public final class TreeSitterModel implements TokenizingModel {
      */
     public TSNode nodeOf(final Element e) {
         return nodes.get(e);
-    }
-
-    private TSNode endNodeOf(final Element e) {
-        return endNodes.get(e);
     }
 
     /**
@@ -142,8 +148,8 @@ public final class TreeSitterModel implements TokenizingModel {
     private void collectRegions(final Element e, final List<int[]> regions, final Set<Long> seen) {
         for (final Element c : e.getChildren()) {
             if (c.hasContent()) {
-                final int start = c.getStart();
-                final int end = c.getEnd();
+                final int start = c.getCoreFragment().getBegin();
+                final int end = c.getCoreFragment().getEnd();
                 if (seen.add((long) start << 32 | (end & 0xffffffffL))) {
                     regions.add(new int[] {start, end, c.getKind().ordinal()});
                 }
@@ -155,18 +161,30 @@ public final class TreeSitterModel implements TokenizingModel {
     /**
      * The leaf-token stream of an element, in source order, each typed by {@link #category} and flagged
      * with its {@link Token#comment} and {@link Token#frame} classification. Comments are kept (flagged,
-     * not dropped) so a consumer chooses; passing the file root yields the whole file's tokens. Frame
-     * delimiters are flagged relative to the element's own declaration; a split-node element flags none.
+     * not dropped) so a consumer chooses; passing the file root yields the whole file's tokens. The
+     * stream covers the element's own source range ({@link Element#getCoreFragment}), so it agrees with
+     * the rendered text even where a language widens the range beyond the detected node (e.g. C++'s
+     * template header). Frame delimiters are flagged relative to the element's declaration node.
      */
     @Override
     public List<Token> tokens(final Element e) {
         final List<Token> out = new ArrayList<>();
-        if (e.hasSpan()) {
-            collectTokens(nodeOf(e), null, false, out);
-            collectTokens(endNodeOf(e), null, false, out);
-        } else {
-            collectTokens(nodeOf(e), frameOf(nodeOf(e)), false, out);
+        final TSNode node = nodeOf(e);
+        if (node == null) {
+            return out;  // a naming scope has no source of its own
         }
+        final int begin = e.getCoreFragment().getBegin();
+        final int end = e.getCoreFragment().getEnd();
+        // walk from the nearest ancestor covering the whole range (the node itself, usually)
+        TSNode cover = node;
+        while (text.toCharIndex(cover.getStartByte()) > begin || text.toCharIndex(cover.getEndByte()) < end) {
+            final TSNode parent = cover.getParent();
+            if (parent == null || parent.isNull()) {
+                break;
+            }
+            cover = parent;
+        }
+        collectTokens(cover, frameOf(node), false, begin, end, out);
         return out;
     }
 
@@ -237,13 +255,17 @@ public final class TreeSitterModel implements TokenizingModel {
         return text.getFragment(start, end);
     }
 
-    private void collectTokens(final TSNode node, final Frame frame, final boolean inComment, final List<Token> out) {
+    private void collectTokens(final TSNode node, final Frame frame, final boolean inComment,
+                               final int begin, final int end, final List<Token> out) {
+        if (text.toCharIndex(node.getEndByte()) <= begin || text.toCharIndex(node.getStartByte()) >= end) {
+            return; // entirely outside the element's range
+        }
         // most grammars mark a comment as an extra node, but some (Rust, Dart) model it as a named
         // *comment node whose punctuation leaves are not themselves extra, so comment-ness propagates down
         final boolean comment = inComment || node.isExtra() || language.isComment(node);
         if (node.getChildCount() > 0) {
             for (int i = 0; i < node.getChildCount(); i++) {
-                collectTokens(node.getChild(i), frame, comment, out);
+                collectTokens(node.getChild(i), frame, comment, begin, end, out);
             }
             return;
         }
@@ -348,7 +370,7 @@ public final class TreeSitterModel implements TokenizingModel {
         final List<Element> children = parent.getChildren();
         final List<Element> moved = new ArrayList<>();
         children.removeIf(e -> {
-            if (e.getStart() >= from) {
+            if (e.hasContent() && e.getCoreFragment().getBegin() >= from) {
                 moved.add(e);
                 return true;
             }
