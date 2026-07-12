@@ -9,13 +9,13 @@ import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
  * A query-based analyzer for TypeScript. TypeScript is a superset of JavaScript, so this reuses
- * {@link JsAnalyzer}'s naming and binding logic and supplies a query that adds the TypeScript
+ * {@link JavaScriptAnalyzer}'s naming and binding logic and supplies a query that adds the TypeScript
  * constructs: abstract classes and their members, interfaces (classes whose method and property
  * signatures are members), enums (classes), type aliases (fields), and namespaces
  * ({@code internal_module}/{@code module}) as {@code @scope}. Parameter types are stripped, leaving
  * parameter names.
  */
-public class TsAnalyzer extends JsAnalyzer {
+public class TypeScriptAnalyzer extends JavaScriptAnalyzer {
     private static final String QUERY = """
             (class_declaration name: (_) @name) @class
             (class_declaration body: (class_body (method_definition name: (_) @name) @method))
@@ -38,7 +38,7 @@ public class TsAnalyzer extends JsAnalyzer {
             (export_statement declaration: (ambient_declaration)) @field
             """;
 
-    public TsAnalyzer() {
+    public TypeScriptAnalyzer() {
         super("TypeScript", new NameFilter(true, "*.ts", "*.mts", "*.cts"), TreeSitterTypescript::new, QUERY);
     }
 

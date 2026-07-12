@@ -14,7 +14,7 @@ import jp.ac.titech.c.se.stein.rewriter.NameFilter;
  * method is named by its selector. Members are matched only as direct children of a class node, so
  * declarations elsewhere (e.g. a {@code @protocol}'s methods) are left out.
  */
-public class ObjcAnalyzer extends QueryAnalyzer {
+public class ObjectiveCAnalyzer extends QueryAnalyzer {
     private static final String QUERY = """
             (class_interface name: (identifier) @name) @class
             (class_implementation name: (identifier) @name) @class
@@ -36,7 +36,7 @@ public class ObjcAnalyzer extends QueryAnalyzer {
             (category_implementation (method_definition) @method)
             """;
 
-    public ObjcAnalyzer() {
+    public ObjectiveCAnalyzer() {
         super("Objective-C", new NameFilter(true, "*.m", "*.mm"), SourceEncoding::decode, TreeSitterObjc::new, QUERY);
     }
 

@@ -22,7 +22,7 @@ import jp.ac.titech.c.se.stein.rewriter.NameFilter;
  * out of the engine's generic containment: anything nested under a captured method or field is dropped.
  * Since JavaScript is untyped, a signature lists parameter names.
  */
-public class JsAnalyzer extends QueryAnalyzer {
+public class JavaScriptAnalyzer extends QueryAnalyzer {
     private static final String QUERY = """
             (class_declaration name: (_) @name) @class
             (class_declaration body: (class_body (method_definition name: (_) @name) @method))
@@ -34,11 +34,11 @@ public class JsAnalyzer extends QueryAnalyzer {
             (export_statement value: (_)) @field
             """;
 
-    public JsAnalyzer() {
+    public JavaScriptAnalyzer() {
         super("JavaScript", new NameFilter(true, "*.js", "*.mjs", "*.cjs", "*.jsx"), SourceEncoding::decode, TreeSitterJavascript::new, QUERY);
     }
 
-    protected JsAnalyzer(final String name, final NameFilter filter, final Supplier<TSLanguage> language,
+    protected JavaScriptAnalyzer(final String name, final NameFilter filter, final Supplier<TSLanguage> language,
                          final String queryString) {
         super(name, filter, SourceEncoding::decode, language, queryString);
     }
