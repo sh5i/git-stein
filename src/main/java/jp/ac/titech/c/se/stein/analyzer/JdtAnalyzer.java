@@ -43,6 +43,11 @@ public class JdtAnalyzer implements Analyzer {
     }
 
     @Override
+    public String languageName(final String filename) {
+        return "Java";
+    }
+
+    @Override
     public SourceModel analyze(final String filename, final byte[] blob, final Context c) {
         final SourceText text = SourceText.ofNormalized(blob);
         return new Model(filename, text, parse(text), parsable);
@@ -85,8 +90,6 @@ public class JdtAnalyzer implements Analyzer {
 
         private final boolean parsable;
 
-        private boolean extracted;
-
         Model(final String filename, final SourceText text, final CompilationUnit unit,
                  final boolean parsable) {
             this.text = text;
@@ -94,25 +97,17 @@ public class JdtAnalyzer implements Analyzer {
             this.parsable = parsable;
             this.root = new Element(Element.Kind.FILE, filename.substring(0, filename.lastIndexOf('.')));
             this.commentSet = new CommentSet(unit);
+            unit.accept(new Builder());
         }
 
         @Override
-        public Element extract() {
-            if (!extracted) {
-                unit.accept(new Builder());
-                extracted = true;
-            }
+        public Element getRoot() {
             return root;
         }
 
         @Override
-        public String rawText(final Element e) {
-            return getContent(e.getExtentFragment(), nodes.get(e), enclosingClass.get(e), true);
-        }
-
-        @Override
-        public String coreText(final Element e) {
-            return getContent(e.getExtentFragment(), nodes.get(e), enclosingClass.get(e), false);
+        public String moduleText(final Element e, final boolean withComments) {
+            return getContent(e.getExtentFragment(), nodes.get(e), enclosingClass.get(e), withComments);
         }
 
         private final class Builder extends ASTVisitor {

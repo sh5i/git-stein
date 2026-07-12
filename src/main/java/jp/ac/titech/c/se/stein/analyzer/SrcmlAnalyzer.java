@@ -73,9 +73,22 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
         return false;
     }
 
+    private Boolean available;
+
+    /**
+     * Whether the srcml executable is present (checked once); a missing command makes this analyzer
+     * accept nothing, so an app falls through to its next analyzer.
+     */
+    private boolean available() {
+        if (available == null) {
+            available = ProcessRunner.isAvailable(command);
+        }
+        return available;
+    }
+
     @Override
     public boolean accepts(final String filename) {
-        return language != null || languageOf(filename) != null;
+        return available() && (language != null || languageOf(filename) != null);
     }
 
     @Override
@@ -134,8 +147,6 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
 
         private final int[] lineStart;
 
-        private boolean extracted;
-
         Model(final String filename, final SourceText text, final org.w3c.dom.Element unit) {
             this.text = text;
             this.unit = unit;
@@ -143,14 +154,11 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
             final int index = filename.lastIndexOf('.');
             final String basename = index > 0 ? filename.substring(0, index) : filename;
             this.root = new Element(Element.Kind.FILE, basename, 0, text.getContent().length());
+            walk(unit, root);
         }
 
         @Override
-        public Element extract() {
-            if (!extracted) {
-                walk(unit, root);
-                extracted = true;
-            }
+        public Element getRoot() {
             return root;
         }
 

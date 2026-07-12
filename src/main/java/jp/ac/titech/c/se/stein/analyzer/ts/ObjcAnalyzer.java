@@ -3,11 +3,9 @@ package jp.ac.titech.c.se.stein.analyzer.ts;
 import jp.ac.titech.c.se.stein.analyzer.*;
 
 import org.treesitter.TSNode;
-import org.treesitter.TSQuery;
 import org.treesitter.TreeSitterObjc;
 
 import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
@@ -43,49 +41,38 @@ public class ObjcAnalyzer extends QueryAnalyzer {
     }
 
     @Override
-    protected TreeSitterModel createModel(final String filename, final SourceText text, final TSNode treeRoot) {
-        return new Model(filename, text, treeRoot, query());
+    protected Signature signature(final TreeSitterModel m, final Element.Kind kind, final TSNode node, final Captures captures) {
+        if (kind == Element.Kind.METHOD) {
+            // the selector already encodes the arguments (e.g. initWithFrame:), so it is the whole name
+            return Signature.of(m.flatten(selectorName(m, node)));
+        }
+        if (kind == Element.Kind.FIELD) {
+            // one field per declaration named by its first declarator; a declaration with several
+            // declarators (e.g. size_t w, h) still yields a single field
+            return Signature.of(m.flatten(m.textOf(node.getChildByFieldName("declarator"))));
+        }
+        return Signature.of(m.flatten(m.textOf(captures.get("name"))));
     }
 
-    static class Model extends QueryModel {
-        Model(final String filename, final SourceText text, final TSNode treeRoot, final TSQuery query) {
-            super(filename, text, treeRoot, query);
+    /**
+     * The selector of a method: a keyword selector joins its keyword parts with colons
+     * ({@code doThing:with:}), a unary selector is a bare name ({@code simple}).
+     */
+    protected String selectorName(final TreeSitterModel m, final TSNode method) {
+        final TSNode selector = method.getChildByFieldName("selector");
+        if (selector.isNull()) {
+            return "";
         }
-
-        @Override
-        protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
-            if (kind == Element.Kind.METHOD) {
-                // the selector already encodes the arguments (e.g. initWithFrame:), so it is the whole name
-                return Signature.of(flatten(selectorName(node)));
-            }
-            if (kind == Element.Kind.FIELD) {
-                // one field per declaration named by its first declarator, as the visitor does; a
-                // declaration with several declarators (e.g. size_t w, h) still yields a single field
-                return Signature.of(flatten(textOf(node.getChildByFieldName("declarator"))));
-            }
-            return Signature.of(flatten(textOf(captures.get("name"))));
+        if (!selector.getType().equals("keyword_selector")) {
+            return m.textOf(selector);
         }
-
-        /**
-         * The selector of a method: a keyword selector joins its keyword parts with colons
-         * ({@code doThing:with:}), a unary selector is a bare name ({@code simple}).
-         */
-        protected String selectorName(final TSNode method) {
-            final TSNode selector = method.getChildByFieldName("selector");
-            if (selector.isNull()) {
-                return "";
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < selector.getNamedChildCount(); i++) {
+            final TSNode part = selector.getNamedChild(i);
+            if (part.getType().equals("keyword_declarator")) {
+                sb.append(m.textOf(part.getChildByFieldName("keyword"))).append(":");
             }
-            if (!selector.getType().equals("keyword_selector")) {
-                return textOf(selector);
-            }
-            final StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < selector.getNamedChildCount(); i++) {
-                final TSNode part = selector.getNamedChild(i);
-                if (part.getType().equals("keyword_declarator")) {
-                    sb.append(textOf(part.getChildByFieldName("keyword"))).append(":");
-                }
-            }
-            return sb.toString();
         }
+        return sb.toString();
     }
 }

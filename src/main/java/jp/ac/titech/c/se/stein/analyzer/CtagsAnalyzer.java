@@ -53,9 +53,22 @@ public class CtagsAnalyzer implements Analyzer {
             description = "keep original file extension in module names")
     private boolean requiresOriginalExtension = true;
 
+    private Boolean available;
+
+    /**
+     * Whether the ctags executable is present (checked once); a missing command makes this analyzer
+     * accept nothing, so an app falls through to its next analyzer.
+     */
+    private boolean available() {
+        if (available == null) {
+            available = ProcessRunner.isAvailable(command);
+        }
+        return available;
+    }
+
     @Override
     public boolean accepts(final String filename) {
-        return true;
+        return available();
     }
 
     @Override
@@ -95,51 +108,40 @@ public class CtagsAnalyzer implements Analyzer {
      * flat stream of tags into an element tree: each distinct ctags scope (a dotted string) becomes one
      * naming-scope element under the file root, and every tag a leaf under its scope. A tag's ctags kind
      * (richer than the neutral {@link Element.Kind}) is carried as {@link Element#getRawKind}, and its
-     * signature and line range as the element's {@link Signature} and line range; {@link #rawText} returns
-     * the tag's source lines. Pair it with {@link jp.ac.titech.c.se.stein.app.blob.Historage.NamingStrategy.Ctags}.
+     * signature and line range as the element's {@link Signature} and line range; {@link Element#rawText}
+     * covers the tag's source lines. Pair it with {@link jp.ac.titech.c.se.stein.app.blob.Historage.NamingStrategy.Ctags}.
      */
     public static class Model implements SourceModel {
-        private final SourceText text;
-
-        private final List<LanguageObject> objects;
-
         private final Element root;
-
-        private boolean extracted;
 
         Model(final String filename, final SourceText text, final List<LanguageObject> objects,
                    final boolean requiresOriginalExtension) {
-            this.text = text;
-            this.objects = objects;
             final int index = filename.lastIndexOf('.');
             final String basename = requiresOriginalExtension && index > 0 ? filename.substring(0, index) : filename;
             this.root = new Element(Element.Kind.FILE, basename);
+            final Map<String, Element> scopes = new HashMap<>();
+            for (final LanguageObject lo : objects) {
+                final Element parent = lo.scope == null ? root
+                        : scopes.computeIfAbsent(lo.scope, s -> {
+                            final Element scope = new Element(Element.Kind.CLASS, s);
+                            root.addChild(scope);
+                            return scope;
+                        });
+                final Fragment fragment = text.getFragmentOfLines(lo.line, lo.end);
+                final Signature signature = lo.signature == null ? Signature.of(lo.name)
+                        : new Signature(lo.name, null, List.of(normalize(lo.signature)));
+                final Element e = new Element(role(lo.kind), signature, fragment.getBegin(), fragment.getEnd());
+                e.setRawKind(lo.kind);
+                e.setStartLine(lo.line);
+                e.setEndLine(lo.end);
+                e.setCoreFragment(fragment);
+                e.setExtentFragment(fragment);
+                parent.addChild(e);
+            }
         }
 
         @Override
-        public Element extract() {
-            if (!extracted) {
-                final Map<String, Element> scopes = new HashMap<>();
-                for (final LanguageObject lo : objects) {
-                    final Element parent = lo.scope == null ? root
-                            : scopes.computeIfAbsent(lo.scope, s -> {
-                                final Element scope = new Element(Element.Kind.CLASS, s);
-                                root.addChild(scope);
-                                return scope;
-                            });
-                    final Fragment fragment = text.getFragmentOfLines(lo.line, lo.end);
-                    final Signature signature = lo.signature == null ? Signature.of(lo.name)
-                            : new Signature(lo.name, null, List.of(normalize(lo.signature)));
-                    final Element e = new Element(role(lo.kind), signature, fragment.getBegin(), fragment.getEnd());
-                    e.setRawKind(lo.kind);
-                    e.setStartLine(lo.line);
-                    e.setEndLine(lo.end);
-                    e.setCoreFragment(fragment);
-                    e.setExtentFragment(fragment);
-                    parent.addChild(e);
-                }
-                extracted = true;
-            }
+        public Element getRoot() {
             return root;
         }
 

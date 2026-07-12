@@ -6,15 +6,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.treesitter.TSNode;
-import org.treesitter.TSQuery;
 import org.treesitter.TreeSitterR;
 
 import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
- * A query-based reimplementation of the imperative R visitor: detection is the declarative {@link #QUERY} (all
+ * A query-based analyzer for R: detection is the declarative {@link #QUERY} (all
  * named assignments), and a bound value that is a {@code function_definition} refines the element into
  * a method ({@link #refineKind}); every other binding is a field. Naming (parameter-name signatures)
  * stays imperative.
@@ -30,49 +28,39 @@ public class RAnalyzer extends QueryAnalyzer {
         super("R", new NameFilter(true, "*.r"), SourceEncoding::decode, TreeSitterR::new, QUERY);
     }
 
+    /**
+     * A binding whose value is a {@code function_definition} is a method; any other binding is a field.
+     */
     @Override
-    protected TreeSitterModel createModel(final String filename, final SourceText text, final TSNode treeRoot) {
-        return new Model(filename, text, treeRoot, query());
+    protected Element.Kind refineKind(final TreeSitterModel m, final Element.Kind kind, final TSNode node,
+                                      final Captures captures) {
+        final TSNode value = node.getChildByFieldName("value");
+        return !value.isNull() && value.getType().equals("function_definition")
+                ? Element.Kind.METHOD : Element.Kind.FIELD;
     }
 
-    static class Model extends QueryModel {
-        Model(final String filename, final SourceText text, final TSNode treeRoot, final TSQuery query) {
-            super(filename, text, treeRoot, query);
+    @Override
+    protected Signature signature(final TreeSitterModel m, final Element.Kind kind, final TSNode node, final Captures captures) {
+        final String label = m.flatten(m.textOf(captures.get("name")));
+        if (kind != Element.Kind.METHOD) {
+            return Signature.of(label);
         }
+        return new Signature(label, null, signature(m, node.getChildByFieldName("value")));
+    }
 
-        /**
-         * A binding whose value is a {@code function_definition} is a method; any other binding is a field.
-         */
-        @Override
-        protected Element.Kind refineKind(final Element.Kind kind, final TSNode node, final Captures captures) {
-            final TSNode value = node.getChildByFieldName("value");
-            return !value.isNull() && value.getType().equals("function_definition")
-                    ? Element.Kind.METHOD : Element.Kind.FIELD;
+    protected List<String> signature(final TreeSitterModel m, final TSNode functionDefinition) {
+        final TSNode params = m.firstChildOfType(functionDefinition, "formal_parameters");
+        if (params == null) {
+            return List.of();
         }
-
-        @Override
-        protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
-            final String label = flatten(textOf(captures.get("name")));
-            if (kind != Element.Kind.METHOD) {
-                return Signature.of(label);
+        final List<String> names = new ArrayList<>();
+        for (int i = 0; i < params.getNamedChildCount(); i++) {
+            final TSNode child = params.getNamedChild(i);
+            final TSNode name = child.getType().equals("identifier") ? child : m.firstChildOfType(child, "identifier");
+            if (name != null) {
+                names.add(m.escape(m.textOf(name).replaceAll("\\s+", "")));
             }
-            return new Signature(label, null, signature(node.getChildByFieldName("value")));
         }
-
-        protected List<String> signature(final TSNode functionDefinition) {
-            final TSNode params = firstChildOfType(functionDefinition, "formal_parameters");
-            if (params == null) {
-                return List.of();
-            }
-            final List<String> names = new ArrayList<>();
-            for (int i = 0; i < params.getNamedChildCount(); i++) {
-                final TSNode child = params.getNamedChild(i);
-                final TSNode name = child.getType().equals("identifier") ? child : firstChildOfType(child, "identifier");
-                if (name != null) {
-                    names.add(escape(textOf(name).replaceAll("\\s+", "")));
-                }
-            }
-            return names;
-        }
+        return names;
     }
 }

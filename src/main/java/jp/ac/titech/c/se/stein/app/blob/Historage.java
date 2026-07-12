@@ -5,12 +5,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Predicate;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import jp.ac.titech.c.se.stein.analyzer.Analyzer;
 import jp.ac.titech.c.se.stein.analyzer.CtagsAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.JdtAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
@@ -28,7 +26,6 @@ import jp.ac.titech.c.se.stein.rewriter.BlobTranslator;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 import jp.ac.titech.c.se.stein.util.HashUtils;
 import jp.ac.titech.c.se.stein.util.Names;
-import jp.ac.titech.c.se.stein.util.ProcessRunner;
 import lombok.ToString;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -187,41 +184,31 @@ public class Historage implements BlobTranslator {
      */
     private static final int MAX_FILENAME_BYTES = 255;
 
-    private List<Engine> engines;
+    private List<Analyzer> analyzers;
 
     /**
      * Selects the backends to try, in priority order (mainly for programmatic use); returns this.
      */
     public Historage backends(final BackendType... names) {
         this.backendNames = List.of(names);
-        this.engines = null;
+        this.analyzers = null;
         return this;
-    }
-
-    /**
-     * Restricts a filename predicate to when the given external command is available on the system
-     * (checked once); a missing command makes the backend accept nothing, so {@code @historage} defers
-     * to the next backend in the priority list.
-     */
-    private static Predicate<String> whenAvailable(final String command, final Predicate<String> accepts) {
-        final boolean present = ProcessRunner.isAvailable(command);
-        return name -> present && accepts.test(name);
     }
 
     @Override
     public void setUp(final Context c) {
-        engines(); // build and validate the backend selection at startup
+        analyzers(); // build and validate the backend selection at startup
     }
 
     @Override
     public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
-        for (final Engine engine : engines()) {
-            if (engine.accepts().test(entry.getName())) {
+        for (final Analyzer analyzer : analyzers()) {
+            if (handles(analyzer, entry.getName())) {
                 final AnyHotEntry.Set result = AnyHotEntry.set();
                 if (requiresOriginals) {
                     result.add(entry);
                 }
-                for (final HotEntry module : generateModules(engine, entry, c)) {
+                for (final HotEntry module : generateModules(analyzer, entry, c)) {
                     result.add(module);
                 }
                 return result;
@@ -231,56 +218,64 @@ public class Historage implements BlobTranslator {
     }
 
     /**
-     * How one backend analyses a file: whether it handles the blob, the analyzer over it, and (when it
-     * has its own convention such as ctags) the naming strategy to use instead of the default.
-     */
-    private record Engine(Predicate<String> accepts, BiFunction<BlobEntry, Context, SourceModel> analyzer,
-                          Function<String, NamingStrategy> naming, boolean tokenizes) {
-    }
-
-    /**
-     * The chosen backend engines, built lazily once the options are parsed. With {@code --tokens} the
-     * non-tokenizing backends (those that render raw source only) are dropped, and it is an error if
+     * The chosen analyzers, built lazily once the options are parsed. With {@code --tokens} the
+     * non-tokenizing analyzers (those that render raw source only) are dropped, and it is an error if
      * none remains.
      */
-    private List<Engine> engines() {
-        if (engines == null) {
-            List<Engine> selected = backendNames.stream().map(this::engine).toList();
+    private List<Analyzer> analyzers() {
+        if (analyzers == null) {
+            List<Analyzer> selected = backendNames.stream().map(this::analyzer).toList();
             if (tokens) {
-                selected = selected.stream().filter(Engine::tokenizes).toList();
+                selected = selected.stream().filter(a -> a instanceof Analyzer.Tokenizing).toList();
                 if (selected.isEmpty()) {
                     throw new IllegalArgumentException(
                             "--tokens needs a tokenizing backend (ts or srcml); none of " + backendNames + " qualifies");
                 }
             }
-            engines = selected;
+            analyzers = selected;
         }
-        return engines;
+        return analyzers;
     }
 
-    private Engine engine(final BackendType backend) {
+    private Analyzer analyzer(final BackendType backend) {
         return switch (backend) {
-            case ts -> new Engine(tsAnalyzer::accepts,
-                    (e, c) -> tsAnalyzer.analyze(e.getName(), e.getBlob(), c), null, true);
-            case jdt -> new Engine(jdtAnalyzer::accepts,
-                    (e, c) -> jdtAnalyzer.analyze(e.getName(), e.getBlob(), c), null, false);
-            case srcml -> new Engine(whenAvailable(srcmlAnalyzer.getCommand(), srcmlAnalyzer::accepts),
-                    (e, c) -> srcmlAnalyzer.analyze(e.getName(), e.getBlob(), c), null, true);
-            case ctags -> new Engine(whenAvailable(ctagsAnalyzer.getCommand(), filter::accept),
-                    (e, c) -> ctagsAnalyzer.analyze(e.getName(), e.getBlob(), c),
-                    f -> new NamingStrategy.Ctags(digestSignature, ctagsAnalyzer.isRequiresOriginalExtension()), false);
+            case ts -> tsAnalyzer;
+            case jdt -> jdtAnalyzer;
+            case srcml -> srcmlAnalyzer;
+            case ctags -> ctagsAnalyzer;
         };
     }
 
-    private List<? extends HotEntry> generateModules(final Engine engine, final BlobEntry entry, final Context c) {
-        final SourceModel source = engine.analyzer().apply(entry, c);
+    /**
+     * Whether the analyzer handles the file. The ctags analyzer accepts any file, so the app's name
+     * filter narrows it; the other analyzers know their own languages.
+     */
+    private boolean handles(final Analyzer analyzer, final String filename) {
+        if (analyzer == ctagsAnalyzer) {
+            return analyzer.accepts(filename) && filter.accept(filename);
+        }
+        return analyzer.accepts(filename);
+    }
+
+    /**
+     * The naming strategy for a file's modules: the ctags convention for the ctags analyzer, the
+     * FinerGit convention for Java, and plain scoped names otherwise.
+     */
+    private NamingStrategy naming(final Analyzer analyzer, final String filename) {
+        if (analyzer == ctagsAnalyzer) {
+            return new NamingStrategy.Ctags(digestSignature, ctagsAnalyzer.isRequiresOriginalExtension());
+        }
+        return filename.endsWith(".java")
+                ? new NamingStrategy.FinerGit(unqualifyTypename, digestParameters) : NamingStrategy.Scoped.INSTANCE;
+    }
+
+    private List<? extends HotEntry> generateModules(final Analyzer analyzer, final BlobEntry entry, final Context c) {
+        final SourceModel source = analyzer.analyze(entry.getName(), entry.getBlob(), c);
         if (source == null) {
             return List.of();
         }
-        final Element root = source.extract();
-        final NamingStrategy naming = engine.naming() != null ? engine.naming().apply(entry.getName())
-                : entry.getName().endsWith(".java")
-                ? new NamingStrategy.FinerGit(unqualifyTypename, digestParameters) : NamingStrategy.Scoped.INSTANCE;
+        final Element root = source.getRoot();
+        final NamingStrategy naming = naming(analyzer, entry.getName());
 
         // collect the elements that become modules, then assign each a file name, appending @2, @3,
         // ... to the second and later occurrences of the same name
@@ -297,7 +292,7 @@ public class Historage implements BlobTranslator {
         }
         if (requiresComments) {
             for (int i = 0; i < modules.size(); i++) {
-                final String comment = source.commentText(modules.get(i).element);
+                final String comment = modules.get(i).element.commentText();
                 if (comment != null) {
                     out.add(HotEntry.of(entry.getMode(), filenames.get(i) + commentExtension,
                             comment.getBytes(StandardCharsets.UTF_8)));
@@ -318,7 +313,7 @@ public class Historage implements BlobTranslator {
                 final String basename = naming.basename(e);
                 final String extension = naming.extension(e.getKind(), e.getRawKind(), filename);
                 final String content = tokens ? tokenSequence((TokenizingModel) source, e)
-                        : separatesComments || requiresComments ? source.coreText(e) : source.rawText(e);
+                        : source.moduleText(e, !(separatesComments || requiresComments));
                 out.add(new Generated(e, content, basename, extension));
             }
             collect(source, e, naming, filename, out);

@@ -6,11 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.treesitter.TSNode;
-import org.treesitter.TSQuery;
 import org.treesitter.TreeSitterCSharp;
 
 import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
@@ -42,83 +40,73 @@ public class CSharpAnalyzer extends QueryAnalyzer {
     }
 
     @Override
-    protected TreeSitterModel createModel(final String filename, final SourceText text, final TSNode treeRoot) {
-        return new Model(filename, text, treeRoot, query());
+    protected Signature signature(final TreeSitterModel m, final Element.Kind kind, final TSNode node, final Captures captures) {
+        return kind == Element.Kind.METHOD ? methodSignature(m, node)
+                : Signature.of(m.flatten(m.textOf(captures.get("name"))));
     }
 
-    static class Model extends QueryModel {
-        Model(final String filename, final SourceText text, final TSNode treeRoot, final TSQuery query) {
-            super(filename, text, treeRoot, query);
-        }
+    /**
+     * The naming material of a method, prefixing a destructor with {@code ~} and naming an operator
+     * {@code operator<symbol>}. Each part is flattened here so the naming strategy can assemble
+     * {@code [typeParams]_name(paramTypes)} without further escaping.
+     */
+    protected Signature methodSignature(final TreeSitterModel m, final TSNode node) {
+        final TSNode typeParameters = node.getChildByFieldName("type_parameters");
+        final List<String> tp = typeParameters != null && !typeParameters.isNull()
+                ? typeParameters(m, typeParameters).stream().map(m::flatten).toList() : null;
+        final String name = switch (node.getType()) {
+            case "destructor_declaration" -> "~" + m.textOf(node.getChildByFieldName("name"));
+            case "operator_declaration" -> "operator" + m.textOf(node.getChildByFieldName("operator"));
+            default -> m.textOf(node.getChildByFieldName("name"));
+        };
+        return new Signature(m.flatten(name), tp,
+                signature(m, node.getChildByFieldName("parameters")).stream().map(m::flatten).toList());
+    }
 
-        @Override
-        protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
-            return kind == Element.Kind.METHOD ? methodSignature(node) : Signature.of(flatten(textOf(captures.get("name"))));
+    protected List<String> typeParameters(final TreeSitterModel m, final TSNode list) {
+        final List<String> names = new ArrayList<>();
+        for (int i = 0; i < list.getNamedChildCount(); i++) {
+            final TSNode child = list.getNamedChild(i);
+            if (child.getType().equals("type_parameter")) {
+                names.add(m.textOf(child.getChildByFieldName("name")));
+            }
         }
+        return names;
+    }
 
-        /**
-         * The naming material of a method, prefixing a destructor with {@code ~} and naming an operator
-         * {@code operator<symbol>}. Each part is flattened here so the naming strategy can assemble
-         * {@code [typeParams]_name(paramTypes)} without further escaping.
-         */
-        protected Signature methodSignature(final TSNode node) {
-            final TSNode typeParameters = node.getChildByFieldName("type_parameters");
-            final List<String> tp = typeParameters != null && !typeParameters.isNull()
-                    ? typeParameters(typeParameters).stream().map(this::flatten).toList() : null;
-            final String name = switch (node.getType()) {
-                case "destructor_declaration" -> "~" + textOf(node.getChildByFieldName("name"));
-                case "operator_declaration" -> "operator" + textOf(node.getChildByFieldName("operator"));
-                default -> textOf(node.getChildByFieldName("name"));
-            };
-            return new Signature(flatten(name), tp,
-                    signature(node.getChildByFieldName("parameters")).stream().map(this::flatten).toList());
+    /**
+     * Renders each parameter as its declared type, dropping the parameter name; the enclosing
+     * {@link #methodSignature} flattens any generic angle brackets into a portable form.
+     */
+    protected List<String> signature(final TreeSitterModel m, final TSNode parameters) {
+        if (parameters.isNull()) {
+            return List.of();
         }
-
-        protected List<String> typeParameters(final TSNode list) {
-            final List<String> names = new ArrayList<>();
-            for (int i = 0; i < list.getNamedChildCount(); i++) {
-                final TSNode child = list.getNamedChild(i);
-                if (child.getType().equals("type_parameter")) {
-                    names.add(textOf(child.getChildByFieldName("name")));
+        final List<String> types = new ArrayList<>();
+        for (int i = 0; i < parameters.getNamedChildCount(); i++) {
+            final TSNode p = parameters.getNamedChild(i);
+            if (p.getType().equals("parameter")) {
+                final TSNode type = p.getChildByFieldName("type");
+                if (!type.isNull()) {
+                    types.add(m.textOf(type).replaceAll("\\s+", ""));
                 }
             }
-            return names;
         }
+        return types;
+    }
 
-        /**
-         * Renders each parameter as its declared type, dropping the parameter name; the enclosing
-         * {@link #methodName} flattens any generic angle brackets into a portable form.
-         */
-        protected List<String> signature(final TSNode parameters) {
-            if (parameters.isNull()) {
-                return List.of();
-            }
-            final List<String> types = new ArrayList<>();
-            for (int i = 0; i < parameters.getNamedChildCount(); i++) {
-                final TSNode p = parameters.getNamedChild(i);
-                if (p.getType().equals("parameter")) {
-                    final TSNode type = p.getChildByFieldName("type");
-                    if (!type.isNull()) {
-                        types.add(textOf(type).replaceAll("\\s+", ""));
-                    }
-                }
-            }
-            return types;
+    /**
+     * A file-scoped namespace scopes the siblings that follow its declaration; move them under it.
+     */
+    @Override
+    protected void postProcess(final TreeSitterModel m, final Element root) {
+        final TSNode fileScoped = m.firstChildOfType(m.nodeOf(root), "file_scoped_namespace_declaration");
+        if (fileScoped == null) {
+            return;
         }
-
-        /**
-         * A file-scoped namespace scopes the siblings that follow its declaration; move them under it.
-         */
-        @Override
-        protected void postProcess() {
-            final TSNode fileScoped = firstChildOfType(treeRoot, "file_scoped_namespace_declaration");
-            if (fileScoped == null) {
-                return;
-            }
-            final TSNode name = fileScoped.getChildByFieldName("name");
-            if (!name.isNull()) {
-                reparentAfter(root, flatten(textOf(name)), text.toCharIndex(fileScoped.getEndByte()));
-            }
+        final TSNode name = fileScoped.getChildByFieldName("name");
+        if (!name.isNull()) {
+            m.reparentAfter(root, m.flatten(m.textOf(name)), m.getText().toCharIndex(fileScoped.getEndByte()));
         }
     }
 }

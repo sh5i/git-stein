@@ -1,52 +1,26 @@
 package jp.ac.titech.c.se.stein.analyzer;
 
-import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
-import jp.ac.titech.c.se.stein.analyzer.util.FormatUtils;
-
 /**
  * The backend-neutral result of analyzing one source file: its named elements, with each element's
- * raw source text recoverable. This is the minimum an analysis produces; a structure-only backend
- * (for example one driven by a tag extractor) yields just this. A backend that can also produce a
- * typed token stream yields a {@link TokenizingModel}, from which a consumer builds its own token
- * output (a FinerGit sequence, cregit's token-per-line format).
+ * raw source text recoverable from the element itself ({@link Element#rawText}). This is the minimum
+ * an analysis produces; a structure-only backend (for example one driven by a tag extractor) yields
+ * just this. A backend that can also produce a typed token stream yields a {@link TokenizingModel},
+ * from which a consumer builds its own token output (a FinerGit sequence, cregit's token-per-line
+ * format).
  */
 public interface SourceModel {
     /**
-     * Extracts the element tree: a {@link Element.Kind#FILE} root holding the file's declarations.
+     * The extracted element tree: a {@link Element.Kind#FILE} root holding the file's declarations.
      */
-    Element extract();
+    Element getRoot();
 
     /**
-     * The raw source text of an element with its attached comments ({@link Element#getExtentFragment}),
-     * for a module rendered with comments inline. A backend that synthesizes text beyond the element's own
-     * source (e.g. wrapping a member so it parses standalone) overrides this.
+     * Renders one element as a Historage module body, with its attached comments inline or excluded.
+     * The default is the element's own text ({@link Element#rawText}/{@link Element#coreText}); this is
+     * the one point where a backend may deviate (JDT wraps a member so it parses standalone, and strips
+     * every comment rather than only attached ones).
      */
-    default String rawText(final Element e) {
-        return e.getExtentFragment().getWiderContent();
-    }
-
-    /**
-     * The raw source text of an element without its attached comments ({@link Element#getCoreFragment}),
-     * for a module whose comments are separated into a side file.
-     */
-    default String coreText(final Element e) {
-        return e.getCoreFragment().getWiderContent();
-    }
-
-    /**
-     * The comment text attached to the element's declaration, for a Historage comment side file: its
-     * attached comments ({@link Element#getComments}), each rendered de-indented, or null when this
-     * analyzer has no notion of comments. An empty string is a declaration that has no comment, distinct
-     * from null.
-     */
-    default String commentText(final Element e) {
-        if (e.getComments() == null) {
-            return null;
-        }
-        final StringBuilder sb = new StringBuilder();
-        for (final Fragment c : e.getComments()) {
-            sb.append(FormatUtils.dedent(c.getWiderContent()));
-        }
-        return sb.toString();
+    default String moduleText(final Element e, final boolean withComments) {
+        return withComments ? e.rawText() : e.coreText();
     }
 }

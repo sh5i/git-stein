@@ -6,11 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.treesitter.TSNode;
-import org.treesitter.TSQuery;
 import org.treesitter.TreeSitterRust;
 
 import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
@@ -51,51 +49,40 @@ public class RustAnalyzer extends QueryAnalyzer {
     }
 
     @Override
-    protected TreeSitterModel createModel(final String filename, final SourceText text, final TSNode treeRoot) {
-        return new Model(filename, text, treeRoot, query());
+    protected Signature signature(final TreeSitterModel m, final Element.Kind kind, final TSNode node, final Captures captures) {
+        if (kind == Element.Kind.METHOD) {
+            return new Signature(m.flatten(m.textOf(captures.get("name"))), null, signature(m, captures.get("params")));
+        }
+        if (captures.has("type")) {
+            return Signature.of(m.flatten(baseTypeName(m, captures.get("type"))));
+        }
+        return Signature.of(m.flatten(m.textOf(captures.get("name"))));
     }
 
-    static class Model extends QueryModel {
-        Model(final String filename, final SourceText text, final TSNode treeRoot, final TSQuery query) {
-            super(filename, text, treeRoot, query);
+    /**
+     * The base name of a type, dropping generic arguments, e.g. {@code Foo} for {@code Foo<T>}.
+     */
+    protected String baseTypeName(final TreeSitterModel m, final TSNode type) {
+        if (type.getType().equals("generic_type")) {
+            final TSNode base = m.firstChildOfType(type, "type_identifier");
+            return base != null ? m.textOf(base) : m.textOf(type);
         }
+        return m.textOf(type);
+    }
 
-        @Override
-        protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
-            if (kind == Element.Kind.METHOD) {
-                return new Signature(flatten(textOf(captures.get("name"))), null, signature(captures.get("params")));
-            }
-            if (captures.has("type")) {
-                return Signature.of(flatten(baseTypeName(captures.get("type"))));
-            }
-            return Signature.of(flatten(textOf(captures.get("name"))));
+    protected List<String> signature(final TreeSitterModel m, final TSNode parameters) {
+        if (parameters == null || parameters.isNull()) {
+            return List.of();
         }
-
-        /**
-         * The base name of a type, dropping generic arguments, e.g. {@code Foo} for {@code Foo<T>}.
-         */
-        protected String baseTypeName(final TSNode type) {
-            if (type.getType().equals("generic_type")) {
-                final TSNode base = firstChildOfType(type, "type_identifier");
-                return base != null ? textOf(base) : textOf(type);
+        final List<String> types = new ArrayList<>();
+        for (int i = 0; i < parameters.getNamedChildCount(); i++) {
+            final TSNode p = parameters.getNamedChild(i);
+            if (p.getType().equals("parameter")) {
+                types.add(m.escape(m.textOf(p.getChildByFieldName("type")).replaceAll("\\s+", "")));
+            } else if (p.getType().equals("self_parameter")) {
+                types.add("self");
             }
-            return textOf(type);
         }
-
-        protected List<String> signature(final TSNode parameters) {
-            if (parameters == null || parameters.isNull()) {
-                return List.of();
-            }
-            final List<String> types = new ArrayList<>();
-            for (int i = 0; i < parameters.getNamedChildCount(); i++) {
-                final TSNode p = parameters.getNamedChild(i);
-                if (p.getType().equals("parameter")) {
-                    types.add(escape(textOf(p.getChildByFieldName("type")).replaceAll("\\s+", "")));
-                } else if (p.getType().equals("self_parameter")) {
-                    types.add("self");
-                }
-            }
-            return types;
-        }
+        return types;
     }
 }

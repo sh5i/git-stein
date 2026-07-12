@@ -18,20 +18,19 @@ import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import jp.ac.titech.c.se.stein.util.Names;
 
 /**
- * The shared skeleton of a per-language tree-sitter analyzer. A subclass walks its language's CST in
- * {@link #run} and emits {@link Element} instances via {@link #element}; this base recovers an
- * element's raw source ({@link #rawText}) and its classified leaf-token stream ({@link #tokens}). Each
- * token's type is derived from the grammar alone (structural tokens are typed by the non-terminal that
- * contains them, identifiers by the field they fill), so it needs no per-language rules.
+ * The per-file tree-sitter model: the decoded text, the parsed CST, and the element tree the
+ * analyzer's detection engine populated, with each element's classified leaf-token stream recoverable
+ * ({@link #tokens}). Each token's type is derived from the grammar alone (structural tokens are typed
+ * by the non-terminal that contains them, identifiers by the field they fill). Language-specific
+ * decisions are not made here: they are delegated to the {@link QueryAnalyzer} that produced this
+ * model.
  */
-public abstract class TreeSitterModel implements TokenizingModel {
-    protected final String filename;
+public final class TreeSitterModel implements TokenizingModel {
+    private final QueryAnalyzer language;
 
-    protected final SourceText text;
+    private final SourceText text;
 
-    protected final TSNode treeRoot;
-
-    protected final Element root;
+    private final Element root;
 
     // the native node each element was extracted from, kept off the (backend-neutral) Element itself;
     // resolved on demand by nodeOf/endNodeOf for rendering and tokenizing
@@ -39,41 +38,32 @@ public abstract class TreeSitterModel implements TokenizingModel {
 
     private final Map<Element, TSNode> endNodes = new HashMap<>();
 
-    protected TreeSitterModel(final String filename, final SourceText text, final TSNode treeRoot) {
-        this.filename = filename;
+    TreeSitterModel(final QueryAnalyzer language, final String filename, final SourceText text,
+                    final TSNode treeRoot) {
+        this.language = language;
         this.text = text;
-        this.treeRoot = treeRoot;
         this.root = new Element(Element.Kind.FILE, baseName(filename),
                 text.toCharIndex(treeRoot.getStartByte()), text.toCharIndex(treeRoot.getEndByte()));
         nodes.put(root, treeRoot);
     }
 
-    /**
-     * Extracts the element tree: a {@link Element.Kind#FILE} root holding the file's declarations.
-     */
     @Override
-    public Element extract() {
-        run();
+    public Element getRoot() {
         return root;
     }
 
     /**
-     * Walks {@link #treeRoot} and populates {@link #root} with the extracted elements.
-     */
-    protected abstract void run();
-
-    /**
-     * Adds an element of the given kind and name under the parent, and returns it (so a caller can
+     * Adds an element of the given kind and name under the parent, and returns it (so the engine can
      * nest members under it). A null {@code content} node marks a naming scope that is never rendered.
      */
-    protected Element element(final Element.Kind kind, final Signature signature, final Element parent, final TSNode content) {
+    Element element(final Element.Kind kind, final Signature signature, final Element parent, final TSNode content) {
         final Element e = content == null ? new Element(kind, signature)
                 : new Element(kind, signature, text.toCharIndex(content.getStartByte()), text.toCharIndex(content.getEndByte()));
         if (content != null) {
             nodes.put(e, content);
             e.setStartLine(content.getStartPoint().getRow() + 1);
             e.setEndLine(content.getEndPoint().getRow() + 1);
-            final Fragment core = coreFragment(content);
+            final Fragment core = language.coreFragment(this, content);
             final List<CommentAttachment.Node> comments = CommentAttachment.attached(new Sibling(content));
             e.setCoreFragment(core);
             e.setComments(fragmentsOf(comments));
@@ -87,8 +77,8 @@ public abstract class TreeSitterModel implements TokenizingModel {
      * Adds an element that spans two adjacent nodes {@code [start .. end]}, for grammars that split a
      * declaration into separate sibling nodes (e.g. Dart's method signature and body).
      */
-    protected Element element(final Element.Kind kind, final Signature signature, final Element parent,
-                              final TSNode start, final TSNode end) {
+    Element element(final Element.Kind kind, final Signature signature, final Element parent,
+                    final TSNode start, final TSNode end) {
         final Element e = new Element(kind, signature,
                 text.toCharIndex(start.getStartByte()), text.toCharIndex(start.getEndByte()),
                 text.toCharIndex(end.getStartByte()), text.toCharIndex(end.getEndByte()));
@@ -109,7 +99,7 @@ public abstract class TreeSitterModel implements TokenizingModel {
      * The tree-sitter node an element was extracted from. The association is kept here rather than on
      * the (backend-neutral) {@link Element}, so a consumer never sees a tree-sitter type.
      */
-    protected TSNode nodeOf(final Element e) {
+    public TSNode nodeOf(final Element e) {
         return nodes.get(e);
     }
 
@@ -214,12 +204,12 @@ public abstract class TreeSitterModel implements TokenizingModel {
 
         @Override
         public boolean isComment() {
-            return TreeSitterModel.this.isComment(node);
+            return language.isComment(node);
         }
 
         @Override
         public boolean isDocComment() {
-            return TreeSitterModel.this.isDocComment(node);
+            return language.isDocComment(TreeSitterModel.this, node);
         }
 
         @Override
@@ -229,7 +219,7 @@ public abstract class TreeSitterModel implements TokenizingModel {
 
         @Override
         public Fragment fragment() {
-            return text.getFragment(text.toCharIndex(node.getStartByte()), text.toCharIndex(node.getEndByte()));
+            return exactFragment(node);
         }
     }
 
@@ -247,28 +237,10 @@ public abstract class TreeSitterModel implements TokenizingModel {
         return text.getFragment(start, end);
     }
 
-    /**
-     * Whether the node is a comment. The generic test matches any node type ending in {@code comment}
-     * (e.g. {@code line_comment}, {@code block_comment}, {@code comment}); a subclass may narrow it.
-     */
-    protected boolean isComment(final TSNode node) {
-        return node.getType().endsWith("comment");
-    }
-
-    /**
-     * Whether the comment is a documentation comment, which binds to the declaration directly below it
-     * regardless of an intervening blank line. A {@code /**} block is a doc comment across the C family
-     * (Javadoc, Doxygen, KDoc, JSDoc, PHPDoc, ...); a language subclass may recognize more (e.g. a
-     * {@code ///} line comment in C#, Rust, Swift, or Dart).
-     */
-    protected boolean isDocComment(final TSNode node) {
-        return textOf(node).startsWith("/**");
-    }
-
     private void collectTokens(final TSNode node, final Frame frame, final boolean inComment, final List<Token> out) {
         // most grammars mark a comment as an extra node, but some (Rust, Dart) model it as a named
         // *comment node whose punctuation leaves are not themselves extra, so comment-ness propagates down
-        final boolean comment = inComment || node.isExtra() || isComment(node);
+        final boolean comment = inComment || node.isExtra() || language.isComment(node);
         if (node.getChildCount() > 0) {
             for (int i = 0; i < node.getChildCount(); i++) {
                 collectTokens(node.getChild(i), frame, comment, out);
@@ -296,7 +268,7 @@ public abstract class TreeSitterModel implements TokenizingModel {
 
     private Frame frameOf(final TSNode declaration) {
         return new Frame(declaration.getChildByFieldName("parameters"), declaration.getChildByFieldName("body"),
-                declaration, isFunctionNode(declaration));
+                declaration, language.isFunctionNode(declaration));
     }
 
     /**
@@ -313,7 +285,10 @@ public abstract class TreeSitterModel implements TokenizingModel {
         };
     }
 
-    protected String textOf(final TSNode node) {
+    /**
+     * The source text of the node, or the empty string for a null node.
+     */
+    public String textOf(final TSNode node) {
         if (node.isNull()) {
             return "";
         }
@@ -321,9 +296,24 @@ public abstract class TreeSitterModel implements TokenizingModel {
     }
 
     /**
+     * The fragment covering the node's exact span.
+     */
+    public Fragment exactFragment(final TSNode node) {
+        return text.getFragment(text.toCharIndex(node.getStartByte()), text.toCharIndex(node.getEndByte()));
+    }
+
+    /**
+     * The decoded source text, for a language rule that needs raw content or custom fragments beyond
+     * {@link #textOf} and {@link #exactFragment}.
+     */
+    public SourceText getText() {
+        return text;
+    }
+
+    /**
      * Escapes a source name into a file-system-safe component (white space and reserved characters).
      */
-    protected String escape(final String name) {
+    public String escape(final String name) {
         return Names.escape(name);
     }
 
@@ -331,14 +321,14 @@ public abstract class TreeSitterModel implements TokenizingModel {
      * Flattens a possibly qualified name into a file-system-safe leaf, turning the {@code ::} scope
      * operator into {@code .} and escaping the remaining reserved characters.
      */
-    protected String flatten(final String name) {
+    public String flatten(final String name) {
         return Names.escape(name.replace("::", "."));
     }
 
     /**
      * The first named child of the given type, or null if there is none.
      */
-    protected TSNode firstChildOfType(final TSNode node, final String type) {
+    public TSNode firstChildOfType(final TSNode node, final String type) {
         for (int i = 0; i < node.getNamedChildCount(); i++) {
             final TSNode child = node.getNamedChild(i);
             if (child.getType().equals(type)) {
@@ -349,19 +339,24 @@ public abstract class TreeSitterModel implements TokenizingModel {
     }
 
     /**
-     * The element's own source range: the node's exact span. A subclass narrows or widens it (e.g. C++'s
-     * declaration terminator, or Python's line-based body).
+     * Reparents this model's elements that start at or after character offset {@code from} under a new
+     * scope appended to the given parent; used by a {@link QueryAnalyzer#postProcess} hook to realize a
+     * file-scoped namespace.
      */
-    protected Fragment coreFragment(final TSNode node) {
-        return text.getFragment(text.toCharIndex(node.getStartByte()), text.toCharIndex(node.getEndByte()));
-    }
-
-    /**
-     * Whether the node declares a function/method (so its terminating semicolon, if any, is a frame
-     * token). The generic answer is no; language subclasses override it.
-     */
-    protected boolean isFunctionNode(final TSNode node) {
-        return false;
+    public Element reparentAfter(final Element parent, final String scopeName, final int from) {
+        final Element scope = new Element(Element.Kind.CLASS, scopeName);
+        final List<Element> children = parent.getChildren();
+        final List<Element> moved = new ArrayList<>();
+        children.removeIf(e -> {
+            if (e.getStart() >= from) {
+                moved.add(e);
+                return true;
+            }
+            return false;
+        });
+        moved.forEach(scope::addChild);
+        parent.addChild(scope);
+        return scope;
     }
 
     /**

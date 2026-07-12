@@ -129,7 +129,6 @@ public class Cregit implements BlobTranslator {
      * {@code end_unit}.
      */
     private byte[] convert(final TokenizingModel model, final String language) {
-        model.extract();
         final StringBuilder sb = new StringBuilder();
         marker(sb, "begin_unit|language:" + language + ";cregit-version:" + VERSION);
         model.walkTokens(new TokenizingModel.TokenVisitor() {

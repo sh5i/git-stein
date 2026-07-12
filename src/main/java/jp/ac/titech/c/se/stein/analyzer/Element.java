@@ -3,6 +3,7 @@ package jp.ac.titech.c.se.stein.analyzer;
 import java.util.ArrayList;
 import java.util.List;
 
+import jp.ac.titech.c.se.stein.analyzer.util.FormatUtils;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import lombok.Getter;
 import lombok.Setter;
@@ -76,8 +77,40 @@ public class Element {
     private List<Fragment> comments;
 
     /**
+     * The raw source text of this element with its attached comments ({@link #getExtentFragment}),
+     * widened to whole lines.
+     */
+    public String rawText() {
+        return extentFragment.getWiderContent();
+    }
+
+    /**
+     * The raw source text of this element without its attached comments ({@link #getCoreFragment}),
+     * widened to whole lines.
+     */
+    public String coreText() {
+        return coreFragment.getWiderContent();
+    }
+
+    /**
+     * The comment text attached to this element's declaration ({@link #getComments}), each comment
+     * rendered de-indented, or null when the backend has no notion of comments. An empty string is a
+     * declaration that has no comment, distinct from null.
+     */
+    public String commentText() {
+        if (comments == null) {
+            return null;
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (final Fragment c : comments) {
+            sb.append(FormatUtils.dedent(c.getWiderContent()));
+        }
+        return sb.toString();
+    }
+
+    /**
      * The 1-based source line range of the element's content, or {@link #NONE} when the backend does
-     * not track lines. It covers the same region as {@link SourceModel#rawText}, so a Historage
+     * not track lines. It covers the same region as {@link #rawText}, so a Historage
      * mapping file can record where each module came from.
      */
     @Getter

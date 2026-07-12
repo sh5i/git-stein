@@ -47,7 +47,7 @@ public class CommentClassificationTest {
         for (final Case c : CASES) {
             final TokenizingModel a = new TreeSitterAnalyzer().analyze(c.file, c.source.getBytes(), null);
             assertNotNull(a, c.file);
-            final List<Token> tokens = a.tokens(a.extract());
+            final List<Token> tokens = a.tokens(a.getRoot());
             for (final Token t : tokens) {
                 // the PHP open tag is the one non-comment token in these comment-only sources
                 if (!t.comment() && !t.type().equals("PHP_TAG")) {

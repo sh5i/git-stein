@@ -6,15 +6,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.treesitter.TSNode;
-import org.treesitter.TSQuery;
 import org.treesitter.TreeSitterGo;
 
 import jp.ac.titech.c.se.stein.core.SourceEncoding;
-import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.rewriter.NameFilter;
 
 /**
- * A query-based reimplementation of the imperative Go visitor: detection is the declarative {@link #QUERY},
+ * A query-based analyzer for Go: detection is the declarative {@link #QUERY},
  * and only naming (receiver-prefixed method names, type-list signatures) stays imperative.
  */
 public class GoAnalyzer extends QueryAnalyzer {
@@ -33,64 +31,54 @@ public class GoAnalyzer extends QueryAnalyzer {
         super("Go", new NameFilter(true, "*.go"), SourceEncoding::decode, TreeSitterGo::new, QUERY);
     }
 
+    /**
+     * A {@code type} spec is a class only when it aliases a struct or interface; any other type alias
+     * is a field.
+     */
     @Override
-    protected TreeSitterModel createModel(final String filename, final SourceText text, final TSNode treeRoot) {
-        return new Model(filename, text, treeRoot, query());
+    protected Element.Kind refineKind(final TreeSitterModel m, final Element.Kind kind, final TSNode node,
+                                      final Captures captures) {
+        if (kind != Element.Kind.CLASS) {
+            return kind;
+        }
+        final TSNode type = captures.get("typekind");
+        final String t = type == null ? "" : type.getType();
+        return t.equals("struct_type") || t.equals("interface_type") ? Element.Kind.CLASS : Element.Kind.FIELD;
     }
 
-    static class Model extends QueryModel {
-        Model(final String filename, final SourceText text, final TSNode treeRoot, final TSQuery query) {
-            super(filename, text, treeRoot, query);
+    @Override
+    protected Signature signature(final TreeSitterModel m, final Element.Kind kind, final TSNode node, final Captures captures) {
+        if (kind != Element.Kind.METHOD) {
+            return Signature.of(m.flatten(m.textOf(captures.get("name"))));
         }
+        final String receiver = captures.has("receiver") ? receiverType(m, captures.get("receiver")) : "";
+        final String leaf = (receiver.isEmpty() ? "" : receiver + ".") + m.textOf(captures.get("name"));
+        return new Signature(m.flatten(leaf), null, signature(m, captures.get("params")));
+    }
 
-        /**
-         * A {@code type} spec is a class only when it aliases a struct or interface; any other type alias
-         * is a field.
-         */
-        @Override
-        protected Element.Kind refineKind(final Element.Kind kind, final TSNode node, final Captures captures) {
-            if (kind != Element.Kind.CLASS) {
-                return kind;
-            }
-            final TSNode type = captures.get("typekind");
-            final String t = type == null ? "" : type.getType();
-            return t.equals("struct_type") || t.equals("interface_type") ? Element.Kind.CLASS : Element.Kind.FIELD;
+    /**
+     * The receiver type of a method, without a leading pointer star, e.g. {@code Point} for
+     * {@code (p *Point)}.
+     */
+    protected String receiverType(final TreeSitterModel m, final TSNode receiver) {
+        final TSNode decl = m.firstChildOfType(receiver, "parameter_declaration");
+        if (decl == null) {
+            return "";
         }
+        return m.textOf(decl.getChildByFieldName("type")).replaceFirst("^\\*", "");
+    }
 
-        @Override
-        protected Signature signature(final Element.Kind kind, final TSNode node, final Captures captures) {
-            if (kind != Element.Kind.METHOD) {
-                return Signature.of(flatten(textOf(captures.get("name"))));
-            }
-            final String receiver = captures.has("receiver") ? receiverType(captures.get("receiver")) : "";
-            final String leaf = (receiver.isEmpty() ? "" : receiver + ".") + textOf(captures.get("name"));
-            return new Signature(flatten(leaf), null, signature(captures.get("params")));
+    protected List<String> signature(final TreeSitterModel m, final TSNode parameters) {
+        if (parameters == null || parameters.isNull()) {
+            return List.of();
         }
-
-        /**
-         * The receiver type of a method, without a leading pointer star, e.g. {@code Point} for
-         * {@code (p *Point)}.
-         */
-        protected String receiverType(final TSNode receiver) {
-            final TSNode decl = firstChildOfType(receiver, "parameter_declaration");
-            if (decl == null) {
-                return "";
+        final List<String> types = new ArrayList<>();
+        for (int i = 0; i < parameters.getNamedChildCount(); i++) {
+            final TSNode p = parameters.getNamedChild(i);
+            if (p.getType().equals("parameter_declaration")) {
+                types.add(m.escape(m.textOf(p.getChildByFieldName("type")).replaceAll("\\s+", "")));
             }
-            return textOf(decl.getChildByFieldName("type")).replaceFirst("^\\*", "");
         }
-
-        protected List<String> signature(final TSNode parameters) {
-            if (parameters == null || parameters.isNull()) {
-                return List.of();
-            }
-            final List<String> types = new ArrayList<>();
-            for (int i = 0; i < parameters.getNamedChildCount(); i++) {
-                final TSNode p = parameters.getNamedChild(i);
-                if (p.getType().equals("parameter_declaration")) {
-                    types.add(escape(textOf(p.getChildByFieldName("type")).replaceAll("\\s+", "")));
-                }
-            }
-            return types;
-        }
+        return types;
     }
 }

@@ -15,6 +15,14 @@ public interface Analyzer {
     boolean accepts(String filename);
 
     /**
+     * The human-readable source language name this analyzer assigns to the given file (for example a
+     * cregit header), or null when it cannot name it.
+     */
+    default String languageName(final String filename) {
+        return null;
+    }
+
+    /**
      * Analyzes one file, or returns null when the analysis fails.
      */
     SourceModel analyze(String filename, byte[] blob, Context c);
@@ -40,11 +48,5 @@ public interface Analyzer {
     interface Tokenizing extends Analyzer {
         @Override
         TokenizingModel analyze(String filename, byte[] blob, Context c);
-
-        /**
-         * The human-readable source language name for the given file (for example a cregit header), or
-         * null when the analyzer cannot name it.
-         */
-        String languageName(String filename);
     }
 }
