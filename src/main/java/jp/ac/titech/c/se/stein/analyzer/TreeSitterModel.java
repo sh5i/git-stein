@@ -65,7 +65,6 @@ public final class TreeSitterModel implements TokenizingModel {
             e.setCoreFragment(core);
             e.setComments(fragmentsOf(comments));
             e.setExtentFragment(extentOf(core, comments));
-            setLines(e, content.getStartPoint().getRow(), content.getEndPoint().getRow(), comments);
         }
         parent.addChild(e);
         return e;
@@ -84,25 +83,8 @@ public final class TreeSitterModel implements TokenizingModel {
         e.setCoreFragment(core);
         e.setComments(fragmentsOf(comments));
         e.setExtentFragment(extentOf(core, comments));
-        setLines(e, start.getStartPoint().getRow(), end.getEndPoint().getRow(), comments);
         parent.addChild(e);
         return e;
-    }
-
-    /**
-     * Sets the element's 1-based line range to its extent: its own rows widened over its attached
-     * comments, matching {@link Element#rawText}.
-     */
-    private void setLines(final Element e, final int startRow, final int endRow,
-                          final List<CommentAttachment.Node> comments) {
-        int first = startRow;
-        int last = endRow;
-        for (final CommentAttachment.Node c : comments) {
-            first = Math.min(first, c.startRow());
-            last = Math.max(last, c.endRow());
-        }
-        e.setStartLine(first + 1);
-        e.setEndLine(last + 1);
     }
 
     /**

@@ -235,5 +235,38 @@ public class SourceText {
         public String getIndent() {
             return content.substring(widerBegin, begin);
         }
+
+        /**
+         * The 1-based line on which this fragment begins.
+         */
+        public int getBeginLine() {
+            return lineOf(begin);
+        }
+
+        /**
+         * The 1-based line on which this fragment ends: the line holding its last character (the
+         * exact end is exclusive, so an empty fragment answers with its begin line).
+         */
+        public int getEndLine() {
+            return lineOf(Math.max(begin, end - 1));
+        }
+
+        /**
+         * The 1-based line containing the given character index.
+         */
+        private int lineOf(final int index) {
+            prepareLineOffsets();
+            int lo = 0;
+            int hi = lineOffsets.length - 1;
+            while (lo < hi) {
+                final int mid = (lo + hi + 1) >>> 1;
+                if (lineOffsets[mid] <= index) {
+                    lo = mid;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            return lo + 1;
+        }
     }
 }

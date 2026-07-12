@@ -95,17 +95,21 @@ public class Element {
     }
 
     /**
-     * The 1-based source line range of the element's content, or {@link #NONE} when the backend does
-     * not track lines. It covers the same region as {@link #rawText}, so a Historage
-     * mapping file can record where each module came from.
+     * The 1-based source line where this element's content begins, or {@link #NONE} for a scope with
+     * no content. It covers the same region as {@link #rawText}, so a Historage mapping file can
+     * record where each module came from.
      */
-    @Getter
-    @Setter
-    private int startLine = NONE;
+    public int getStartLine() {
+        return extentFragment == null ? NONE : extentFragment.getBeginLine();
+    }
 
-    @Getter
-    @Setter
-    private int endLine = NONE;
+    /**
+     * The 1-based source line where this element's content ends, or {@link #NONE} for a scope with no
+     * content.
+     */
+    public int getEndLine() {
+        return extentFragment == null ? NONE : extentFragment.getEndLine();
+    }
 
     /**
      * An analyzer-specific kind label beyond the neutral {@link Kind}, or null when the analyzer has

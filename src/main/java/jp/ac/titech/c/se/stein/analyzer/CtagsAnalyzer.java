@@ -124,8 +124,6 @@ public class CtagsAnalyzer implements Analyzer {
                         : new Signature(lo.name, null, List.of(normalize(lo.signature)));
                 final Element e = new Element(role(lo.kind), signature);
                 e.setRawKind(lo.kind);
-                e.setStartLine(lo.line);
-                e.setEndLine(lo.end);
                 e.setCoreFragment(fragment);
                 e.setExtentFragment(fragment);
                 parent.addChild(e);

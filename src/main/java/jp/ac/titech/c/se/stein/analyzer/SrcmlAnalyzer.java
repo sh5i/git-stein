@@ -210,9 +210,6 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
                     extentEnd = Math.max(extentEnd, c.endRow());
                 }
                 e.setExtentFragment(text.getFragmentOfLines(extentStart, extentEnd));
-                // the line range covers the extent, matching Element#rawText
-                e.setStartLine(extentStart);
-                e.setEndLine(extentEnd);
             }
             parent.addChild(e);
             return e;
