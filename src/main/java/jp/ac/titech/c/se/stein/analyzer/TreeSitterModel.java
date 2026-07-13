@@ -53,6 +53,51 @@ public final class TreeSitterModel implements TokenizingModel {
     }
 
     /**
+     * The comments within the element's extent, in source order, walked straight off the CST the same
+     * way {@link #tokens} walks its leaves. Passing the file root yields every comment in the file.
+     */
+    @Override
+    public List<Fragment> extentComments(final Element e) {
+        final Fragment extent = e.getExtentFragment();
+        if (extent == null) {
+            return List.of();  // a naming scope has no source of its own
+        }
+        final List<Fragment> out = new ArrayList<>();
+        collectComments(covering(nodeOf(e), extent.getBegin(), extent.getEnd()), extent.getBegin(), extent.getEnd(), out);
+        return out;
+    }
+
+    private void collectComments(final TSNode node, final int begin, final int end, final List<Fragment> out) {
+        if (text.toCharIndex(node.getEndByte()) <= begin || text.toCharIndex(node.getStartByte()) >= end) {
+            return;  // entirely outside the range
+        }
+        if (language.isComment(node)) {
+            if (text.toCharIndex(node.getStartByte()) >= begin) {
+                out.add(exactFragment(node));
+            }
+            return;  // a comment's own children are not separate comments
+        }
+        for (int i = 0; i < node.getChildCount(); i++) {
+            collectComments(node.getChild(i), begin, end, out);
+        }
+    }
+
+    /**
+     * The nearest ancestor of {@code node} (or {@code node} itself) whose span covers {@code [begin, end)}.
+     */
+    private TSNode covering(final TSNode node, final int begin, final int end) {
+        TSNode cover = node;
+        while (text.toCharIndex(cover.getStartByte()) > begin || text.toCharIndex(cover.getEndByte()) < end) {
+            final TSNode parent = cover.getParent();
+            if (parent == null || parent.isNull()) {
+                break;
+            }
+            cover = parent;
+        }
+        return cover;
+    }
+
+    /**
      * Adds an element of the given kind and name under the parent, and returns it (so the engine can
      * nest members under it). A null {@code content} node marks a naming scope that is never rendered.
      */
@@ -63,7 +108,6 @@ public final class TreeSitterModel implements TokenizingModel {
             final Fragment core = language.coreFragment(this, content);
             final List<CommentAttachment.Node> comments = CommentAttachment.attached(new Sibling(content));
             e.setCoreFragment(core);
-            e.setComments(fragmentsOf(comments));
             e.setExtentFragment(extentOf(core, comments));
         }
         parent.addChild(e);
@@ -81,7 +125,6 @@ public final class TreeSitterModel implements TokenizingModel {
         final Fragment core = text.getFragment(text.toCharIndex(start.getStartByte()), text.toCharIndex(end.getEndByte()));
         final List<CommentAttachment.Node> comments = CommentAttachment.attached(new Sibling(start));
         e.setCoreFragment(core);
-        e.setComments(fragmentsOf(comments));
         e.setExtentFragment(extentOf(core, comments));
         parent.addChild(e);
         return e;
@@ -158,15 +201,7 @@ public final class TreeSitterModel implements TokenizingModel {
         final int begin = e.getCoreFragment().getBegin();
         final int end = e.getCoreFragment().getEnd();
         // walk from the nearest ancestor covering the whole range (the node itself, usually)
-        TSNode cover = node;
-        while (text.toCharIndex(cover.getStartByte()) > begin || text.toCharIndex(cover.getEndByte()) < end) {
-            final TSNode parent = cover.getParent();
-            if (parent == null || parent.isNull()) {
-                break;
-            }
-            cover = parent;
-        }
-        collectTokens(cover, frameOf(node), false, begin, end, out);
+        collectTokens(covering(node, begin, end), frameOf(node), false, begin, end, out);
         return out;
     }
 
@@ -221,10 +256,6 @@ public final class TreeSitterModel implements TokenizingModel {
         public Fragment fragment() {
             return exactFragment(node);
         }
-    }
-
-    private List<Fragment> fragmentsOf(final List<CommentAttachment.Node> comments) {
-        return comments.stream().map(CommentAttachment.Node::fragment).toList();
     }
 
     private Fragment extentOf(final Fragment core, final List<CommentAttachment.Node> comments) {

@@ -284,7 +284,7 @@ public class Historage implements BlobTranslator {
         }
         if (requiresComments) {
             for (int i = 0; i < modules.size(); i++) {
-                final String comment = modules.get(i).element.commentText();
+                final String comment = source.commentText(modules.get(i).element);
                 if (comment != null) {
                     out.add(HotEntry.of(entry.getMode(), filenames.get(i) + commentExtension,
                             comment.getBytes(StandardCharsets.UTF_8)));

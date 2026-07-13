@@ -3,7 +3,6 @@ package jp.ac.titech.c.se.stein.analyzer;
 import java.util.ArrayList;
 import java.util.List;
 
-import jp.ac.titech.c.se.stein.analyzer.util.FormatUtils;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import lombok.Getter;
 import lombok.Setter;
@@ -55,14 +54,6 @@ public class Element {
     private Fragment extentFragment;
 
     /**
-     * The comments attached to the element's declaration, as fragments of the decoded text in source
-     * order, or null when the analyzer has no notion of comments.
-     */
-    @Getter
-    @Setter
-    private List<Fragment> comments;
-
-    /**
      * The raw source text of this element with its attached comments ({@link #getExtentFragment}),
      * widened to whole lines.
      */
@@ -76,22 +67,6 @@ public class Element {
      */
     public String coreText() {
         return coreFragment.getWiderContent();
-    }
-
-    /**
-     * The comment text attached to this element's declaration ({@link #getComments}), each comment
-     * rendered de-indented, or null when the backend has no notion of comments. An empty string is a
-     * declaration that has no comment, distinct from null.
-     */
-    public String commentText() {
-        if (comments == null) {
-            return null;
-        }
-        final StringBuilder sb = new StringBuilder();
-        for (final Fragment c : comments) {
-            sb.append(FormatUtils.dedent(c.getWiderContent()));
-        }
-        return sb.toString();
     }
 
     /**

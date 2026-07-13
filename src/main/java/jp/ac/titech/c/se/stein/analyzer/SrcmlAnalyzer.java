@@ -143,6 +143,17 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
             return root;
         }
 
+        @Override
+        public List<Fragment> extentComments(final Element e) {
+            final Fragment extent = e.getExtentFragment();
+            if (extent == null) {
+                return List.of();
+            }
+            final List<Fragment> out = new ArrayList<>();
+            collectComments(unit, extent.getBegin(), extent.getEnd(), out);
+            return out;
+        }
+
         // --- element extraction (historage) ---
 
         private void walk(final org.w3c.dom.Element node, final Element parent) {
@@ -183,7 +194,6 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
                 nodes.put(e, dom);
                 e.setCoreFragment(text.getFragmentOfLines(startLine(dom), endLine(dom)));
                 final List<CommentAttachment.Node> comments = CommentAttachment.attached(new Sibling(dom));
-                e.setComments(comments.stream().map(CommentAttachment.Node::fragment).toList());
                 int extentStart = startLine(dom);
                 int extentEnd = endLine(dom);
                 for (final CommentAttachment.Node c : comments) {
@@ -248,6 +258,23 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
             public Fragment fragment() {
                 // srcML's end position is inclusive (the last character), so add one for an exclusive bound
                 return text.getFragment(offset(startLine(node), startCol(node)), offset(endLine(node), endCol(node) + 1));
+            }
+        }
+
+        private void collectComments(final org.w3c.dom.Element node, final int begin, final int end, final List<Fragment> out) {
+            for (Node ch = node.getFirstChild(); ch != null; ch = ch.getNextSibling()) {
+                if (!isElement(ch)) {
+                    continue;
+                }
+                final org.w3c.dom.Element e = (org.w3c.dom.Element) ch;
+                if (isComment(e)) {
+                    final Fragment c = text.getFragment(offset(startLine(e), startCol(e)), offset(endLine(e), endCol(e) + 1));
+                    if (c.getBegin() >= begin && c.getBegin() < end) {
+                        out.add(c);
+                    }
+                } else {
+                    collectComments(e, begin, end, out);
+                }
             }
         }
 

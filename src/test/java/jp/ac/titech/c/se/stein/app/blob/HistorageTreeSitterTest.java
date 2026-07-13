@@ -161,6 +161,28 @@ public class HistorageTreeSitterTest {
     }
 
     @Test
+    public void testCommentFileGathersEveryCommentInTheExtent() {
+        final Historage h = new Historage().backends(Historage.BackendType.ts);
+        h.requiresComments = true;
+        final AnyHotEntry result = h.rewriteBlobEntry(HotEntry.ofBlob("C.java", """
+                class C {
+                    /** doc */
+                    void m() {
+                        // inside the body
+                        run();
+                    }
+                }
+                """), c);
+        final Map<String, String> entries = result.stream()
+                .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));
+        // the comment file gathers every comment in the member's extent, not only its leading doc
+        assertEquals("""
+                /** doc */
+                // inside the body
+                """, entries.get("C#m().mjava.com"));
+    }
+
+    @Test
     public void testDocCommentRecognizedBeyondJava() {
         final Historage h = new Historage().backends(Historage.BackendType.ts);
         h.requiresComments = true;
