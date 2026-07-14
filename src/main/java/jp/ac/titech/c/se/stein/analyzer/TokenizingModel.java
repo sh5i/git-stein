@@ -13,7 +13,7 @@ public interface TokenizingModel extends SourceModel {
      * The leaf tokens of an element, in source order, each carrying its {@link Token#comment} and
      * {@link Token#frame} classification, so a consumer can keep or drop them by its own policy.
      */
-    List<Token> tokens(Element e);
+    List<Token> getTokens(Element e);
 
     /**
      * Walks the whole file's token stream, wrapping each extracted class/method/field element (by its

@@ -152,8 +152,8 @@ Options:
 - `--no-classes`: Exclude class files (`*.cjava`).
 - `--no-methods`: Exclude method files (`*.mjava`).
 - `--no-fields`: Exclude field files (`*.fjava`).
-- `--comments`: Include comment files (`*.?java.com`).
-- `--separate-comments`: Exclude comments from module files.
+- `--comment=<mode>`: Comment disposition: `keep` (default; kept in the module), `strip` (removed), `file` (moved to the `.com` side file), or `mirror` (in the side file and the module).
+- `--doc-comment=<mode>`: Doc comment (a declaration's leading/trailing comments) disposition: `include` (default) or `exclude`.
 - `--class-ext=<ext>`: Class file extension. _Default: .cjava_.
 - `--method-ext=<ext>`: Method file extension. _Default: .mjava_.
 - `--field-ext=<ext>`: Field file extension. _Default: .fjava_.

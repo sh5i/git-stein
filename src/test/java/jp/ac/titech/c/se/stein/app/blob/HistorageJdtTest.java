@@ -63,7 +63,7 @@ public class HistorageJdtTest {
 
     private Historage jdtWithSideFiles() {
         final Historage h = new Historage().backends(Historage.BackendType.jdt);
-        h.requiresComments = true;
+        h.commentMode = Historage.CommentMode.file;
         h.requiresMapping = true;
         h.requiresOriginals = false;
         return h;

@@ -227,8 +227,8 @@ public class HistorageTokenTest {
     }
 
     @Test
-    public void testCommentsAreSkipped() {
-        final String method = rewrite("C.java", """
+    public void testCommentDisposition() {
+        final String source = """
                 class C {
                     void m() {
                         // a line comment
@@ -236,7 +236,17 @@ public class HistorageTokenTest {
                         foo();
                     }
                 }
-                """).get("C#m().mjava");
+                """;
+        // by default a comment is a token like any other, kept in the stream
+        final String kept = rewrite("C.java", source).get("C#m().mjava");
+        assertTrue(kept.contains("comment"), kept);
+
+        // --comment=strip drops the comment tokens
+        final Historage h = tokenMode();
+        h.commentMode = Historage.CommentMode.strip;
+        final String method = h.rewriteBlobEntry(HotEntry.ofBlob("C.java", source), c).stream()
+                .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())))
+                .get("C#m().mjava");
         assertFalse(method.contains("comment"), method);
         // a call's own parentheses are kept (only the method frame is omitted)
         assertTrue(method.contains("( ARGUMENT_LIST_LPAREN\n"), method);

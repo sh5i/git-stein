@@ -2,6 +2,8 @@ package jp.ac.titech.c.se.stein.app.blob;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -19,7 +21,9 @@ import jp.ac.titech.c.se.stein.analyzer.Signature;
 import jp.ac.titech.c.se.stein.analyzer.SourceModel;
 import jp.ac.titech.c.se.stein.analyzer.Token;
 import jp.ac.titech.c.se.stein.analyzer.TokenizingModel;
+import jp.ac.titech.c.se.stein.analyzer.util.FormatUtils;
 import jp.ac.titech.c.se.stein.core.Context;
+import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
 import jp.ac.titech.c.se.stein.entry.AnyHotEntry;
 import jp.ac.titech.c.se.stein.entry.BlobEntry;
 import jp.ac.titech.c.se.stein.entry.HotEntry;
@@ -45,6 +49,19 @@ import picocli.CommandLine.Option;
 @Command(name = "@historage", description = "Generate finer-grained modules")
 public class Historage implements BlobTranslator {
     public enum BackendType { ts, jdt, srcml, ctags }
+
+    /**
+     * What becomes of a comment: {@code keep} it in the module, {@code strip} it entirely, {@code file}
+     * it into the comment side file (removed from the module), or {@code mirror} it into the side file
+     * while keeping it in the module.
+     */
+    public enum CommentMode { keep, strip, file, mirror }
+
+    /**
+     * Whether a declaration's leading and trailing doc comments are {@code include}d in its module (then
+     * governed by {@code --comment} like any comment) or {@code exclude}d from every module.
+     */
+    public enum DocCommentMode { include, exclude }
 
     /**
      * Whether to keep the original, unsplit file alongside the generated modules.
@@ -110,17 +127,20 @@ public class Historage implements BlobTranslator {
     protected boolean omitsFrame = true;
 
     /**
-     * Whether to emit, beside each module, a side file holding the comments attached to its declaration.
+     * What to do with each comment in a module: keep, strip, file (to the comment side file), or mirror
+     * (to the side file and keep). Applies to tree-sitter, jdt, and srcML.
      */
-    @Option(names = "--comments", description = "extract comment files (ts, jdt, srcml)")
-    protected boolean requiresComments = false;
+    @Option(names = "--comment", paramLabel = "<mode>",
+            description = "comment disposition: ${COMPLETION-CANDIDATES} (default: ${DEFAULT-VALUE})")
+    protected CommentMode commentMode = CommentMode.keep;
 
     /**
-     * Whether a module's own content excludes the comments attached to its declaration, leaving them
-     * only in the comment side file (tree-sitter, jdt).
+     * Whether a declaration's leading and trailing doc comments are included in its module (then governed
+     * by {@code --comment}) or excluded from every module. Applies to tree-sitter, jdt, and srcML.
      */
-    @Option(names = "--separate-comments", description = "exclude comments from modules (ts, jdt, srcml)")
-    protected boolean separatesComments = false;
+    @Option(names = "--doc-comment", paramLabel = "<mode>",
+            description = "doc comment disposition: ${COMPLETION-CANDIDATES} (default: ${DEFAULT-VALUE})")
+    protected DocCommentMode docCommentMode = DocCommentMode.include;
 
     /**
      * Whether to emit a mapping side file: one JSON record per module giving its file name and its line
@@ -282,13 +302,11 @@ public class Historage implements BlobTranslator {
             filenames.add(name);
             out.add(HotEntry.of(entry.getMode(), name, m.content.getBytes(StandardCharsets.UTF_8)));
         }
-        if (requiresComments) {
-            for (int i = 0; i < modules.size(); i++) {
-                final String comment = source.commentText(modules.get(i).element);
-                if (comment != null) {
-                    out.add(HotEntry.of(entry.getMode(), filenames.get(i) + commentExtension,
-                            comment.getBytes(StandardCharsets.UTF_8)));
-                }
+        for (int i = 0; i < modules.size(); i++) {
+            final List<Fragment> filed = modules.get(i).filed();
+            if (!filed.isEmpty()) {
+                out.add(HotEntry.of(entry.getMode(), filenames.get(i) + commentExtension,
+                        renderComments(filed).getBytes(StandardCharsets.UTF_8)));
             }
         }
         if (requiresMapping && !modules.isEmpty()) {
@@ -304,24 +322,85 @@ public class Historage implements BlobTranslator {
             if (e.hasContent() && wants(e.getKind())) {
                 final String basename = naming.basename(e);
                 final String extension = naming.extension(e.getKind(), e.getRawKind(), filename);
-                final String content = tokens ? tokenSequence((TokenizingModel) source, e)
-                        : source.moduleText(e, !(separatesComments || requiresComments));
-                out.add(new Generated(e, content, basename, extension));
+                final Disposition d = disposition(source, e);
+                final String content = tokens ? renderTokenSequence((TokenizingModel) source, e, d.dropped())
+                        : source.getModuleText(e, d.dropped());
+                out.add(new Generated(e, content, basename, extension, d.filed()));
             }
             collect(source, e, naming, filename, out);
         }
     }
 
     /**
-     * The FinerGit token sequence of an element: each leaf token on its own line, dropping comments and
-     * (with {@code --omit-frame}) frame tokens, and annotating each with its type when {@code --token-type}
-     * is set. Assembled here from the analyzer's neutral token stream, so the FinerGit rendering policy
-     * stays with this consumer.
+     * Splits an element's comments into the ones dropped from its module body and the ones filed to its
+     * comment side file, per {@code --comment} and {@code --doc-comment}. An excluded doc comment is
+     * dropped and not filed. When the backend has no notion of comments, both are empty.
      */
-    private String tokenSequence(final TokenizingModel analyzer, final Element e) {
+    private Disposition disposition(final SourceModel source, final Element e) {
+        final List<Fragment> dropped = new ArrayList<>();
+        final List<Fragment> filed = new ArrayList<>();
+        final List<Fragment> bodies = source.getBodyComments(e);
+        if (bodies != null) {
+            bodies.forEach(c -> route(commentMode, c, dropped, filed));
+        }
+        final List<Fragment> docs = source.getDocComments(e);
+        if (docs != null) {
+            for (final Fragment c : docs) {
+                if (docCommentMode == DocCommentMode.exclude) {
+                    dropped.add(c);  // gone: out of the module and not filed
+                } else {
+                    route(commentMode, c, dropped, filed);
+                }
+            }
+        }
+        return new Disposition(dropped, filed);
+    }
+
+    /**
+     * Routes one comment to the {@code dropped} and/or {@code filed} lists per the comment mode.
+     */
+    private static void route(final CommentMode mode, final Fragment c,
+                              final List<Fragment> dropped, final List<Fragment> filed) {
+        switch (mode) {
+            case keep -> { }                                // in the module, not filed
+            case strip -> dropped.add(c);                   // out of the module, not filed
+            case file -> { dropped.add(c); filed.add(c); }  // out of the module, filed
+            case mirror -> filed.add(c);                    // in the module, filed
+        }
+    }
+
+    /**
+     * An element's comments split by {@code --comment}/{@code --doc-comment}: {@code dropped} from the
+     * module body, {@code filed} to the comment side file.
+     */
+    private record Disposition(List<Fragment> dropped, List<Fragment> filed) {
+    }
+
+    /**
+     * The comment side file body: each comment de-indented, in source order.
+     */
+    private static String renderComments(final List<Fragment> comments) {
         final StringBuilder sb = new StringBuilder();
-        for (final Token t : analyzer.tokens(e)) {
-            if (t.comment() || (omitsFrame && t.frame())) {
+        comments.stream()
+                .sorted(Comparator.comparingInt(Fragment::getBegin))
+                .forEach(c -> sb.append(FormatUtils.dedent(c.getWiderContent())));
+        return sb.toString();
+    }
+
+    /**
+     * The FinerGit token sequence of an element: each leaf token on its own line, dropping the comment
+     * tokens the disposition removes from the module and (with {@code --omit-frame}) frame tokens, and
+     * annotating each with its type when {@code --token-type} is set. Assembled here from the analyzer's
+     * neutral token stream, so the FinerGit rendering policy stays with this consumer.
+     */
+    private String renderTokenSequence(final TokenizingModel analyzer, final Element e,
+                                       final Collection<Fragment> dropped) {
+        final StringBuilder sb = new StringBuilder();
+        for (final Token t : analyzer.getTokens(e)) {
+            if (t.comment() && isInRange(dropped, t.start())) {
+                continue;  // a comment token the disposition drops from the module
+            }
+            if (omitsFrame && t.frame()) {
                 continue;
             }
             sb.append(t.text());
@@ -331,6 +410,18 @@ public class Historage implements BlobTranslator {
             sb.append('\n');
         }
         return sb.toString();
+    }
+
+    /**
+     * Whether the position falls within any of the comment fragments.
+     */
+    private static boolean isInRange(final Collection<Fragment> comments, final int pos) {
+        for (final Fragment c : comments) {
+            if (pos >= c.getBegin() && pos < c.getEnd()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean wants(final Element.Kind kind) {
@@ -361,7 +452,8 @@ public class Historage implements BlobTranslator {
      * and the base name and extension a naming strategy produced. {@link #filename} assembles the file
      * name, inserting a {@code @index} conflict marker (when 2 or more) and truncating an over-long base.
      */
-    private record Generated(Element element, String content, String basename, String extension) {
+    private record Generated(Element element, String content, String basename, String extension,
+                             List<Fragment> filed) {
         String filename(final int index) {
             final String suffix = (index >= 2 ? "@" + index : "") + extension;
             final int budget = MAX_FILENAME_BYTES - suffix.getBytes(StandardCharsets.UTF_8).length;

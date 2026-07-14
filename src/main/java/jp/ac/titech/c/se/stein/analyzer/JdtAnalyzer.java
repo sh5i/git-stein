@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein.analyzer;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
@@ -13,6 +14,7 @@ import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants;
 
+import jp.ac.titech.c.se.stein.analyzer.util.FormatUtils;
 import jp.ac.titech.c.se.stein.core.Context;
 import jp.ac.titech.c.se.stein.core.SourceText;
 import jp.ac.titech.c.se.stein.core.SourceText.Fragment;
@@ -100,7 +102,7 @@ public class JdtAnalyzer implements Analyzer {
         }
 
         @Override
-        public List<Fragment> extentComments(final Element e) {
+        public List<Fragment> getExtentComments(final Element e) {
             final Fragment extent = e.getExtentFragment();
             if (extent == null) {
                 return List.of();
@@ -115,9 +117,30 @@ public class JdtAnalyzer implements Analyzer {
             return out;
         }
 
+        /**
+         * The element's body (its extent with {@code dropped} removed); with {@code --jdt-parsable} it is
+         * wrapped in its package declaration and, for a member, its enclosing class, so it parses on its own.
+         */
         @Override
-        public String moduleText(final Element e, final boolean withComments) {
-            return getContent(e, withComments);
+        public String getModuleText(final Element e, final Collection<Fragment> dropped) {
+            final BodyDeclaration node = nodes.get(e);
+            final String body = FormatUtils.stripComments(e.getExtentFragment(), dropped);
+            if (!parsable) {
+                return body;
+            }
+            final StringBuilder sb = new StringBuilder();
+            final PackageDeclaration pkg = unit.getPackage();
+            if (pkg != null) {
+                sb.append("package ").append(pkg.getName().getFullyQualifiedName()).append(";\n");
+            }
+            if (node instanceof TypeDeclaration) {
+                sb.append(body);
+            } else {
+                sb.append("class ").append(enclosingClass.get(e)).append(" {\n");
+                sb.append(body);
+                sb.append("}\n");
+            }
+            return sb.toString();
         }
 
         private final class Builder extends ASTVisitor {
@@ -202,43 +225,6 @@ public class JdtAnalyzer implements Analyzer {
         }
 
         // --- rendering ---
-
-        private String getContent(final Element e, final boolean withComments) {
-            final BodyDeclaration node = nodes.get(e);
-            if (!parsable) {
-                return getSource(e, withComments);
-            }
-            final StringBuilder sb = new StringBuilder();
-            final PackageDeclaration pkg = unit.getPackage();
-            if (pkg != null) {
-                sb.append("package ").append(pkg.getName().getFullyQualifiedName()).append(";\n");
-            }
-            if (node instanceof TypeDeclaration) {
-                sb.append(getSource(e, withComments));
-            } else {
-                sb.append("class ").append(enclosingClass.get(e)).append(" {\n");
-                sb.append(getSource(e, withComments));
-                sb.append("}\n");
-            }
-            return sb.toString();
-        }
-
-        private String getSource(final Element e, final boolean withComments) {
-            return withComments ? e.getExtentFragment().getWiderContent() : getSourceWithoutComments(e);
-        }
-
-        private String getSourceWithoutComments(final Element e) {
-            final Fragment fragment = e.getExtentFragment();
-            String source = fragment.getWiderContent();
-            final List<Fragment> comments = extentComments(e);
-            for (int i = comments.size() - 1; i >= 0; i--) {
-                final Fragment c = comments.get(i);
-                final int localStart = c.getWiderBegin() - fragment.getWiderBegin();
-                final int localEnd = c.getWiderEnd() - fragment.getWiderBegin();
-                source = source.substring(0, localStart) + source.substring(localEnd);
-            }
-            return source;
-        }
 
         // --- fragment helpers ---
 

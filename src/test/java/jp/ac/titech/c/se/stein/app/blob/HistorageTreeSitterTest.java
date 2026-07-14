@@ -11,6 +11,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -141,7 +143,7 @@ public class HistorageTreeSitterTest {
     @Test
     public void testBlockCommentDedented() {
         final Historage h = new Historage().backends(Historage.BackendType.ts);
-        h.requiresComments = true;
+        h.commentMode = Historage.CommentMode.file;
         final AnyHotEntry result = h.rewriteBlobEntry(HotEntry.ofBlob("C.java", """
                 class C {
                     /**
@@ -163,7 +165,7 @@ public class HistorageTreeSitterTest {
     @Test
     public void testCommentFileGathersEveryCommentInTheExtent() {
         final Historage h = new Historage().backends(Historage.BackendType.ts);
-        h.requiresComments = true;
+        h.commentMode = Historage.CommentMode.file;
         final AnyHotEntry result = h.rewriteBlobEntry(HotEntry.ofBlob("C.java", """
                 class C {
                     /** doc */
@@ -185,7 +187,7 @@ public class HistorageTreeSitterTest {
     @Test
     public void testDocCommentRecognizedBeyondJava() {
         final Historage h = new Historage().backends(Historage.BackendType.ts);
-        h.requiresComments = true;
+        h.commentMode = Historage.CommentMode.file;
         final AnyHotEntry result = h.rewriteBlobEntry(HotEntry.ofBlob("s.js", """
                 class C {
                     /** doc */
@@ -236,14 +238,69 @@ public class HistorageTreeSitterTest {
     @Test
     public void testComments() {
         final Historage withComments = new Historage().backends(Historage.BackendType.ts);
-        withComments.requiresComments = true;
+        withComments.commentMode = Historage.CommentMode.file;
         final AnyHotEntry result = withComments.rewriteBlobEntry(HotEntry.ofBlob("sample.py", SOURCE), c);
         final Map<String, String> entries = result.stream()
                 .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));
         // the leading comment run attaches to the def directly below it
         assertEquals("# あいさつ\n", entries.get("sample!top(a,b,+args,++kw).mpy.com"));
-        // a def with no comment still gets an (empty) comment file
-        assertEquals("", entries.get("sample!amain().mpy.com"));
+        // a def with no comment gets no comment file at all
+        assertNull(entries.get("sample!amain().mpy.com"));
+    }
+
+    private Map<String, String> historage(final Historage.CommentMode comment, final Historage.DocCommentMode doc,
+                                          final String source) {
+        final Historage h = new Historage().backends(Historage.BackendType.ts);
+        h.commentMode = comment;
+        h.docCommentMode = doc;
+        h.requiresOriginals = false;
+        return h.rewriteBlobEntry(HotEntry.ofBlob("C.java", source), c).stream()
+                .collect(Collectors.toMap(HotEntry::getName, e -> new String(((BlobEntry) e).getBlob())));
+    }
+
+    @Test
+    public void testCommentDispositionMatrix() {
+        final String src = """
+                class C {
+                    /** doc */
+                    void m() {
+                        // body
+                        run();
+                    }
+                }
+                """;
+        // keep (default): both comments stay in the module; no side file
+        final Map<String, String> keep = historage(Historage.CommentMode.keep, Historage.DocCommentMode.include, src);
+        assertTrue(keep.get("C#m().mjava").contains("/** doc */"));
+        assertTrue(keep.get("C#m().mjava").contains("// body"));
+        assertNull(keep.get("C#m().mjava.com"));
+
+        // strip: no comment survives anywhere
+        final Map<String, String> strip = historage(Historage.CommentMode.strip, Historage.DocCommentMode.include, src);
+        assertFalse(strip.get("C#m().mjava").contains("/** doc */"));
+        assertFalse(strip.get("C#m().mjava").contains("// body"));
+        assertNull(strip.get("C#m().mjava.com"));
+
+        // file: both comments leave the module for the side file
+        final Map<String, String> file = historage(Historage.CommentMode.file, Historage.DocCommentMode.include, src);
+        assertFalse(file.get("C#m().mjava").contains("/** doc */"));
+        assertFalse(file.get("C#m().mjava").contains("// body"));
+        assertEquals("/** doc */\n// body\n", file.get("C#m().mjava.com"));
+
+        // mirror: comments stay in the module and are also filed
+        final Map<String, String> mirror = historage(Historage.CommentMode.mirror, Historage.DocCommentMode.include, src);
+        assertTrue(mirror.get("C#m().mjava").contains("// body"));
+        assertEquals("/** doc */\n// body\n", mirror.get("C#m().mjava.com"));
+
+        // doc-comment=exclude drops the doc everywhere; the body follows --comment (kept here)
+        final Map<String, String> excl = historage(Historage.CommentMode.keep, Historage.DocCommentMode.exclude, src);
+        assertFalse(excl.get("C#m().mjava").contains("/** doc */"));
+        assertTrue(excl.get("C#m().mjava").contains("// body"));
+        assertNull(excl.get("C#m().mjava.com"));
+
+        // doc excluded (gone) while the body is filed: only the body reaches the side file
+        final Map<String, String> exclFile = historage(Historage.CommentMode.file, Historage.DocCommentMode.exclude, src);
+        assertEquals("// body\n", exclFile.get("C#m().mjava.com"));
     }
 
     @Test

@@ -20,7 +20,7 @@ import jp.ac.titech.c.se.stein.util.Names;
 /**
  * The per-file tree-sitter model: the decoded text, the parsed CST, and the element tree the
  * analyzer's detection engine populated, with each element's classified leaf-token stream recoverable
- * ({@link #tokens}). Each token's type is derived from the grammar alone (structural tokens are typed
+ * ({@link #getTokens}). Each token's type is derived from the grammar alone (structural tokens are typed
  * by the non-terminal that contains them, identifiers by the field they fill). Language-specific
  * decisions are not made here: they are delegated to the {@link QueryAnalyzer} that produced this
  * model.
@@ -54,10 +54,10 @@ public final class TreeSitterModel implements TokenizingModel {
 
     /**
      * The comments within the element's extent, in source order, walked straight off the CST the same
-     * way {@link #tokens} walks its leaves. Passing the file root yields every comment in the file.
+     * way {@link #getTokens} walks its leaves. Passing the file root yields every comment in the file.
      */
     @Override
-    public List<Fragment> extentComments(final Element e) {
+    public List<Fragment> getExtentComments(final Element e) {
         final Fragment extent = e.getExtentFragment();
         if (extent == null) {
             return List.of();  // a naming scope has no source of its own
@@ -67,6 +67,10 @@ public final class TreeSitterModel implements TokenizingModel {
         return out;
     }
 
+    /**
+     * Collects into {@code out}, in source order, the comment nodes under {@code node} that begin within
+     * {@code [begin, end)}.
+     */
     private void collectComments(final TSNode node, final int begin, final int end, final List<Fragment> out) {
         if (text.toCharIndex(node.getEndByte()) <= begin || text.toCharIndex(node.getStartByte()) >= end) {
             return;  // entirely outside the range
@@ -151,7 +155,7 @@ public final class TreeSitterModel implements TokenizingModel {
         regions.sort((x, y) -> x[0] != y[0] ? Integer.compare(x[0], y[0]) : Integer.compare(y[1], x[1]));
         final Deque<int[]> open = new ArrayDeque<>();
         int r = 0;
-        for (final Token t : tokens(root)) {
+        for (final Token t : getTokens(root)) {
             final int p = t.start();
             while (!open.isEmpty() && open.peek()[1] <= p) {
                 sink.end(Element.Kind.values()[open.pop()[2]]);
@@ -192,7 +196,7 @@ public final class TreeSitterModel implements TokenizingModel {
      * template header). Frame delimiters are flagged relative to the element's declaration node.
      */
     @Override
-    public List<Token> tokens(final Element e) {
+    public List<Token> getTokens(final Element e) {
         final List<Token> out = new ArrayList<>();
         final TSNode node = nodeOf(e);
         if (node == null) {

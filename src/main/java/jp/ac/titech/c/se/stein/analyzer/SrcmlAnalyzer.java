@@ -144,7 +144,7 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
         }
 
         @Override
-        public List<Fragment> extentComments(final Element e) {
+        public List<Fragment> getExtentComments(final Element e) {
             final Fragment extent = e.getExtentFragment();
             if (extent == null) {
                 return List.of();
@@ -261,6 +261,10 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
             }
         }
 
+        /**
+         * Collects into {@code out}, in document order, the {@code <comment>} elements under {@code node}
+         * that begin within {@code [begin, end)}.
+         */
         private void collectComments(final org.w3c.dom.Element node, final int begin, final int end, final List<Fragment> out) {
             for (Node ch = node.getFirstChild(); ch != null; ch = ch.getNextSibling()) {
                 if (!isElement(ch)) {
@@ -303,7 +307,7 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
         // --- tokens (historage token sequence, cregit) ---
 
         @Override
-        public List<Token> tokens(final Element e) {
+        public List<Token> getTokens(final Element e) {
             final List<Token> out = new ArrayList<>();
             if (e == root) {
                 collectTokens(unit, null, out);

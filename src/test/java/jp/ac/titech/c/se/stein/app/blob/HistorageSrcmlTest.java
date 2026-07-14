@@ -20,7 +20,7 @@ public class HistorageSrcmlTest {
     public void testAttachesComments() {
         assumeTrue(ProcessRunner.isAvailable("srcml"), "srcml not available");
         final Historage h = new Historage().backends(Historage.BackendType.srcml);
-        h.requiresComments = true;
+        h.commentMode = Historage.CommentMode.file;
         final AnyHotEntry result = h.rewriteBlobEntry(HotEntry.ofBlob("C.java", """
                 class C {
                     /** doc for m */
@@ -39,7 +39,7 @@ public class HistorageSrcmlTest {
     public void testDocCommentBindsAcrossBlankLine() {
         assumeTrue(ProcessRunner.isAvailable("srcml"), "srcml not available");
         final Historage h = new Historage().backends(Historage.BackendType.srcml);
-        h.requiresComments = true;
+        h.commentMode = Historage.CommentMode.file;
         final AnyHotEntry result = h.rewriteBlobEntry(HotEntry.ofBlob("C.java", """
                 class C {
                     /** doc */

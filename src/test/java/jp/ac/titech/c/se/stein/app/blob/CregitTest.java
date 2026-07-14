@@ -79,7 +79,7 @@ public class CregitTest {
         final byte[] blob = ("class A { String s = \"caf" + eacute + "\"; }").getBytes(StandardCharsets.UTF_8);
         final TokenizingModel a = new SrcmlAnalyzer().analyze("A.java", blob, Context.init());
         assertNotNull(a);
-        final String text = a.tokens(a.getRoot()).stream().map(Token::text).collect(Collectors.joining(" "));
+        final String text = a.getTokens(a.getRoot()).stream().map(Token::text).collect(Collectors.joining(" "));
         assertTrue(text.contains("caf" + eacute), text);   // U+00E9 intact
         assertFalse(text.contains(mojibake), text);         // no Latin-1 mis-decode of the UTF-8 bytes
     }
