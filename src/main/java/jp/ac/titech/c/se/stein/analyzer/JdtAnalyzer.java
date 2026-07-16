@@ -27,7 +27,7 @@ import picocli.CommandLine.Option;
  * wraps the compilation unit in a {@link Model}, so a broken or mid-refactor file still yields
  * whatever declarations JDT can recover.
  */
-public class JdtAnalyzer implements Analyzer {
+public class JdtAnalyzer implements ModelExtractor {
     /**
      * Whether a model renders each module in a form that is more likely to parse on its own.
      */
@@ -47,7 +47,7 @@ public class JdtAnalyzer implements Analyzer {
     }
 
     @Override
-    public SourceModel analyze(final String filename, final byte[] blob, final Context c) {
+    public SourceModel extract(final String filename, final byte[] blob, final Context c) {
         final SourceText text = SourceText.ofNormalized(blob);
         return new Model(filename, text, parse(text), parsable);
     }

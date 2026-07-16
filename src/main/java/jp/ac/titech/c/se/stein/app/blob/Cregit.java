@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 
 import jp.ac.titech.c.se.stein.analyzer.Analyzer;
+import jp.ac.titech.c.se.stein.analyzer.ModelExtractor;
 import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.TreeSitterAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.Element;
@@ -93,14 +94,14 @@ public class Cregit implements BlobTranslator {
         return this;
     }
 
-    private Analyzer.Tokenizing analyzer(final BackendType type) {
+    private ModelExtractor.Tokenizing analyzer(final BackendType type) {
         return switch (type) {
             case srcml -> srcmlAnalyzer;
             case ts -> tsAnalyzer;
         };
     }
 
-    private List<Analyzer.Tokenizing> orderedAnalyzers() {
+    private List<ModelExtractor.Tokenizing> orderedAnalyzers() {
         return backendNames.stream().map(this::analyzer).toList();
     }
 
@@ -109,12 +110,12 @@ public class Cregit implements BlobTranslator {
         if (!filter.accept(entry)) {
             return entry;
         }
-        final Analyzer.Tokenizing analyzer = Analyzer.pick(orderedAnalyzers(), entry.getName());
+        final ModelExtractor.Tokenizing analyzer = Analyzer.pick(orderedAnalyzers(), entry.getName());
         if (analyzer == null) {
             return entry;
         }
         log.debug("Generate cregit module for {} {}", entry, c);
-        final TokenizingModel model = analyzer.analyze(entry.getName(), entry.getBlob(), c);
+        final TokenizingModel model = analyzer.extract(entry.getName(), entry.getBlob(), c);
         return model == null ? entry : entry.update(convert(model, analyzer.languageOf(entry.getName())));
     }
 

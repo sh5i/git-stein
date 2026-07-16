@@ -45,7 +45,7 @@ public class CommentClassificationTest {
     public void testCommentTokensAreFlaggedInEveryLanguage() {
         final List<String> leaks = new ArrayList<>();
         for (final Case c : CASES) {
-            final TokenizingModel a = new TreeSitterAnalyzer().analyze(c.file, c.source.getBytes(), null);
+            final TokenizingModel a = new TreeSitterAnalyzer().extract(c.file, c.source.getBytes(), null);
             assertNotNull(a, c.file);
             final List<Token> tokens = a.getTokens(a.getRoot());
             for (final Token t : tokens) {

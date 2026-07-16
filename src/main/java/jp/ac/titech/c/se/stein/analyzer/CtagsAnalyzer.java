@@ -33,7 +33,7 @@ import picocli.CommandLine.Option;
  * keeps the source extension is shared with the app's naming strategy.
  */
 @Slf4j
-public class CtagsAnalyzer implements Analyzer {
+public class CtagsAnalyzer implements ModelExtractor {
     @Getter
     @Setter
     @Option(names = "--ctags-cmd", description = "ctags command path")
@@ -65,7 +65,7 @@ public class CtagsAnalyzer implements Analyzer {
     }
 
     @Override
-    public SourceModel analyze(final String filename, final byte[] blob, final Context c) {
+    public SourceModel extract(final String filename, final byte[] blob, final Context c) {
         final SourceText text = SourceText.ofNormalized(blob);
         final List<Model.LanguageObject> objects = runCtags(filename, text, c);
         return objects == null ? null : new Model(filename, text, objects);

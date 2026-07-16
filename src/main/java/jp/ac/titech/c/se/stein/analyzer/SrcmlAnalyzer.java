@@ -32,7 +32,7 @@ import picocli.CommandLine.Option;
  * would not map.
  */
 @Slf4j
-public class SrcmlAnalyzer implements Analyzer.Tokenizing {
+public class SrcmlAnalyzer implements ModelExtractor.Tokenizing {
     /**
      * The languages srcML handles.
      */
@@ -78,7 +78,7 @@ public class SrcmlAnalyzer implements Analyzer.Tokenizing {
     }
 
     @Override
-    public TokenizingModel analyze(final String filename, final byte[] blob, final Context c) {
+    public TokenizingModel extract(final String filename, final byte[] blob, final Context c) {
         final Language lang = languageOf(filename);
         if (lang == null) {
             return null;

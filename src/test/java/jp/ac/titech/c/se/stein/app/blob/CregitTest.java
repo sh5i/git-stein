@@ -77,7 +77,7 @@ public class CregitTest {
         // the blob is valid UTF-8; srcml must be told so (--src-encoding UTF-8), else it mis-decodes it
         // and the token text (and positions) are mangled
         final byte[] blob = ("class A { String s = \"caf" + eacute + "\"; }").getBytes(StandardCharsets.UTF_8);
-        final TokenizingModel a = new SrcmlAnalyzer().analyze("A.java", blob, Context.init());
+        final TokenizingModel a = new SrcmlAnalyzer().extract("A.java", blob, Context.init());
         assertNotNull(a);
         final String text = a.getTokens(a.getRoot()).stream().map(Token::text).collect(Collectors.joining(" "));
         assertTrue(text.contains("caf" + eacute), text);   // U+00E9 intact

@@ -49,7 +49,7 @@ public class StripComments implements BlobTranslator {
         if (analyzer.languageOf(entry.getName()) == null) {
             return entry;  // not a language we can parse
         }
-        final SourceModel model = analyzer.analyze(entry.getName(), entry.getBlob(), c);
+        final SourceModel model = analyzer.extract(entry.getName(), entry.getBlob(), c);
         if (model == null) {
             return entry;
         }

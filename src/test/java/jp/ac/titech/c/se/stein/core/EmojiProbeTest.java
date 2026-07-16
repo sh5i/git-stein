@@ -22,7 +22,7 @@ public class EmojiProbeTest {
     public void supplementaryCharDoesNotShiftLaterTokens() {
         final String emoji = new String(new byte[] { (byte) 0xF0, (byte) 0x9F, (byte) 0x8E, (byte) 0x89 }, StandardCharsets.UTF_8);
         final String src = "class C { String a = \"" + emoji + "\"; int later = 42; }";
-        final TokenizingModel a = new TreeSitterAnalyzer().analyze("C.java", src.getBytes(StandardCharsets.UTF_8), null);
+        final TokenizingModel a = new TreeSitterAnalyzer().extract("C.java", src.getBytes(StandardCharsets.UTF_8), null);
         final String tokens = a.getTokens(a.getRoot()).stream().map(Token::text).collect(Collectors.joining(" "));
         assertTrue(tokens.contains(emoji), tokens);           // the emoji itself is extracted intact
         assertTrue(tokens.contains("int later = 42"), tokens); // tokens after it are not shifted

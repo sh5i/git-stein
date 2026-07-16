@@ -11,9 +11,9 @@ import java.util.Map;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import jp.ac.titech.c.se.stein.analyzer.Analyzer;
 import jp.ac.titech.c.se.stein.analyzer.CtagsAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.JdtAnalyzer;
+import jp.ac.titech.c.se.stein.analyzer.ModelExtractor;
 import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.TreeSitterAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.Element;
@@ -208,7 +208,7 @@ public class Historage implements BlobTranslator {
      */
     private static final int MAX_FILENAME_BYTES = 255;
 
-    private List<Analyzer> analyzers;
+    private List<ModelExtractor> analyzers;
 
     /**
      * Selects the backends to try, in priority order (mainly for programmatic use); returns this.
@@ -226,7 +226,7 @@ public class Historage implements BlobTranslator {
 
     @Override
     public AnyHotEntry rewriteBlobEntry(final BlobEntry entry, final Context c) {
-        for (final Analyzer analyzer : analyzers()) {
+        for (final ModelExtractor analyzer : analyzers()) {
             if (handles(analyzer, entry.getName())) {
                 final AnyHotEntry.Set result = AnyHotEntry.set();
                 if (requiresOriginals) {
@@ -246,11 +246,11 @@ public class Historage implements BlobTranslator {
      * non-tokenizing analyzers (those that render raw source only) are dropped, and it is an error if
      * none remains.
      */
-    private List<Analyzer> analyzers() {
+    private List<ModelExtractor> analyzers() {
         if (analyzers == null) {
-            List<Analyzer> selected = backendNames.stream().map(this::analyzer).toList();
+            List<ModelExtractor> selected = backendNames.stream().map(this::analyzer).toList();
             if (tokens) {
-                selected = selected.stream().filter(a -> a instanceof Analyzer.Tokenizing).toList();
+                selected = selected.stream().filter(a -> a instanceof ModelExtractor.Tokenizing).toList();
                 if (selected.isEmpty()) {
                     throw new IllegalArgumentException(
                             "--tokens needs a tokenizing backend (ts or srcml); none of " + backendNames + " qualifies");
@@ -261,7 +261,7 @@ public class Historage implements BlobTranslator {
         return analyzers;
     }
 
-    private Analyzer analyzer(final BackendType backend) {
+    private ModelExtractor analyzer(final BackendType backend) {
         return switch (backend) {
             case ts -> tsAnalyzer;
             case jdt -> jdtAnalyzer;
@@ -274,15 +274,15 @@ public class Historage implements BlobTranslator {
      * Whether the analyzer handles the file. The ctags analyzer accepts any file, so the app's name
      * filter narrows it; the other analyzers know their own languages.
      */
-    private boolean handles(final Analyzer analyzer, final String filename) {
+    private boolean handles(final ModelExtractor analyzer, final String filename) {
         if (analyzer == ctagsAnalyzer) {
             return analyzer.accepts(filename) && filter.accept(filename);
         }
         return analyzer.accepts(filename);
     }
 
-    private List<? extends HotEntry> generateModules(final Analyzer analyzer, final BlobEntry entry, final Context c) {
-        final SourceModel source = analyzer.analyze(entry.getName(), entry.getBlob(), c);
+    private List<? extends HotEntry> generateModules(final ModelExtractor analyzer, final BlobEntry entry, final Context c) {
+        final SourceModel source = analyzer.extract(entry.getName(), entry.getBlob(), c);
         if (source == null) {
             return List.of();
         }

@@ -10,7 +10,7 @@ import jp.ac.titech.c.se.stein.core.Context;
  * {@link Language} claims the file handles it. It has no options; adding a language is a matter of
  * registering one more entry.
  */
-public class TreeSitterAnalyzer implements Analyzer.Tokenizing {
+public class TreeSitterAnalyzer implements ModelExtractor.Tokenizing {
     private static final List<QueryAnalyzer> LANGUAGES = List.of(
             new PythonAnalyzer(),
             new JavaAnalyzer(),
@@ -38,9 +38,9 @@ public class TreeSitterAnalyzer implements Analyzer.Tokenizing {
     }
 
     @Override
-    public TokenizingModel analyze(final String filename, final byte[] blob, final Context c) {
+    public TokenizingModel extract(final String filename, final byte[] blob, final Context c) {
         final QueryAnalyzer language = Analyzer.pick(LANGUAGES, filename);
-        return language == null ? null : language.analyze(filename, blob, c);
+        return language == null ? null : language.extract(filename, blob, c);
     }
 
     @Override

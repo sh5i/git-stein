@@ -46,7 +46,7 @@ import lombok.extern.slf4j.Slf4j;
  * once on first use.</p>
  */
 @Slf4j
-public abstract class QueryAnalyzer implements Analyzer.Tokenizing {
+public abstract class QueryAnalyzer implements ModelExtractor.Tokenizing {
     private final Language language;
 
     private final Supplier<TSLanguage> grammar;
@@ -79,7 +79,7 @@ public abstract class QueryAnalyzer implements Analyzer.Tokenizing {
     }
 
     @Override
-    public TokenizingModel analyze(final String filename, final byte[] blob, final Context c) {
+    public TokenizingModel extract(final String filename, final byte[] blob, final Context c) {
         final SourceText text = SourceText.ofNormalized(blob, language::decode);
         final TSNode treeRoot = parser.get().parseString(null, text.getContent()).getRootNode();
         if (treeRoot.hasError()) {
