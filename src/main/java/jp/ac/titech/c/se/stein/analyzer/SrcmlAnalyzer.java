@@ -158,7 +158,7 @@ public class SrcmlAnalyzer implements ModelExtractor.Tokenizing {
 
         private void walk(final org.w3c.dom.Element node, final Element parent) {
             for (Node ch = node.getFirstChild(); ch != null; ch = ch.getNextSibling()) {
-                if (!isElement(ch)) {
+                if (!isSrcElement(ch)) {
                     continue;
                 }
                 final org.w3c.dom.Element e = (org.w3c.dom.Element) ch;
@@ -174,7 +174,7 @@ public class SrcmlAnalyzer implements ModelExtractor.Tokenizing {
                     }
                     case "decl_stmt" -> {
                         for (Node d = e.getFirstChild(); d != null; d = d.getNextSibling()) {
-                            if (isElement(d, "decl")) {
+                            if (isSrcElement(d, "decl")) {
                                 element(Element.Kind.FIELD, Signature.of(leafName(nameOf((org.w3c.dom.Element) d))), parent, e);
                             }
                         }
@@ -267,7 +267,7 @@ public class SrcmlAnalyzer implements ModelExtractor.Tokenizing {
          */
         private void collectComments(final org.w3c.dom.Element node, final int begin, final int end, final List<Fragment> out) {
             for (Node ch = node.getFirstChild(); ch != null; ch = ch.getNextSibling()) {
-                if (!isElement(ch)) {
+                if (!isSrcElement(ch)) {
                     continue;
                 }
                 final org.w3c.dom.Element e = (org.w3c.dom.Element) ch;
@@ -288,7 +288,7 @@ public class SrcmlAnalyzer implements ModelExtractor.Tokenizing {
 
         private org.w3c.dom.Element prevElement(final Node node) {
             for (Node p = node.getPreviousSibling(); p != null; p = p.getPreviousSibling()) {
-                if (isElement(p)) {
+                if (isSrcElement(p)) {
                     return (org.w3c.dom.Element) p;
                 }
             }
@@ -297,7 +297,7 @@ public class SrcmlAnalyzer implements ModelExtractor.Tokenizing {
 
         private org.w3c.dom.Element nextElement(final Node node) {
             for (Node n = node.getNextSibling(); n != null; n = n.getNextSibling()) {
-                if (isElement(n)) {
+                if (isSrcElement(n)) {
                     return (org.w3c.dom.Element) n;
                 }
             }
@@ -425,7 +425,7 @@ public class SrcmlAnalyzer implements ModelExtractor.Tokenizing {
         private List<String> parameterTypes(final org.w3c.dom.Element parameterList) {
             final List<String> types = new ArrayList<>();
             for (Node p = parameterList.getFirstChild(); p != null; p = p.getNextSibling()) {
-                if (isElement(p, "parameter")) {
+                if (isSrcElement(p, "parameter")) {
                     final org.w3c.dom.Element decl = child((org.w3c.dom.Element) p, "decl");
                     final org.w3c.dom.Element type = decl == null ? null : child(decl, "type");
                     if (type != null) {
@@ -448,19 +448,33 @@ public class SrcmlAnalyzer implements ModelExtractor.Tokenizing {
 
         private org.w3c.dom.Element child(final org.w3c.dom.Element e, final String localName) {
             for (Node ch = e.getFirstChild(); ch != null; ch = ch.getNextSibling()) {
-                if (isElement(ch, localName)) {
+                if (isSrcElement(ch, localName)) {
                     return (org.w3c.dom.Element) ch;
                 }
             }
             return null;
         }
 
+        /**
+         * Whether the node is an element, of any srcML namespace. A token walk asks this: it owes the
+         * file every character, and the preprocessor's text is the file's too.
+         */
         private boolean isElement(final Node node) {
-            return node.getNodeType() == Node.ELEMENT_NODE && SRC_NS.equals(node.getNamespaceURI());
+            return node.getNodeType() == Node.ELEMENT_NODE;
         }
 
-        private boolean isElement(final Node node, final String localName) {
-            return isElement(node) && localName.equals(node.getLocalName());
+        /**
+         * Whether the node is an element of srcML's own source grammar. A walk that dispatches on element
+         * names asks this rather than {@link #isElement}: srcML gives the preprocessor a namespace of its
+         * own, where {@code <cpp:if>} and {@code <cpp:else>} are directives, not the language's
+         * {@code <if>} and {@code <else>}.
+         */
+        private boolean isSrcElement(final Node node) {
+            return isElement(node) && SRC_NS.equals(node.getNamespaceURI());
+        }
+
+        private boolean isSrcElement(final Node node, final String localName) {
+            return isSrcElement(node) && localName.equals(node.getLocalName());
         }
 
         // --- position helpers ---
