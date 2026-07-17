@@ -281,9 +281,14 @@ public final class TreeSitterModel implements TokenizingModel {
         // *comment node whose punctuation leaves are not themselves extra, so comment-ness propagates down
         final boolean comment = inComment || node.isExtra() || language.isComment(node);
         if (node.getChildCount() > 0) {
+            int pos = text.toCharIndex(node.getStartByte());
             for (int i = 0; i < node.getChildCount(); i++) {
-                collectTokens(node.getChild(i), frame, comment, begin, end, out);
+                final TSNode child = node.getChild(i);
+                collectGap(node, pos, text.toCharIndex(child.getStartByte()), comment, begin, end, out);
+                collectTokens(child, frame, comment, begin, end, out);
+                pos = text.toCharIndex(child.getEndByte());
             }
+            collectGap(node, pos, text.toCharIndex(node.getEndByte()), comment, begin, end, out);
             return;
         }
         if (node.isMissing()) {
@@ -296,6 +301,44 @@ public final class TreeSitterModel implements TokenizingModel {
         final TSPoint start = node.getStartPoint();
         out.add(new Token(text, category(node), start.getRow() + 1, start.getColumn() + 1,
                 this.text.toCharIndex(node.getStartByte()), comment, frame != null && isFrame(node, frame)));
+    }
+
+    /**
+     * Emits whatever source the grammar left between a node's children, so that no character reaches the
+     * stream only by luck of the grammar. A lexer may swallow a character without ever giving it a node
+     * -- a line continuation is the usual case, and tree-sitter drops it as inter-token whitespace in
+     * every language that has one -- and the file is owed it all the same: a consumer walking the token
+     * stream against the original source loses step at the first character that never arrives. Since the
+     * text has no node of its own, it is typed by the node enclosing it.
+     */
+    private void collectGap(final TSNode parent, final int from, final int to, final boolean comment,
+                            final int begin, final int end, final List<Token> out) {
+        final String content = text.getContent();
+        int start = from;
+        while (start < to && Character.isWhitespace(content.charAt(start))) {
+            start++;
+        }
+        int stop = to;
+        while (stop > start && Character.isWhitespace(content.charAt(stop - 1))) {
+            stop--;
+        }
+        if (start >= stop || start < begin || start >= end) {
+            return;
+        }
+        final String gap = content.substring(start, stop).replaceAll("[\\r\\n]+", " ");
+        final int line = text.getFragment(start, stop).getBeginLine();
+        final int column = start - text.getFragmentOfLines(line, line).getBegin() + 1;
+        out.add(new Token(gap, gapCategory(parent, gap), line, column, start, comment, false));
+    }
+
+    /**
+     * The type of a gap token: the symbol name of the text it holds, in the context of the node that
+     * encloses it, following the typing {@link #category} gives a leaf.
+     */
+    private String gapCategory(final TSNode parent, final String gap) {
+        final String context = parent.getType().toUpperCase(Locale.ROOT);
+        final String symbol = symbolName(gap);
+        return symbol == null ? context : context + "_" + symbol;
     }
 
     /**

@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * ({@link TokenizingModel#walkTokens}) are separate walks in every backend, so both are checked.</p>
  */
 public class TokenReconstructionTest {
+    private final TreeSitterAnalyzer ts = new TreeSitterAnalyzer();
     private final SrcmlAnalyzer srcml = new SrcmlAnalyzer();
 
     private static final String JAVA = """
@@ -55,6 +56,13 @@ public class TokenReconstructionTest {
                 log_it(x);
             #endif
                 return x * 2;
+            }
+            """;
+
+    private static final String SHELL = """
+            collect() {
+                git rev-list --all \\
+                    --reverse
             }
             """;
 
@@ -96,6 +104,16 @@ public class TokenReconstructionTest {
      */
     private static String squeeze(final String text) {
         return text.replaceAll("\\s+", "");
+    }
+
+    @Test
+    public void testTreeSitterReconstructsSource() {
+        assertReconstructs(ts, "A.java", JAVA);
+        // a macro's line continuations are source characters like any other
+        assertReconstructs(ts, "macro.c", C_MACRO);
+        assertReconstructs(ts, "compute.c", C_IFDEF);
+        // the off-side languages have continuations too
+        assertReconstructs(ts, "collect.sh", SHELL);
     }
 
     @Test
