@@ -24,13 +24,14 @@ public interface TokenizingModel extends SourceModel {
     /**
      * A visitor over the structured token stream: a class/method/field element opens with {@link
      * #begin} before its tokens and closes with {@link #end} after them, so a consumer such as cregit
-     * can wrap each declaration in {@code begin_}/{@code end_} markers.
+     * can wrap each declaration in {@code begin_}/{@code end_} markers. The element is passed whole, so
+     * a marker can name the declaration it opens, not just its kind.
      */
     interface TokenVisitor {
-        void begin(Element.Kind kind);
+        void begin(Element e);
 
         void token(Token token);
 
-        void end(Element.Kind kind);
+        void end(Element e);
     }
 }

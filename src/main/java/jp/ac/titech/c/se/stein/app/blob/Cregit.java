@@ -10,6 +10,7 @@ import jp.ac.titech.c.se.stein.analyzer.SrcmlAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.TreeSitterAnalyzer;
 import jp.ac.titech.c.se.stein.analyzer.Element;
 import jp.ac.titech.c.se.stein.analyzer.Language;
+import jp.ac.titech.c.se.stein.analyzer.Signature;
 import jp.ac.titech.c.se.stein.analyzer.Token;
 import jp.ac.titech.c.se.stein.analyzer.TokenizingModel;
 import jp.ac.titech.c.se.stein.core.Context;
@@ -129,8 +130,9 @@ public class Cregit implements BlobTranslator {
         marker(sb, "begin_unit|language:" + language.getName() + ";cregit-version:" + VERSION);
         model.walkTokens(new TokenizingModel.TokenVisitor() {
             @Override
-            public void begin(final Element.Kind kind) {
-                marker(sb, "begin_" + kind.name().toLowerCase(Locale.ROOT));
+            public void begin(final Element e) {
+                final String name = declaredName(e);
+                marker(sb, "begin_" + kindName(e) + (name.isEmpty() ? "" : "|" + name));
             }
 
             @Override
@@ -142,12 +144,32 @@ public class Cregit implements BlobTranslator {
             }
 
             @Override
-            public void end(final Element.Kind kind) {
-                marker(sb, "end_" + kind.name().toLowerCase(Locale.ROOT));
+            public void end(final Element e) {
+                marker(sb, "end_" + kindName(e));
             }
         });
         marker(sb, "end_unit");
         return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String kindName(final Element e) {
+        return e.getKind().name().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * The declaration a marker opens, as {@code name} or {@code name(param,param)} -- enough to tell
+     * overloads apart and to anchor a link, or empty when the analyzer recovered no name.
+     */
+    private String declaredName(final Element e) {
+        final Signature signature = e.getSignature();
+        if (signature == null || signature.name() == null) {
+            return "";
+        }
+        final StringBuilder sb = new StringBuilder(signature.name());
+        if (signature.parameters() != null) {
+            sb.append("(").append(String.join(",", signature.parameters())).append(")");
+        }
+        return sb.toString();
     }
 
     private void marker(final StringBuilder sb, final String line) {

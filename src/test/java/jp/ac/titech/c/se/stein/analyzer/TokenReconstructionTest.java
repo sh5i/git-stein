@@ -80,7 +80,7 @@ public class TokenReconstructionTest {
         final List<Token> walked = new ArrayList<>();
         model.walkTokens(new TokenizingModel.TokenVisitor() {
             @Override
-            public void begin(final Element.Kind kind) {
+            public void begin(final Element e) {
             }
 
             @Override
@@ -89,7 +89,7 @@ public class TokenReconstructionTest {
             }
 
             @Override
-            public void end(final Element.Kind kind) {
+            public void end(final Element e) {
             }
         });
         assertEquals(squeeze(source), squeeze(texts(walked)), filename + " via walkTokens");

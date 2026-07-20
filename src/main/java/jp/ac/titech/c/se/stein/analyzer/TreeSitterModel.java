@@ -149,38 +149,45 @@ public final class TreeSitterModel implements TokenizingModel {
      */
     @Override
     public void walkTokens(final TokenVisitor sink) {
-        final List<int[]> regions = new ArrayList<>();
+        final List<Region> regions = new ArrayList<>();
         collectRegions(root, regions, new HashSet<>());
         // outermost first at the same start, so nesting opens correctly
-        regions.sort((x, y) -> x[0] != y[0] ? Integer.compare(x[0], y[0]) : Integer.compare(y[1], x[1]));
-        final Deque<int[]> open = new ArrayDeque<>();
+        regions.sort((x, y) -> x.start() != y.start() ? Integer.compare(x.start(), y.start())
+                : Integer.compare(y.end(), x.end()));
+        final Deque<Region> open = new ArrayDeque<>();
         int r = 0;
         for (final Token t : getTokens(root)) {
             final int p = t.start();
-            while (!open.isEmpty() && open.peek()[1] <= p) {
-                sink.end(Element.Kind.values()[open.pop()[2]]);
+            while (!open.isEmpty() && open.peek().end() <= p) {
+                sink.end(open.pop().element());
             }
-            while (r < regions.size() && regions.get(r)[0] <= p) {
-                final int[] region = regions.get(r++);
-                if (region[1] > p) {
-                    sink.begin(Element.Kind.values()[region[2]]);
+            while (r < regions.size() && regions.get(r).start() <= p) {
+                final Region region = regions.get(r++);
+                if (region.end() > p) {
+                    sink.begin(region.element());
                     open.push(region);
                 }
             }
             sink.token(t);
         }
         while (!open.isEmpty()) {
-            sink.end(Element.Kind.values()[open.pop()[2]]);
+            sink.end(open.pop().element());
         }
     }
 
-    private void collectRegions(final Element e, final List<int[]> regions, final Set<Long> seen) {
+    /**
+     * An element's source range, paired with the element itself so a marker can name it.
+     */
+    private record Region(int start, int end, Element element) {
+    }
+
+    private void collectRegions(final Element e, final List<Region> regions, final Set<Long> seen) {
         for (final Element c : e.getChildren()) {
             if (c.hasContent()) {
                 final int start = c.getCoreFragment().getBegin();
                 final int end = c.getCoreFragment().getEnd();
                 if (seen.add((long) start << 32 | (end & 0xffffffffL))) {
-                    regions.add(new int[] {start, end, c.getKind().ordinal()});
+                    regions.add(new Region(start, end, c));
                 }
             }
             collectRegions(c, regions, seen);

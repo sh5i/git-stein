@@ -22,20 +22,20 @@ public class CregitTreeSitterTest {
     @Test
     public void testJavaTokenStream() {
         // one token per line as type|content; each class/method/field is wrapped in begin_/end_ by its
-        // source range, and each structural token is typed by its enclosing non-terminal (a method-body
-        // brace differs from a class-body brace)
+        // source range, the opening marker naming the declaration, and each structural token is typed by
+        // its enclosing non-terminal (a method-body brace differs from a class-body brace)
         assertEquals("""
                 begin_unit|language:Java;cregit-version:0.0.1
-                begin_class
+                begin_class|A
                 CLASS|class
                 CLASS_DECLARATION_NAME|A
                 CLASS_BODY_LBRACE|{
-                begin_field
+                begin_field|x
                 INT|int
                 VARIABLE_DECLARATOR_NAME|x
                 FIELD_DECLARATION_SEMICOLON|;
                 end_field
-                begin_method
+                begin_method|get()
                 INT|int
                 METHOD_DECLARATION_NAME|get
                 FORMAL_PARAMETERS_LPAREN|(
@@ -57,7 +57,7 @@ public class CregitTreeSitterTest {
         // unlike @historage --tokens, cregit keeps comments; the language name is in the header; a Python function
         // is a method, so its tokens are wrapped in begin_method/end_method
         final String py = convert("s.py", "def add(a, b):\n    # sum\n    return a + b\n");
-        assertTrue(py.startsWith("begin_unit|language:Python;cregit-version:0.0.1\nbegin_method\n"), py);
+        assertTrue(py.startsWith("begin_unit|language:Python;cregit-version:0.0.1\nbegin_method|add(a,b)\n"), py);
         assertTrue(py.contains("FUNCTION_DEFINITION_NAME|add\n"), py);
         assertTrue(py.contains("COMMENT|# sum\n"), py);
         // operators and punctuation are named from their characters and syntactic context
@@ -71,7 +71,7 @@ public class CregitTreeSitterTest {
         app.position = true;
         final String out = convert("A.java", "class A { int x; int get() { return x; } }");
         // structural markers carry a placeholder position; each token carries its 1-based line:column
-        assertTrue(out.startsWith("-:-|begin_unit|language:Java;cregit-version:0.0.1\n-:-|begin_class\n"), out);
+        assertTrue(out.startsWith("-:-|begin_unit|language:Java;cregit-version:0.0.1\n-:-|begin_class|A\n"), out);
         assertTrue(out.contains("\n1:1|CLASS|class\n"), out);
         assertTrue(out.contains("1:7|CLASS_DECLARATION_NAME|A\n"), out);
         assertTrue(out.endsWith("-:-|end_class\n-:-|end_unit\n"), out);
@@ -97,8 +97,8 @@ public class CregitTreeSitterTest {
         // own tokens rather than being shifted by the byte/char difference
         final String out = convert("A.java", "class A { String s = \"αβγ\"; int get() { return 1; } }");
         assertTrue(out.contains("αβγ"), out);                                          // multibyte preserved intact
-        assertTrue(out.contains("begin_field\nTYPE_NAME|String\n"), out);              // field opens on its own tokens
-        assertTrue(out.contains("begin_method\nINT|int\nMETHOD_DECLARATION_NAME|get\n"), out); // method opens after the multibyte
+        assertTrue(out.contains("begin_field|s\nTYPE_NAME|String\n"), out);              // field opens on its own tokens
+        assertTrue(out.contains("begin_method|get()\nINT|int\nMETHOD_DECLARATION_NAME|get\n"), out); // method opens after the multibyte
         assertTrue(out.contains("end_method\nCLASS_BODY_RBRACE|}\nend_class\nend_unit\n"), out);
     }
 

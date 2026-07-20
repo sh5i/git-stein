@@ -390,9 +390,10 @@ public class SrcmlAnalyzer implements ModelExtractor.Tokenizing {
                     if (kind == null) {
                         walkTokens(ch, sink);
                     } else {
-                        sink.begin(kind);
+                        final Element e = new Element(kind, markerSignature(kind, (org.w3c.dom.Element) ch));
+                        sink.begin(e);
                         walkTokens(ch, sink);
-                        sink.end(kind);
+                        sink.end(e);
                     }
                 }
             }
@@ -404,6 +405,22 @@ public class SrcmlAnalyzer implements ModelExtractor.Tokenizing {
                 final org.w3c.dom.Element parent = (org.w3c.dom.Element) node.getParentNode();
                 sink.token(new Token(trimmed, parent.getLocalName(), startLine(parent), startCol(parent), 0));
             }
+        }
+
+        /**
+         * The naming material for a token-stream marker, read straight off the srcML node the walk is
+         * on. A declaration statement names its first declarator, matching the single marker the walk
+         * opens for it.
+         */
+        private Signature markerSignature(final Element.Kind kind, final org.w3c.dom.Element e) {
+            if (kind == Element.Kind.METHOD) {
+                return methodSignature(e);
+            }
+            if (kind == Element.Kind.FIELD) {
+                final org.w3c.dom.Element decl = child(e, "decl");
+                return Signature.of(leafName(nameOf(decl == null ? e : decl)));
+            }
+            return Signature.of(leafName(nameOf(e)));
         }
 
         private Element.Kind kindOf(final String localName) {
