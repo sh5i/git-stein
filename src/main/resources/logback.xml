@@ -10,6 +10,10 @@
 
    <logger name="org.eclipse.jgit" level="INFO" />
 
+   <!-- Workaround for https://github.com/eclipse-jgit/jgit/issues/288: JGit reports at ERROR every
+        write lost to another thread writing the same object, which RepositoryAccess retries. -->
+   <logger name="org.eclipse.jgit.internal.storage.file.LooseObjects" level="OFF" />
+
    <root level="INFO">
      <appender-ref ref="STDOUT" />
    </root>
