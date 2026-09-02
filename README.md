@@ -40,7 +40,7 @@ Split Java files into method-level modules, then convert each to cregit format:
 ```
 $ git stein path/to/source-repo -o path/to/target-repo \
   @historage-jdt --no-original --no-classes \
-  @cregit --pattern='*.cjava' --ignore-case
+  @cregit --pattern='*.mjava' --ignore-case
 ```
 
 ### Using an external command
@@ -126,6 +126,8 @@ The git-stein supports three rewriting modes.
 - _transform_ mode (`<source> -o <target>`): given source and target repositories, rewriting objects in the source repository and storing them in the target repository.
 - _duplicate_ mode (`<source> -o <target> -d`): given a source repository and a path for the target repository, copying the source repository into the given path and applying overwrite mode to the target repository.
 
+In _overwrite_ mode, the original branches, tags, HEAD, and notes are backed up into the `refs/namespaces/git-stein.original/` namespace before the rewrite, so the pre-rewrite state can be recovered.
+
 
 ## Bundle Apps
 
@@ -140,8 +142,8 @@ Options:
 - `--no-original-ext`: Disuse original file extension.
 - `--no-sig`: Stop using signature (parameters) for generating filenames.
 - `--no-digest-sig`: Stop digesting signature.
-- `--module=<kind>,...`: Specify module kinds to include.
-- `--pattern=<glob>`: Specify the target files as a wildcard glob.
+- `--kind=<kind>,...`: Specify module kinds to include.
+- `--pattern=<glob>[;<glob>...]`: Specify the target files as wildcard globs.
 - `-i`, `--ignore-case`: Perform case-insensitive matching for the given pattern.
 - `-V`, `--invert-match`: Select non-matching items for targets.
 
@@ -161,6 +163,22 @@ Options:
 - `--digest-params`: Digest parameters.
 - `--unqualify`: Unqualify typenames.
 - `--parsable`: Generate more parsable files. Specifically, this option adds a package name declaration and a class declaration for method files.
+- `--mapping`: Extract a mapping file.
+- `--mapping-ext=<ext>`: Mapping file extension. _Default: .mapping_.
+
+#### @pretty
+Reformats `*.java` blobs with the [Eclipse JDT](https://projects.eclipse.org/projects/eclipse.jdt) code formatter.
+Blobs that are not Java, or that the formatter cannot parse, are left untouched.
+
+#### @redact
+Replaces secret text in blobs, in the manner of BFG's text replacement.
+Options:
+- `--rules=<file>`: JSON file of redaction rules.
+
+Options to limit the target:
+- `--pattern=<glob>[;<glob>...]`: Specify the target files as wildcard globs.
+- `-i`, `--ignore-case`: Perform case-insensitive matching for the given pattern.
+- `-V`, `--invert-match`: Select non-matching items for targets.
 
 #### @tokenize
 Splits lines in input files so that each line contains mostly one token using a simple regular expression.
@@ -173,6 +191,11 @@ More specifically, it rewrites all the line breaks into "\r" and inserts "\n" in
 #### @untokenize
 Decodes _LineToken_ files into the original one.
 
+Options to limit the target:
+- `--pattern=<glob>[;<glob>...]`: Specify the target files as wildcard globs.
+- `-i`, `--ignore-case`: Perform case-insensitive matching for the given pattern.
+- `-V`, `--invert-match`: Select non-matching items for targets.
+
 #### @convert
 A general-purpose blob converter via external runnables or HTTP Web API.
 
@@ -183,14 +206,14 @@ Options:
 - `--no-shell`: Do not wrap the command with `/bin/sh -c`.
 
 Options to limit the target:
-- `--pattern=<glob>`: Specify the target files as a wildcard glob.
+- `--pattern=<glob>[;<glob>...]`: Specify the target files as wildcard globs.
 - `-i`, `--ignore-case`: Perform case-insensitive matching for the given pattern.
 - `-V`, `--invert-match`: Select non-matching items for targets.
 
 #### @filter
 A blob filter by filename and/or file size.
 Options:
-- `--pattern=<glob>`: Specify the target files as a wildcard glob; remove non-matched files.
+- `--pattern=<glob>[;<glob>...]`: Specify the target files as wildcard globs; remove non-matched files.
 - `-i`, `--ignore-case`: Perform case-insensitive matching for the given pattern.
 - `--size=<num>{,K,M,G}`: The blob size threshold; remove files larger than this size.
 - `-V`, `--invert-match`: Select non-matching items for targets.
@@ -200,9 +223,10 @@ Converts source files to [cregit](https://github.com/dmgerman/tokenizers) format
 Options:
 - `--srcml=<cmd>`: Location of executable `srcml` command. _Default: srcml_.
 - `-l`, `--lang=<language>`: Target language (`C`, `C++`, `C#`, `Java`).
+- `--position`: Include each token's `line:column` position in the output.
 
 Options to limit the target:
-- `--pattern=<glob>`: Specify the target files as a wildcard glob.
+- `--pattern=<glob>[;<glob>...]`: Specify the target files as wildcard globs.
 - `-i`, `--ignore-case`: Perform case-insensitive matching for the given pattern.
 - `-V`, `--invert-match`: Select non-matching items for targets.
 
@@ -214,6 +238,11 @@ Prepends the original commit ID to each commit message.
 When applied after another transformation, the original (pre-transformation) commit ID is retrieved from Git notes.
 Options:
 - `--length=<num>`: Length of SHA1 hash. _Default: 40_.
+
+#### @mailmap
+Canonicalizes author and committer identities through a `.mailmap` file.
+Options:
+- `--mailmap=<file>`: The `.mailmap` file to use. _Default: `.mailmap` at HEAD_.
 
 #### @svn-metadata
 Attaches svn commit IDs into a Git repository generated by [svn2git](https://github.com/svn-all-fast-export/svn2git).
@@ -255,10 +284,48 @@ Options:
 - `--class=<class>`: Fully qualified class name of the rewriter.
 - `--args=<args>`: Arguments to pass to the rewriter.
 
+#### @strip-sign
+Removes GPG signatures and merge tags from commits and tags.
+
+#### @subdir
+Re-roots the history at a subdirectory, so that the subdirectory becomes the repository root.
+Options:
+- `-p`, `--path=<path>`: The subdirectory to become the new root.
+
+#### @skip-empty
+Drops commits whose tree is unchanged from their first parent, reconnecting the children of a dropped commit to its surviving ancestor.
+
+#### @filter-commit
+Keeps the commits matching the given metadata predicates and drops the rest, reconnecting the children of a dropped commit to its surviving ancestor.
+Options:
+- `--author=<regex>`: Keep commits whose author matches.
+- `--grep=<regex>`: Keep commits whose message matches.
+- `--since=<instant>`: Keep commits committed at or after this ISO instant.
+- `--until=<instant>`: Keep commits committed at or before this ISO instant.
+
+#### @linearize
+Keeps only the first-parent mainline of each ref, dropping the edges to the other parents of a merge.
+
 #### @id
 A no-op rewriter that copies all objects without transformation.
 Useful for verifying that the rewriting pipeline preserves repository content.
 
+
+## Large Objects
+
+JGit keeps an object smaller than its _stream-file threshold_ (50MB by default) in memory and streams
+anything larger. A tree cannot be streamed, so a repository with very large trees fails with
+`LargeObjectException` at the default threshold.
+The command-line tool raises the threshold to its maximum at startup, so no option is needed.
+
+The threshold is a process-wide JGit setting, so git-stein does not change it when it is used as a
+library. Set it yourself before rewriting:
+
+```java
+import jp.ac.titech.c.se.stein.core.RepositoryAccess;
+
+RepositoryAccess.setStreamFileThreshold(Integer.MAX_VALUE);
+```
 
 ## Parallel Rewriting
 
@@ -279,12 +346,17 @@ The number of threads can be specified explicitly (e.g., `-j4`) or left to defau
 
 Multiple commands can be listed on a single command line.
 They are applied sequentially as separate transformation steps.
+The whole pipeline runs inside the single target repository: each intermediate version is held under its own ref namespace, `refs/namespaces/git-stein.<N>/`.
+The first step reads the source repository, and the last step writes the final result to the target's ordinary refs.
 For example, with three commands `@A @B @C`:
 ```
-source → target/.git/.git-stein.1 → target/.git/.git-stein.2 → target
-         (@A)                        (@B)                        (@C)
+source → refs/namespaces/git-stein.1/ → refs/namespaces/git-stein.2/ → refs/heads/, refs/tags/, ...
+  (@A)                           (@B)                           (@C)
 ```
-Intermediate repositories (`.git-stein.N`) are bare repositories created under the target's `.git` directory.
+The staging namespaces are left in place after the run. They can be removed with:
+```
+$ git for-each-ref --format='%(refname)' 'refs/namespaces/git-stein.[0-9]*/**' | xargs -n1 git update-ref -d
+```
 
 As an optimization, consecutive blob translators are composed into a single pass rather than creating intermediate repositories for each one.
 This behavior can be disabled with `--no-composite`.
@@ -292,7 +364,7 @@ For example, the following runs `@historage-jdt` and `@cregit` as a single compo
 ```
 $ git stein path/to/repo -o path/to/out \
   @historage-jdt --no-original --no-classes \
-  @cregit --pattern='*.cjava' --ignore-case \
+  @cregit --pattern='*.mjava' --ignore-case \
   @note-commit
 ```
 
@@ -316,7 +388,7 @@ git-stein uses three notes refs:
 and `refs/notes/commits` points to the same object as `git-stein-orig` (visible in `git log` by default).
 For a single transformation, all three refs point to the same notes object.
 In a chained transformation (see [Chaining Commands](#chaining-commands)), `git-stein-prev` and `git-stein-orig` may differ.
-For example, in `.git-stein.2`, `git-stein-prev` points to the commit in `.git-stein.1`, while `git-stein-orig` points to the commit in the original source.
+For example, in the second stage of a pipeline, `git-stein-prev` points to the commit produced by the first stage, while `git-stein-orig` points to the commit in the original source.
 
 If `--no-notes` is used, no notes are written, and incremental transformation will not be available on subsequent runs.
 The target will be fully rewritten each time.
