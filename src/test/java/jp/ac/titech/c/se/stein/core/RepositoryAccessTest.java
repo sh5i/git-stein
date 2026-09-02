@@ -1,6 +1,7 @@
 package jp.ac.titech.c.se.stein.core;
 
 import jp.ac.titech.c.se.stein.entry.Entry;
+import org.eclipse.jgit.errors.ObjectWritingException;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
 import org.eclipse.jgit.lib.*;
@@ -10,6 +11,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -284,5 +287,35 @@ public class RepositoryAccessTest {
 
         // non-existent ref returns empty
         assertTrue(ra.collectCommits("refs/heads/nonexistent").isEmpty());
+    }
+
+    @Test
+    public void testInsertRetriesAConcurrentObjectWrite() {
+        // a losing race against another thread writing the same object surfaces as
+        // ObjectWritingException (eclipse-jgit/jgit#288); the retry finds the object in place
+        final int[] attempts = {0};
+        final ObjectId id = ra.insert(ins -> {
+            if (attempts[0]++ == 0) {
+                throw new ObjectWritingException("Unable to create new object: whatever");
+            }
+            return ins.insert(Constants.OBJ_BLOB, HELLO);
+        }, c);
+        flush();
+
+        assertEquals(2, attempts[0]);
+        assertArrayEquals(HELLO, ra.readBlob(id));
+    }
+
+    @Test
+    public void testInsertDoesNotRetryOtherFailures() {
+        // only the concurrent-write collision is spurious; anything else is the caller's to see
+        final int[] attempts = {0};
+        final UncheckedIOException e = assertThrows(UncheckedIOException.class, () -> ra.insert(ins -> {
+            attempts[0]++;
+            throw new IOException("disk on fire");
+        }, c));
+
+        assertEquals(1, attempts[0]);
+        assertEquals("disk on fire", e.getCause().getMessage());
     }
 }

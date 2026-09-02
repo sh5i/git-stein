@@ -1,5 +1,6 @@
 package jp.ac.titech.c.se.stein.core;
 
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,6 +12,7 @@ import jp.ac.titech.c.se.stein.entry.Entry;
 import jp.ac.titech.c.se.stein.jgit.RevWalk;
 import jp.ac.titech.c.se.stein.jgit.TreeFormatter;
 import lombok.Getter;
+import org.eclipse.jgit.errors.ObjectWritingException;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.notes.Note;
 import org.eclipse.jgit.notes.NoteMap;
@@ -510,8 +512,29 @@ public class RepositoryAccess implements AutoCloseable {
     /**
      * Executes an insert operation, using the inserter from the context if available,
      * or creating a new one otherwise.
+     *
+     * @param f              the insert operation to execute
+     * @param writingContext the context whose inserter is used when it carries one
+     * @return the result of the insert operation
      */
     public <R> R insert(final IOThrowableFunction<ObjectInserter, R> f, final Context writingContext) {
+        try {
+            return doInsert(f, writingContext);
+        } catch (final UncheckedIOException e) {
+            if (!(e.getCause() instanceof ObjectWritingException)) {
+                throw e;
+            }
+            // Workaround for https://github.com/eclipse-jgit/jgit/issues/288: a write lost to another
+            // thread writing the same object fails on Windows. The object is already in place, so
+            // the retry finds it and succeeds.
+            return doInsert(f, writingContext);
+        }
+    }
+
+    /**
+     * Performs one insert attempt.
+     */
+    private <R> R doInsert(final IOThrowableFunction<ObjectInserter, R> f, final Context writingContext) {
         final ObjectInserter inserterContext = writingContext.getInserter();
         if (inserterContext != null) {
             return Try.io(f).apply(inserterContext);
