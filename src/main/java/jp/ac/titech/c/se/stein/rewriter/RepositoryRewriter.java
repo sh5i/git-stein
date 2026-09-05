@@ -194,15 +194,17 @@ public class RepositoryRewriter implements RewriterCommand {
             rewriteCommits(walk, uc);
             updateRefs(uc);
             if (isTrackingNotes) {
-                prevNotes.write(R_NOTES_PREV, uc);
+                final ObjectId prev = prevNotes.write(R_NOTES_PREV, uc);
+                final ObjectId orig;
                 if (isChained) {
-                    origNotes.write(R_NOTES_ORIG, uc);
+                    orig = origNotes.write(R_NOTES_ORIG, uc);
                 } else {
                     // Single transformation: orig = prev, share the same ref
-                    target.applyRefUpdate(RefEntry.of(R_NOTES_ORIG, target.getRef(R_NOTES_PREV).id));
+                    orig = prev;
+                    target.applyRefUpdate(RefEntry.of(R_NOTES_ORIG, orig));
                 }
                 // Default notes = orig (for git log display)
-                target.applyRefUpdate(RefEntry.of(Constants.R_NOTES_COMMITS, target.getRef(R_NOTES_ORIG).id));
+                target.applyRefUpdate(RefEntry.of(Constants.R_NOTES_COMMITS, orig));
             }
         } finally {
             final long blobHit = blobCacheHits.get(), blobMiss = blobCacheMisses.get();

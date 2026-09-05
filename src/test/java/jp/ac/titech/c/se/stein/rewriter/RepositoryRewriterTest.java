@@ -88,4 +88,21 @@ public class RepositoryRewriterTest {
             assertNull(dst.repo.getRefDatabase().exactRef("refs/notes/commits"));
         }
     }
+
+    @Test
+    public void testDryRunWritesNothingAndDoesNotThrow() throws IOException {
+        try (RepositoryAccess src = TestRepo.createSample();
+             RepositoryAccess dst = TestRepo.create()) {
+            final RepositoryRewriter rewriter = new Identity();
+            final Application.Config config = new Application.Config();
+            config.isDryRunning = true;                     // notes stay enabled
+            rewriter.setConfig(config);
+            rewriter.initialize(src.repo, dst.repo);
+            rewriter.useDefaultScope();
+            // a dry run writes no ref, so nothing it wrote can be read back
+            rewriter.rewrite(Context.init());
+            assertTrue(dst.getRefs().isEmpty());
+            assertNull(dst.repo.getRefDatabase().exactRef("refs/notes/commits"));
+        }
+    }
 }

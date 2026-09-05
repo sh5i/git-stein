@@ -435,15 +435,26 @@ public class RepositoryAccess implements AutoCloseable {
 
     /**
      * Writes notes to the default notes ref ({@code refs/notes/commits}).
+     *
+     * @param notes          the notes to write
+     * @param writingContext the context to write in
+     * @return the id of the commit the ref was pointed at
      */
-    public void writeNotes(final NoteMap notes, final Context writingContext) {
-        writeNotes(notes, Constants.R_NOTES_COMMITS, writingContext);
+    public ObjectId writeNotes(final NoteMap notes, final Context writingContext) {
+        return writeNotes(notes, Constants.R_NOTES_COMMITS, writingContext);
     }
 
     /**
-     * Writes notes to the specified ref.
+     * Writes notes to the specified ref. The returned id is the caller's copy of what the ref was
+     * pointed at: a dry run computes it without writing anything, so it must not be read back from
+     * the repository.
+     *
+     * @param notes          the notes to write
+     * @param ref            the notes ref to point at them
+     * @param writingContext the context to write in
+     * @return the id of the commit the ref was pointed at
      */
-    public void writeNotes(final NoteMap notes, final String ref, final Context writingContext) {
+    public ObjectId writeNotes(final NoteMap notes, final String ref, final Context writingContext) {
         final ObjectId treeId = isDryRunning ? ObjectId.zeroId() : insert(notes::writeTree, writingContext);
         // TODO building PersonIdent better.
         final PersonIdent ident = new PersonIdent(repo);
@@ -451,6 +462,7 @@ public class RepositoryAccess implements AutoCloseable {
         final ObjectId commit = writeCommit(NO_PARENTS, treeId, ident, ident, message, writingContext);
 
         applyRefUpdate(RefEntry.of(ref, commit));
+        return commit;
     }
 
     /**

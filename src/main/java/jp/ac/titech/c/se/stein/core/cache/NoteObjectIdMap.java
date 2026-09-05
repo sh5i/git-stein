@@ -65,9 +65,13 @@ public class NoteObjectIdMap {
 
     /**
      * Writes the notes to the repository under the given ref.
+     *
+     * @param ref the notes ref to write to
+     * @param c   the context to write in
+     * @return the id of the commit the ref was pointed at
      */
-    public void write(String ref, Context c) {
-        ra.writeNotes(notes, ref, c);
+    public ObjectId write(String ref, Context c) {
+        return ra.writeNotes(notes, ref, c);
     }
 
     private static ObjectId parseObjectId(byte[] body) {
