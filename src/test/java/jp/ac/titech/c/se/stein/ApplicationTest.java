@@ -131,6 +131,55 @@ public class ApplicationTest {
         return dir;
     }
 
+    @Test
+    public void testDryRunLeavesTheTargetAlone() throws Exception {
+        // a dry run must not create the destination, nor clean an existing one
+        final File targetDir = freshTargetDir();
+        runIdentity(targetDir, app -> app.conf.isDryRunning = true);
+        assertFalse(targetDir.exists(), "a dry run must not create the destination");
+
+        assertTrue(targetDir.mkdirs());
+        final File precious = new File(targetDir, "precious.txt");
+        Files.writeString(precious.toPath(), "keep me");
+        runIdentity(targetDir, app -> {
+            app.conf.isDryRunning = true;
+            app.conf.output.isCleaningEnabled = true;
+        });
+        assertTrue(precious.exists(), "--clean must not delete anything during a dry run");
+        FileUtils.deleteDirectory(targetDir);
+    }
+
+    @Test
+    public void testDryRunLeavesAnInPlaceRepositoryAlone() throws Exception {
+        final File dir = freshTargetDir();
+        FileUtils.copyDirectory(source.repo.getWorkTree(), dir);
+        try (FileRepository repo = open(dir)) {
+            final ObjectId head = repo.resolve("HEAD");
+            final int refs = repo.getRefDatabase().getRefs().size();
+
+            final Application app = new Application();
+            app.conf.source = dir;                       // in place: no -o
+            app.conf.isDryRunning = true;
+            app.rewriters.add(new Identity());
+            app.call();
+
+            // neither the original-ref backup nor the rewrite itself may touch the repository
+            assertEquals(refs, repo.getRefDatabase().getRefs().size());
+            assertEquals(head, repo.resolve("HEAD"));
+        }
+        FileUtils.deleteDirectory(dir);
+    }
+
+    private void runIdentity(final File targetDir, final java.util.function.Consumer<Application> tweak) throws Exception {
+        final Application app = new Application();
+        app.conf.source = source.repo.getWorkTree();
+        app.conf.output = new Application.Config.OutputOptions();
+        app.conf.output.target = targetDir;
+        app.rewriters.add(new Identity());
+        tweak.accept(app);
+        app.call();
+    }
+
     private void runIdentityPipeline(final File targetDir) throws Exception {
         final Application app = new Application();
         app.conf.source = source.repo.getWorkTree();

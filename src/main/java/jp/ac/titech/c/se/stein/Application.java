@@ -185,11 +185,11 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
             log.info("Completed rewriting in {} ms", Duration.between(start, finish).toMillis());
             final boolean isLast = index == rewriters.size() - 1;
             // Every stage shares one object store, so pack and check out once, after the final stage.
-            if (conf.isPackingEnabled && isLast) {
+            if (conf.isPackingEnabled && isLast && !conf.isDryRunning) {
                 log.info("Packing objects in {}...", targetRepo.getDirectory());
                 new PorcelainAPI(targetRepo).repack();
             }
-            if (!conf.isBare && isLast) {
+            if (!conf.isBare && isLast && !conf.isDryRunning) {
                 log.info("Checking out HEAD of {}...", targetRepo.getDirectory());
                 new PorcelainAPI(targetRepo).checkout();
             }
@@ -207,14 +207,17 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
      * final result back to the root namespace. Staging namespaces are left in place.</p>
      */
     protected void openRepositories(final StageConsumer f) throws IOException {
+        // A dry run must leave both repositories exactly as it found them, so every step that
+        // touches the target -- creating, cleaning, duplicating, backing up, packing, checking out --
+        // is skipped. Suppressing the object and ref writes alone is not enough.
         // cleaning
-        if (conf.output != null && conf.output.isCleaningEnabled && conf.output.target.exists()) {
+        if (conf.output != null && conf.output.isCleaningEnabled && conf.output.target.exists() && !conf.isDryRunning) {
             log.info("Delete directory: {}", conf.output.target);
             FileUtils.deleteDirectory(conf.output.target);
         }
 
         // target -> target (duplicate mode)
-        if (conf.output != null && conf.output.isDuplicating) {
+        if (conf.output != null && conf.output.isDuplicating && !conf.isDryRunning) {
             log.info("Duplicate repository: {} -> {}", conf.source, conf.output.target);
             FileUtils.copyDirectory(conf.source, conf.output.target);
         }
@@ -222,9 +225,11 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
         final File target = conf.output != null ? conf.output.target : conf.source;
         final boolean isInPlace = target.equals(conf.source);
 
-        try (final FileRepository targetRepo = createRepository(target, conf.isBare, true)) {
+        try (final FileRepository targetRepo = createRepository(target, conf.isBare, !conf.isDryRunning)) {
             if (isInPlace) {
-                backupOriginalRefs(targetRepo);
+                if (!conf.isDryRunning) {
+                    backupOriginalRefs(targetRepo);
+                }
                 runPipeline(f, targetRepo, targetRepo);
             } else {
                 try (final FileRepository sourceRepo = createRepository(conf.source, conf.isBare, false)) {
