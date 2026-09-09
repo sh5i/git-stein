@@ -2,6 +2,7 @@ package jp.ac.titech.c.se.stein;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -207,13 +208,22 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
      * final result back to the root namespace. Staging namespaces are left in place.</p>
      */
     protected void openRepositories(final StageConsumer f) throws IOException {
+        final File target = conf.output != null ? conf.output.target : conf.source;
+        final boolean isInPlace = canonical(target).equals(canonical(conf.source));
+
         // A dry run must leave both repositories exactly as it found them, so every step that
         // touches the target -- creating, cleaning, duplicating, backing up, packing, checking out --
         // is skipped. Suppressing the object and ref writes alone is not enough.
         // cleaning
-        if (conf.output != null && conf.output.isCleaningEnabled && conf.output.target.exists() && !conf.isDryRunning) {
-            log.info("Delete directory: {}", conf.output.target);
-            FileUtils.deleteDirectory(conf.output.target);
+        if (conf.output != null && conf.output.isCleaningEnabled && target.exists() && !conf.isDryRunning) {
+            // deleting a destination that holds the source would take the source with it
+            if (canonical(conf.source).startsWith(canonical(target))) {
+                throw new IllegalArgumentException(isInPlace
+                        ? "--clean would delete the source repository " + conf.source
+                        : "--clean would delete " + target + ", which holds the source repository " + conf.source);
+            }
+            log.info("Delete directory: {}", target);
+            FileUtils.deleteDirectory(target);
         }
 
         // target -> target (duplicate mode)
@@ -221,9 +231,6 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
             log.info("Duplicate repository: {} -> {}", conf.source, conf.output.target);
             FileUtils.copyDirectory(conf.source, conf.output.target);
         }
-
-        final File target = conf.output != null ? conf.output.target : conf.source;
-        final boolean isInPlace = target.equals(conf.source);
 
         try (final FileRepository targetRepo = createRepository(target, conf.isBare, !conf.isDryRunning)) {
             if (isInPlace) {
@@ -237,6 +244,16 @@ public class Application implements Callable<Integer>, CommandLine.IExecutionStr
                 }
             }
         }
+    }
+
+    /**
+     * The given file as a canonical path, so that two names for the same directory compare equal. A
+     * relative path, an absolute path, and a symbolic link all denote the same repository, and a plain
+     * name comparison would take them for different ones -- letting an in-place rewrite run without its
+     * backup, and {@code --clean} delete the repository it was asked to read.
+     */
+    private static Path canonical(final File file) throws IOException {
+        return file.getCanonicalFile().toPath();
     }
 
     /**

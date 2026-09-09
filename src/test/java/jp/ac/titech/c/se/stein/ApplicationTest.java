@@ -125,6 +125,42 @@ public class ApplicationTest {
         }
     }
 
+    @Test
+    public void testCleanRefusesToDeleteTheSource() throws Exception {
+        try (RepositoryAccess repo = TestRepo.createSample(true)) {
+            final File dir = repo.repo.getWorkTree();
+            for (final File destination : List.of(dir, dir.getParentFile(), new File(dir, "."))) {
+                final Application app = new Application();
+                app.conf.source = dir;
+                app.conf.output = new Application.Config.OutputOptions();
+                app.conf.output.target = destination;
+                app.conf.output.isCleaningEnabled = true;
+                app.rewriters.add(new Identity());
+                assertThrows(IllegalArgumentException.class, app::call, destination.toString());
+            }
+            assertNotNull(repo.repo.resolve("refs/heads/main"), "the source must survive");
+        }
+    }
+
+    @Test
+    public void testInPlaceIsRecognizedThroughAnotherSpelling() throws Exception {
+        try (RepositoryAccess repo = TestRepo.createSample(true)) {
+            final ObjectId origMain = repo.repo.resolve("refs/heads/main");
+
+            final Application app = new Application();
+            app.conf.source = repo.repo.getWorkTree();
+            app.conf.output = new Application.Config.OutputOptions();
+            app.conf.output.target = new File(repo.repo.getWorkTree(), ".");  // the same directory
+            app.conf.isAddingNotes = false;
+            app.rewriters.add(new Identity());
+            app.call();
+
+            // naming the destination differently must not cost the repository its backup
+            assertEquals(origMain, repo.repo.getRefDatabase()
+                    .exactRef("refs/namespaces/git-stein.original/refs/heads/main").getObjectId());
+        }
+    }
+
     private File freshTargetDir() throws IOException {
         final File dir = Files.createTempDirectory("git-stein-pipeline").toFile();
         Files.delete(dir.toPath());
