@@ -23,5 +23,5 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        files: build/libs/git-stein-*.jar
+        files: build/libs/git-stein-${{ github.ref_name }}.jar
         generate_release_notes: true
